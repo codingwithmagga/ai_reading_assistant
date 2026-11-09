@@ -4,6 +4,7 @@ from pathlib import Path
 from app.extraction_schemas import ChapterParagraph, KnownEntity
 
 _SYSTEM_PROMPT_PATH = Path(__file__).parent / "prompts" / "extraction_system.txt"
+DEFAULT_OUTPUT_LANGUAGE = "de"
 
 
 def load_extraction_system_prompt() -> str:
@@ -15,7 +16,7 @@ def build_chapter_input(
     chapter_title: str | None,
     paragraphs: list[ChapterParagraph],
     known_entities: list[KnownEntity],
-    output_language: str = "de",
+    output_language: str = DEFAULT_OUTPUT_LANGUAGE,
 ) -> str:
     payload = {
         "task": "Extrahiere Entitäten, Aliase, Fakten und belegte Beziehungen.",

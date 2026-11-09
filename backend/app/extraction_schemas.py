@@ -62,10 +62,10 @@ class RelationshipExtraction(StrictModel):
 
 
 class ChapterExtraction(StrictModel):
-    entities: list[EntityExtraction] = Field(default_factory=list, max_length=500)
-    aliases: list[AliasExtraction] = Field(default_factory=list, max_length=1_000)
-    facts: list[FactExtraction] = Field(default_factory=list, max_length=2_000)
-    relationships: list[RelationshipExtraction] = Field(default_factory=list, max_length=1_000)
+    entities: list[EntityExtraction] = Field(max_length=500)
+    aliases: list[AliasExtraction] = Field(max_length=1_000)
+    facts: list[FactExtraction] = Field(max_length=2_000)
+    relationships: list[RelationshipExtraction] = Field(max_length=1_000)
 
     @model_validator(mode="after")
     def reject_duplicate_entity_names(self) -> "ChapterExtraction":

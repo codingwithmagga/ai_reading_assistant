@@ -18,8 +18,10 @@ Arbeitsregeln für KI-gestützte Änderungen sind in
 
 Voraussetzung ist Docker mit Docker Compose. Optional kann `.env` aus
 `.env.example` angelegt und mit einem OpenAI-API-Key befüllt werden. Die
-Extraktionsphase wird die freigegebenen Textabschnitte zur Analyse an die
-OpenAI API senden.
+Extraktion benötigt einen Key und überträgt für die jeweilige Anfrage nur die
+an den Extraktor übergebenen Textabsätze sowie den bekannten Entitätskontext
+an die OpenAI Responses API, nicht die EPUB-Datei. Modell, Ausgabesprache,
+Timeout und Anzahl der Validierungsversuche sind über `.env` konfigurierbar.
 
 ```bash
 docker compose up --build
@@ -103,4 +105,9 @@ docker compose down
 Lege lokale Einstellungen in `.env` an; `.env` wird nicht versioniert.
 `.env.example` enthält ausschließlich nicht geheime Beispielwerte. Bücher
 und daraus extrahierte Inhalte sind für private Nutzung mit einer eigenen
-Kopie vorgesehen und sollen nicht öffentlich bereitgestellt werden.
+Kopie vorgesehen und sollen nicht öffentlich bereitgestellt werden. Für die
+KI-Extraktion werden jeweils nur die an den Extraktor übergebenen Textabsätze
+und der dazu übergebene Entitätskontext an OpenAI gesendet; die EPUB-Datei
+selbst wird nicht übertragen. Ohne `OPENAI_API_KEY` kann die Anwendung
+starten, Extraktionsanfragen schlagen jedoch mit einem Konfigurationsfehler
+fehl.

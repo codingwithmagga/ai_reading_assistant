@@ -5,6 +5,8 @@ services:
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENAI_MAX_ATTEMPTS: ${OPENAI_MAX_ATTEMPTS:-3}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-60}
       APP_OUTPUT_LANGUAGE: ${APP_OUTPUT_LANGUAGE:-de}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/reading_assistant.db}
       UPLOAD_TEMP_DIR: ${UPLOAD_TEMP_DIR:-/tmp/reading-assistant-uploads}

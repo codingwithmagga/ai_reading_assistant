@@ -1,7 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Annotated
 
-from pydantic import Field
+from pydantic import Field, SecretStr, StringConstraints
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -11,6 +12,15 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
     database_url: str = "sqlite:///./reading_assistant.db"
+    openai_api_key: SecretStr | None = None
+    openai_model: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
+    ] = "gpt-4o-mini"
+    openai_max_attempts: int = Field(default=3, ge=1, le=5)
+    openai_timeout_seconds: float = Field(default=60, gt=0, le=300)
+    app_output_language: Annotated[
+        str, StringConstraints(strip_whitespace=True, min_length=2, max_length=20)
+    ] = "de"
     upload_temp_dir: Path = Path("/tmp/reading-assistant-uploads")
     epub_max_upload_mb: int = Field(default=50, ge=1, le=500)
     epub_max_uncompressed_mb: int = Field(default=250, ge=1, le=2_000)

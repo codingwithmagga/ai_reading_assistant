@@ -50,6 +50,7 @@ def test_chapter_extraction_accepts_supported_data() -> None:
 @pytest.mark.parametrize(
     "payload",
     [
+        {},
         {
             "entities": [
                 {"canonical_name": "Marta", "entity_type": "animal", "first_mention_ref": "p0"}
@@ -117,7 +118,10 @@ def test_chapter_extraction_rejects_duplicate_entity_names() -> None:
                 "entities": [
                     {"canonical_name": "Marta", "entity_type": "person", "first_mention_ref": "p0"},
                     {"canonical_name": "marta", "entity_type": "person", "first_mention_ref": "p0"},
-                ]
+                ],
+                "aliases": [],
+                "facts": [],
+                "relationships": [],
             }
         )
 
@@ -127,7 +131,10 @@ def test_reference_validation_rejects_unknown_reference() -> None:
         {
             "entities": [
                 {"canonical_name": "Marta", "entity_type": "person", "first_mention_ref": "p2"}
-            ]
+            ],
+            "aliases": [],
+            "facts": [],
+            "relationships": [],
         }
     )
 
@@ -149,7 +156,10 @@ def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
                     "source_excerpt": "Marta ist Königin.",
                     "kind": "description",
                 }
-            ]
+            ],
+            "entities": [],
+            "aliases": [],
+            "relationships": [],
         }
     )
 
@@ -163,7 +173,7 @@ def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
 def test_reference_validation_rejects_duplicate_input_references() -> None:
     with pytest.raises(ValueError, match="eindeutig"):
         validate_chapter_references(
-            ChapterExtraction(),
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
             [
                 ChapterParagraph(reference="p0", text="Absatz eins."),
                 ChapterParagraph(reference="p0", text="Absatz zwei."),
