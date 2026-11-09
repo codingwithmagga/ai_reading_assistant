@@ -40,7 +40,10 @@ curl -F "file=@/pfad/zum/buch.epub" http://localhost:8080/api/books
 Identische Uploads werden anhand des SHA-256-Hashes wiedererkannt und liefern
 den bestehenden Bucheintrag zurück. Die EPUB-Quelldatei wird nach dem Parsing
 nicht dauerhaft gespeichert; gespeichert werden Metadaten und extrahierter
-Text.
+Text. Die API enthält außerdem `GET /api/books`, `GET /api/books/{id}`,
+`GET /api/books/{id}/chapters` und
+`GET /api/books/{id}/content/{chapter_id}`. OpenAPI-Schemas und interaktive
+Dokumentation sind unter <http://localhost:8080/api/docs> verfügbar.
 
 Container im Hintergrund starten und stoppen:
 

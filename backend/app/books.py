@@ -9,9 +9,19 @@ from sqlalchemy.orm import Session
 from app.database import get_session
 from app.epub_parser import MAX_UPLOAD_BYTES, EpubParsingError, parse_epub
 from app.models import Book, Chapter, Job, Paragraph
-from app.schemas import UploadResponse
+from app.schemas import (
+    BookResponse,
+    ChapterContentResponse,
+    ChapterResponse,
+    UploadResponse,
+)
 
 router = APIRouter(prefix="/books", tags=["books"])
+
+
+@router.get("", response_model=list[BookResponse])
+def list_books(session: Session = Depends(get_session)) -> list[Book]:
+    return list(session.scalars(select(Book).order_by(Book.created_at.desc(), Book.id)))
 
 
 @router.post("", response_model=UploadResponse, status_code=201)
@@ -24,8 +34,13 @@ def upload_book(
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
-            detail=f"Die EPUB-Datei überschreitet die erlaubte Upload-Größe von "
-            f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+            detail={
+                "code": "upload_too_large",
+                "message": (
+                    "Die EPUB-Datei überschreitet die erlaubte Upload-Größe von "
+                    f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+                ),
+            },
         )
 
     source_hash = sha256(content).hexdigest()
@@ -64,7 +79,11 @@ def upload_book(
             return _upload_response(existing_book, session, reused=True)
         raise HTTPException(
             status_code=422,
-            detail={"message": str(error), "book_id": failed_book.id},
+            detail={
+                "code": "invalid_epub",
+                "message": str(error),
+                "book_id": failed_book.id,
+            },
         ) from error
 
     book = Book(
@@ -112,6 +131,73 @@ def upload_book(
         return _upload_response(existing_book, session, reused=True)
 
     return _upload_response(book, session, reused=False)
+
+
+@router.get("/{book_id}", response_model=BookResponse)
+def get_book(book_id: str, session: Session = Depends(get_session)) -> Book:
+    book = session.get(Book, book_id)
+    if book is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "book_not_found", "message": "Buch nicht gefunden."},
+        )
+    return book
+
+
+@router.get("/{book_id}/chapters", response_model=list[ChapterResponse])
+def list_chapters(book_id: str, session: Session = Depends(get_session)) -> list[Chapter]:
+    _require_book(session, book_id)
+    statement = (
+        select(Chapter)
+        .where(Chapter.book_id == book_id)
+        .order_by(Chapter.index, Chapter.id)
+    )
+    return list(session.scalars(statement))
+
+
+@router.get(
+    "/{book_id}/content/{chapter_id}",
+    response_model=ChapterContentResponse,
+)
+def get_chapter_content(
+    book_id: str,
+    chapter_id: str,
+    session: Session = Depends(get_session),
+) -> ChapterContentResponse:
+    _require_book(session, book_id)
+    chapter = session.scalar(
+        select(Chapter).where(Chapter.id == chapter_id, Chapter.book_id == book_id)
+    )
+    if chapter is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "chapter_not_found", "message": "Kapitel nicht gefunden."},
+        )
+
+    paragraphs = session.scalars(
+        select(Paragraph)
+        .where(Paragraph.book_id == book_id, Paragraph.chapter_id == chapter_id)
+        .order_by(Paragraph.position, Paragraph.id)
+    )
+    return ChapterContentResponse(
+        id=chapter.id,
+        book_id=chapter.book_id,
+        index=chapter.index,
+        title=chapter.title,
+        start_position=chapter.start_position,
+        end_position=chapter.end_position,
+        paragraphs=list(paragraphs),
+    )
+
+
+def _require_book(session: Session, book_id: str) -> Book:
+    book = session.get(Book, book_id)
+    if book is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "book_not_found", "message": "Buch nicht gefunden."},
+        )
+    return book
 
 
 def _upload_response(book: Book, session: Session, *, reused: bool) -> UploadResponse:

@@ -17,7 +17,7 @@ from app.models import Book, Chapter, Job, Paragraph
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 
-def build_test_epub() -> bytes:
+def build_test_epub(identifier: str = "api-test") -> bytes:
     files = {
         "mimetype": b"application/epub+zip",
         "META-INF/container.xml": b"""<?xml version="1.0"?>
@@ -53,6 +53,7 @@ def build_test_epub() -> bytes:
     with ZipFile(output, "w") as archive:
         archive.writestr("mimetype", files.pop("mimetype"), compress_type=0)
         for name, content in files.items():
+            content = content.replace(b"api-test", identifier.encode())
             archive.writestr(name, content, compress_type=ZIP_DEFLATED)
     return output.getvalue()
 
@@ -133,6 +134,7 @@ def test_invalid_epub_is_recorded_as_error_without_partial_content(client: TestC
 
     assert response.status_code == 422
     detail = response.json()["detail"]
+    assert detail["code"] == "invalid_epub"
     assert "message" in detail
     book_id = detail["book_id"]
 
@@ -168,3 +170,81 @@ def test_upload_limit_returns_413(
     response = client.post("/books", files={"file": ("large.epub", b"x" * 11)})
 
     assert response.status_code == 413
+    assert response.json()["detail"]["code"] == "upload_too_large"
+
+
+def test_book_library_chapters_and_content_endpoints(client: TestClient) -> None:
+    upload_response = client.post(
+        "/books",
+        files={"file": ("sample.epub", build_test_epub(), "application/epub+zip")},
+    )
+    book = upload_response.json()
+    book_id = book["id"]
+
+    books_response = client.get("/books")
+    assert books_response.status_code == 200
+    assert len(books_response.json()) == 1
+    assert books_response.json()[0]["id"] == book_id
+    assert "source_hash" not in books_response.json()[0]
+
+    book_response = client.get(f"/books/{book_id}")
+    assert book_response.status_code == 200
+    assert book_response.json()["title"] == "API Testbuch"
+    assert book_response.json()["status"] == "parsed"
+
+    chapters_response = client.get(f"/books/{book_id}/chapters")
+    assert chapters_response.status_code == 200
+    chapters = chapters_response.json()
+    assert len(chapters) == 1
+    chapter = chapters[0]
+    assert chapter["index"] == 0
+    assert chapter["title"] == "Kapitel Eins"
+    assert chapter["start_position"] == 0
+    assert chapter["end_position"] == 2
+
+    content_response = client.get(f"/books/{book_id}/content/{chapter['id']}")
+    assert content_response.status_code == 200
+    content = content_response.json()
+    assert content["book_id"] == book_id
+    assert [paragraph["position"] for paragraph in content["paragraphs"]] == [0, 1, 2]
+    assert [paragraph["text"] for paragraph in content["paragraphs"]] == [
+        "Kapitel Eins",
+        "Erster Absatz.",
+        "Zweiter Absatz.",
+    ]
+
+
+def test_book_read_endpoints_return_404_for_missing_or_unrelated_ids(
+    client: TestClient,
+) -> None:
+    response = client.get("/books/missing")
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "book_not_found", "message": "Buch nicht gefunden."}
+    }
+    assert client.get("/books/missing/chapters").status_code == 404
+    assert client.get("/books/missing/content/missing").status_code == 404
+
+    upload_response = client.post(
+        "/books",
+        files={"file": ("sample.epub", build_test_epub(), "application/epub+zip")},
+    )
+    book_id = upload_response.json()["id"]
+    response = client.get(f"/books/{book_id}/content/not-a-chapter")
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "chapter_not_found", "message": "Kapitel nicht gefunden."}
+    }
+
+    second_book_upload = client.post(
+        "/books",
+        files={"file": ("second.epub", build_test_epub("api-test-2"))},
+    )
+    assert second_book_upload.status_code == 201
+    second_book_id = second_book_upload.json()["id"]
+    second_chapter_id = client.get(f"/books/{second_book_id}/chapters").json()[0]["id"]
+    response = client.get(f"/books/{book_id}/content/{second_chapter_id}")
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "chapter_not_found", "message": "Kapitel nicht gefunden."}
+    }
