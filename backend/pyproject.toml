@@ -32,6 +32,9 @@ dev = [
 where = ["."]
 include = ["app*"]
 
+[tool.setuptools.package-data]
+app = ["prompts/*.txt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
