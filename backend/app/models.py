@@ -29,6 +29,7 @@ class Book(Base):
             "status IN ('uploaded', 'parsing', 'extracting', 'parsed', 'ready', 'error')",
             name="ck_books_status",
         ),
+        UniqueConstraint("source_hash", name="uq_books_source_hash"),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))

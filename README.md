@@ -31,6 +31,17 @@ im persistenten Docker-Volume `reading-data`. Datenbankmigrationen werden
 beim Start des Backend-Containers automatisch angewendet. Für eine lokale
 Backend-Installation: `cd backend && alembic upgrade head`.
 
+DRM-freie EPUBs lassen sich über `POST /api/books` hochladen, zum Beispiel:
+
+```bash
+curl -F "file=@/pfad/zum/buch.epub" http://localhost:8080/api/books
+```
+
+Identische Uploads werden anhand des SHA-256-Hashes wiedererkannt und liefern
+den bestehenden Bucheintrag zurück. Die EPUB-Quelldatei wird nach dem Parsing
+nicht dauerhaft gespeichert; gespeichert werden Metadaten und extrahierter
+Text.
+
 Container im Hintergrund starten und stoppen:
 
 ```bash

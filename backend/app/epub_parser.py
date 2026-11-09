@@ -6,6 +6,7 @@ from zipfile import BadZipFile, ZipFile
 
 from bs4 import BeautifulSoup
 from ebooklib import ITEM_DOCUMENT, epub
+from ebooklib.exceptions import EpubException
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 MAX_UNCOMPRESSED_BYTES = 250 * 1024 * 1024
@@ -78,7 +79,15 @@ def parse_epub(
 
     try:
         book = epub.read_epub(BytesIO(content), options={"ignore_ncx": True})
-    except (BadZipFile, KeyError, ET.ParseError, OSError, RuntimeError, ValueError) as error:
+    except (
+        BadZipFile,
+        EpubException,
+        KeyError,
+        ET.ParseError,
+        OSError,
+        RuntimeError,
+        ValueError,
+    ) as error:
         raise EpubParsingError("Die EPUB-Datei konnte nicht gelesen werden.") from error
 
     title = _metadata_value(book, "title") or "Unbekannter Titel"

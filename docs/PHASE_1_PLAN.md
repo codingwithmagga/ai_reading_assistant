@@ -115,8 +115,9 @@ urheberrechtlich geschützten Buchtexte einchecken.
 
 ## Vor Implementierung zu entscheiden
 
-- Ob identische Uploads anhand des SHA-256-Hashes als vorhandenes Buch
-  zurückgegeben, abgelehnt oder als neues Buch angelegt werden.
+- Identische Uploads werden anhand des SHA-256-Hashes idempotent behandelt und
+  geben den vorhandenen Bucheintrag zurück.
 - Maximale Upload- und entpackte EPUB-Größe sowie Parser-Timeout.
-- Ob die EPUB-Quelldatei nach dem Parsing verworfen oder für späteres
-  Re-Parsing im persistenten Volume behalten wird.
+- Die EPUB-Quelldatei wird nicht dauerhaft abgelegt; gespeichert werden die
+  extrahierten Kapitel und Absätze. Ein späterer Re-Parsing-Anwendungsfall
+  müsste einen erneuten Upload verlangen.
