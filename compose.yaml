@@ -3,8 +3,8 @@ services:
     build:
       context: ./backend
     environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-3-5-sonnet-latest}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       APP_OUTPUT_LANGUAGE: ${APP_OUTPUT_LANGUAGE:-de}
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/reading_assistant.db}
       UPLOAD_TEMP_DIR: ${UPLOAD_TEMP_DIR:-/tmp/reading-assistant-uploads}

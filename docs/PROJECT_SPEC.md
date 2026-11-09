@@ -47,7 +47,7 @@ auf Seite 10 vorkam. Man schlägt sie kurz nach und liest weiter.
 | Backend | Python 3.12+, FastAPI, Pydantic |
 | Datenbank | SQLite (SQLAlchemy 2.x, Alembic für Migrationen); später Postgres möglich |
 | EPUB-Verarbeitung | `ebooklib`, `beautifulsoup4` (lxml) |
-| KI | Anthropic API (Claude) per offiziellem Python-SDK, strukturierte JSON-Ausgabe |
+| KI | OpenAI API per offiziellem Python-SDK, strukturierte JSON-Ausgabe |
 | Frontend | React + TypeScript, Vite, PWA (`vite-plugin-pwa`) |
 | Reader | `epub.js` oder `react-reader` |
 | Tests | pytest (Backend), Vitest (Frontend) |
@@ -244,6 +244,9 @@ App-Hülle, Dark Mode, UI-Sprache Deutsch (i18n-fähig).
 - **Modellwissen über bekannte Romane:** kann Spoiler in Fakten bringen.
   Gegenmaßnahme: strenger Prompt, Quellauszug pflichtig, Stichproben mit
   bekannten Büchern, im Zweifel Fakt verwerfen.
+- **Externer KI-Dienst:** Für die Extraktion werden die jeweils freigegebenen
+  Kapitel-/Textblöcke an die OpenAI API übertragen. Keine EPUB-Dateien oder
+  Geheimnisse ins Repository übernehmen; API-Key ausschließlich über `.env`.
 - **Figurenverwechslung und Duplikate:** Alias-Verwaltung, Abgleichsschritt,
   Möglichkeit zum manuellen Zusammenführen in der UI (späterer Ausbau).
 - **Kosten:** lange Bücher bedeuten viele Tokens. Gegenmaßnahme: Kapitelweise

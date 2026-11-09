@@ -17,7 +17,9 @@ Arbeitsregeln für KI-gestützte Änderungen sind in
 ## Starten mit Docker Compose
 
 Voraussetzung ist Docker mit Docker Compose. Optional kann `.env` aus
-`.env.example` angelegt und mit einem Anthropic-API-Key befüllt werden.
+`.env.example` angelegt und mit einem OpenAI-API-Key befüllt werden. Die
+Extraktionsphase wird die freigegebenen Textabschnitte zur Analyse an die
+OpenAI API senden.
 
 ```bash
 docker compose up --build
