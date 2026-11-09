@@ -1,0 +1,27 @@
+services:
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-3-5-sonnet-latest}
+      APP_OUTPUT_LANGUAGE: ${APP_OUTPUT_LANGUAGE:-de}
+      DATABASE_URL: sqlite:////app/data/reading_assistant.db
+    volumes:
+      - reading-data:/app/data
+    expose:
+      - "8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8080}:80"
+    restart: unless-stopped
+
+volumes:
+  reading-data:

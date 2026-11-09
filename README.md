@@ -14,40 +14,31 @@ Phasen-Abnahmekriterien stehen in [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md).
 Arbeitsregeln für KI-gestützte Änderungen sind in
 [.github/copilot-instructions.md](.github/copilot-instructions.md) festgehalten.
 
-## Voraussetzungen
+## Starten mit Docker Compose
 
-- Python 3.12+
-- Node.js 22+ und npm
-
-## Lokal starten
-
-### Backend
+Voraussetzung ist Docker mit Docker Compose. Optional kann `.env` aus
+`.env.example` angelegt und mit einem Anthropic-API-Key befüllt werden.
 
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e ".[dev]"
-cp ../.env.example ../.env
-uvicorn app.main:app --reload
+docker compose up --build
 ```
 
-Das Backend läuft unter <http://127.0.0.1:8000>. Der Health-Endpoint ist
-<http://127.0.0.1:8000/health>, die OpenAPI-Dokumentation
-<http://127.0.0.1:8000/docs>.
+Die App ist anschließend unter <http://localhost:8080> erreichbar. Die
+Backend-Health-Prüfung und OpenAPI-Dokumentation laufen über
+<http://localhost:8080/api/health> und <http://localhost:8080/api/docs>.
+Mit `APP_PORT` in `.env` lässt sich der lokale Port ändern. Buchdaten liegen
+im persistenten Docker-Volume `reading-data`.
 
-### Frontend
+Container im Hintergrund starten und stoppen:
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+docker compose up --build -d
+docker compose down
 ```
-
-Vite zeigt die lokale URL nach dem Start an. Der Entwicklungsserver leitet
-`/api`-Anfragen an das Backend weiter.
 
 ## Qualitätsprüfungen
+
+### Backend
 
 ```bash
 cd backend
@@ -55,11 +46,21 @@ python -m pytest
 python -m ruff check .
 ```
 
+### Frontend
+
 ```bash
 cd frontend
 npm test
 npm run lint
 npm run build
+```
+
+### Docker Compose
+
+```bash
+docker compose up --build -d
+curl http://localhost:8080/api/health
+docker compose down
 ```
 
 ## Konfiguration und Datenschutz
