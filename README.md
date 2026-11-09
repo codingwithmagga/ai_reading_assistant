@@ -27,7 +27,9 @@ Die App ist anschließend unter <http://localhost:8080> erreichbar. Die
 Backend-Health-Prüfung und OpenAPI-Dokumentation laufen über
 <http://localhost:8080/api/health> und <http://localhost:8080/api/docs>.
 Mit `APP_PORT` in `.env` lässt sich der lokale Port ändern. Buchdaten liegen
-im persistenten Docker-Volume `reading-data`.
+im persistenten Docker-Volume `reading-data`. Datenbankmigrationen werden
+beim Start des Backend-Containers automatisch angewendet. Für eine lokale
+Backend-Installation: `cd backend && alembic upgrade head`.
 
 Container im Hintergrund starten und stoppen:
 
