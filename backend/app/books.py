@@ -6,8 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.database import get_session
-from app.epub_parser import MAX_UPLOAD_BYTES, EpubParsingError, parse_epub
+from app.epub_parser import EpubParsingError, parse_epub
 from app.models import Book, Chapter, Job, Paragraph
 from app.schemas import (
     BookResponse,
@@ -30,15 +31,17 @@ def upload_book(
     file: UploadFile = File(...),
     session: Session = Depends(get_session),
 ) -> UploadResponse:
-    content = file.file.read(MAX_UPLOAD_BYTES + 1)
-    if len(content) > MAX_UPLOAD_BYTES:
+    settings = get_settings()
+    max_upload_bytes = settings.epub_max_upload_bytes
+    content = file.file.read(max_upload_bytes + 1)
+    if len(content) > max_upload_bytes:
         raise HTTPException(
             status_code=413,
             detail={
                 "code": "upload_too_large",
                 "message": (
                     "Die EPUB-Datei überschreitet die erlaubte Upload-Größe von "
-                    f"{MAX_UPLOAD_BYTES // (1024 * 1024)} MB."
+                    f"{settings.epub_max_upload_mb} MB."
                 ),
             },
         )
@@ -52,7 +55,12 @@ def upload_book(
     filename = PurePath((file.filename or "").replace("\\", "/")).name
     fallback_title = PurePath(filename).stem[:500] or "Unbekannter Titel"
     try:
-        parsed = parse_epub(content)
+        parsed = parse_epub(
+            content,
+            max_upload_bytes=max_upload_bytes,
+            max_uncompressed_bytes=settings.epub_max_uncompressed_bytes,
+            max_archive_entries=settings.epub_max_archive_entries,
+        )
     except EpubParsingError as error:
         failed_book = Book(
             title=fallback_title,

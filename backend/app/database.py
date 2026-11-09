@@ -1,15 +1,14 @@
-import os
 from collections.abc import Generator
 from sqlite3 import Connection as SQLiteConnection
 
 from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
-DEFAULT_DATABASE_URL = "sqlite:///./reading_assistant.db"
+from app.config import get_settings
 
 
 def get_database_url() -> str:
-    return os.environ.get("DATABASE_URL", DEFAULT_DATABASE_URL)
+    return get_settings().database_url
 
 
 def create_database_engine(database_url: str | None = None) -> Engine:

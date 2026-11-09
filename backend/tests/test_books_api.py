@@ -10,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from alembic import command
+from app.config import Settings, get_settings
 from app.database import create_database_engine, get_session
 from app.main import app
 from app.models import Book, Chapter, Job, Paragraph
@@ -63,6 +64,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     database_path = (tmp_path / "books.db").as_posix()
     database_url = f"sqlite:///{database_path}"
     monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     command.upgrade(config, "head")
@@ -81,6 +83,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     app.dependency_overrides.clear()
     del app.state.test_engine
     engine.dispose()
+    get_settings.cache_clear()
 
 
 def test_upload_persists_book_chapters_and_ordered_paragraphs(client: TestClient) -> None:
@@ -165,9 +168,12 @@ def test_upload_limit_returns_413(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("app.books.MAX_UPLOAD_BYTES", 10)
+    monkeypatch.setattr("app.books.get_settings", lambda: Settings(epub_max_upload_mb=1))
 
-    response = client.post("/books", files={"file": ("large.epub", b"x" * 11)})
+    response = client.post(
+        "/books",
+        files={"file": ("large.epub", b"x" * (1024 * 1024 + 1))},
+    )
 
     assert response.status_code == 413
     assert response.json()["detail"]["code"] == "upload_too_large"

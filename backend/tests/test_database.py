@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from alembic import command
+from app.config import get_settings
 from app.database import create_database_engine
 from app.models import Book, Chapter, Paragraph
 
@@ -15,6 +16,7 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 def migrate_database(database_url: str, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
     config = Config(str(BACKEND_DIR / "alembic.ini"))
     config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
     command.upgrade(config, "head")

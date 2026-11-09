@@ -68,12 +68,16 @@ Extraktionsphase reserviert. Für Phase 1 wird ein expliziter Status
      Serverpfade oder internen Stacktraces in API-Fehlern ausgeben.
 
 5. **Konfiguration und Betrieb**
-   - Datenbank-URL aus vorhandener Konfiguration beziehen; Compose muss
-     persistente Daten über Neustarts behalten.
-   - Größenlimits und temporäre Upload-Verzeichnisse konfigurierbar machen,
-     mit sicheren, sinnvollen Defaults.
+   - Datenbank-URL und EPUB-Limits aus zentralen Einstellungen beziehen;
+     Compose muss persistente Daten über Neustarts behalten.
+   - Upload-Limit (Standard 50 MB, erlaubter Bereich 1–500 MB), entpackte
+     Datenmenge (Standard 250 MB, Bereich 1–2000 MB) und Archiveinträge
+     (Standard 5000, Bereich 1–50000) konfigurierbar machen.
+   - Temporäres Verzeichnis für Multipart-Uploads über `UPLOAD_TEMP_DIR`
+     konfigurierbar machen; Upload-Spooldateien werden nach dem Request
+     verworfen.
    - README um benötigte Umgebungswerte, Migrationen und Parsergrenzen
-     ergänzen, sobald diese feststehen.
+     ergänzen. Parser-Timeout ist noch nicht konfigurierbar.
 
 ## Geplante Tests
 

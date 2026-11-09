@@ -31,6 +31,23 @@ im persistenten Docker-Volume `reading-data`. Datenbankmigrationen werden
 beim Start des Backend-Containers automatisch angewendet. Für eine lokale
 Backend-Installation: `cd backend && alembic upgrade head`.
 
+Die EPUB-Grenzwerte lassen sich in `.env` konfigurieren:
+
+| Variable | Standard | Zulässiger Bereich |
+|---|---:|---:|
+| `EPUB_MAX_UPLOAD_MB` | 50 MB | 1–500 MB |
+| `EPUB_MAX_UNCOMPRESSED_MB` | 250 MB | 1–2000 MB |
+| `EPUB_MAX_ARCHIVE_ENTRIES` | 5000 | 1–50000 Einträge |
+| `UPLOAD_TEMP_DIR` | `/tmp/reading-assistant-uploads` | beschreibbares temporäres Verzeichnis |
+
+Das Uploadlimit wird gemeinsam für Backend und Nginx-Proxy verwendet. Uploads
+werden durch Starlette begrenzt im Speicher gehalten und bei Bedarf im
+konfigurierten temporären Verzeichnis zwischengespeichert; die Quelldatei wird
+nach Abschluss des Requests verworfen und nicht dauerhaft abgelegt. Der Parser
+akzeptiert EPUB-Dateien mit lesbarem OPF und Spine, lehnt beschädigte Archive
+und DRM-Verschlüsselung ab. Ein konfigurierbarer Parser-Timeout ist noch nicht
+implementiert.
+
 DRM-freie EPUBs lassen sich über `POST /api/books` hochladen, zum Beispiel:
 
 ```bash

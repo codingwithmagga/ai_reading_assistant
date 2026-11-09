@@ -1,9 +1,9 @@
-import os
 from logging.config import fileConfig
 
 from sqlalchemy.engine import Connection
 
 from alembic import context
+from app.config import get_settings
 from app.database import create_database_engine
 from app.models import Base
 
@@ -12,9 +12,7 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.environ.get("DATABASE_URL")
-if database_url:
-    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+config.set_main_option("sqlalchemy.url", get_settings().database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
