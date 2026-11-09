@@ -57,6 +57,21 @@ class Book(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    entities: Mapped[list["Entity"]] = relationship(
+        back_populates="book",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    facts: Mapped[list["Fact"]] = relationship(
+        back_populates="book",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    relationships: Mapped[list["Relationship"]] = relationship(
+        back_populates="book",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class Chapter(Base):
@@ -136,3 +151,157 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     book: Mapped[Book] = relationship(back_populates="jobs")
+
+
+class Entity(Base):
+    __tablename__ = "entities"
+    __table_args__ = (
+        CheckConstraint(
+            "type IN ('person', 'place', 'group', 'object', 'concept')",
+            name="ck_entities_type",
+        ),
+        CheckConstraint("first_position >= 0", name="ck_entities_first_position"),
+        UniqueConstraint(
+            "book_id",
+            "type",
+            "canonical_name",
+            name="uq_entities_book_type_name",
+        ),
+        Index("ix_entities_book_canonical_name", "book_id", "canonical_name"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    book_id: Mapped[str] = mapped_column(
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    canonical_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    first_position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    book: Mapped[Book] = relationship(back_populates="entities")
+    aliases: Mapped[list["EntityAlias"]] = relationship(
+        back_populates="entity",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    facts: Mapped[list["Fact"]] = relationship(
+        back_populates="entity",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    relationships_from: Mapped[list["Relationship"]] = relationship(
+        back_populates="entity_a",
+        foreign_keys="Relationship.entity_a_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    relationships_to: Mapped[list["Relationship"]] = relationship(
+        back_populates="entity_b",
+        foreign_keys="Relationship.entity_b_id",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+
+class EntityAlias(Base):
+    __tablename__ = "entity_aliases"
+    __table_args__ = (
+        CheckConstraint("first_position >= 0", name="ck_entity_aliases_first_position"),
+        UniqueConstraint("entity_id", "alias", name="uq_entity_aliases_entity_alias"),
+        Index("ix_entity_aliases_entity_position", "entity_id", "first_position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    entity_id: Mapped[str] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    alias: Mapped[str] = mapped_column(String(500), nullable=False)
+    first_position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    entity: Mapped[Entity] = relationship(back_populates="aliases")
+
+
+class Fact(Base):
+    __tablename__ = "facts"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('description', 'relationship', 'event', 'motivation')",
+            name="ck_facts_kind",
+        ),
+        CheckConstraint("position >= 0", name="ck_facts_position"),
+        CheckConstraint("length(source_excerpt) <= 200", name="ck_facts_excerpt_length"),
+        UniqueConstraint(
+            "entity_id",
+            "position",
+            "kind",
+            "text",
+            name="uq_facts_entity_position_kind_text",
+        ),
+        Index("ix_facts_book_position", "book_id", "position"),
+        Index("ix_facts_entity_position", "entity_id", "position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    book_id: Mapped[str] = mapped_column(
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entity_id: Mapped[str] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    chapter_id: Mapped[str] = mapped_column(
+        ForeignKey("chapters.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    source_excerpt: Mapped[str] = mapped_column(String(200), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    book: Mapped[Book] = relationship(back_populates="facts")
+    entity: Mapped[Entity] = relationship(back_populates="facts")
+    chapter: Mapped[Chapter] = relationship()
+
+
+class Relationship(Base):
+    __tablename__ = "relationships"
+    __table_args__ = (
+        CheckConstraint("position >= 0", name="ck_relationships_position"),
+        UniqueConstraint(
+            "entity_a_id",
+            "entity_b_id",
+            "label",
+            "position",
+            name="uq_relationships_pair_label_position",
+        ),
+        Index("ix_relationships_book_position", "book_id", "position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    book_id: Mapped[str] = mapped_column(
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entity_a_id: Mapped[str] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    entity_b_id: Mapped[str] = mapped_column(
+        ForeignKey("entities.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    label: Mapped[str] = mapped_column(String(500), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    book: Mapped[Book] = relationship(back_populates="relationships")
+    entity_a: Mapped[Entity] = relationship(
+        back_populates="relationships_from",
+        foreign_keys=[entity_a_id],
+    )
+    entity_b: Mapped[Entity] = relationship(
+        back_populates="relationships_to",
+        foreign_keys=[entity_b_id],
+    )
