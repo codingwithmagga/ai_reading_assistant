@@ -53,8 +53,6 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
     book = session.get(Book, book_id)
     if book is None:
         raise ExtractionBookNotReadyError("Buch nicht gefunden.")
-    if book.status not in {"parsed", "error"}:
-        raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
     if session.scalar(select(Chapter.id).where(Chapter.book_id == book_id).limit(1)) is None:
         raise ExtractionBookNotReadyError("Das Buch enthält keine verarbeiteten Kapitel.")
 
@@ -68,7 +66,23 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
     if active_job is not None:
         if active_job.status == "pending":
             return active_job
-        raise ExtractionJobAlreadyActiveError("Für dieses Buch läuft bereits ein Extraktionsjob.")
+        if active_job.status == "running":
+            lease_expires_at = _as_utc(active_job.lease_expires_at)
+            if lease_expires_at is not None and lease_expires_at > datetime.now(UTC):
+                raise ExtractionJobAlreadyActiveError(
+                    "Für dieses Buch läuft bereits ein Extraktionsjob."
+                )
+            active_job.status = "pending"
+            active_job.lease_expires_at = None
+            active_job.error = None
+            active_job.error_code = None
+            book.status = "parsed"
+            session.commit()
+            session.refresh(active_job)
+            return active_job
+
+    if book.status not in {"parsed", "error"}:
+        raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
 
     if book.status == "error":
         failed_job = session.scalar(
