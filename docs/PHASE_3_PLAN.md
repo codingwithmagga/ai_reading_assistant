@@ -34,7 +34,8 @@ betrieben werden.
    - Beziehungen nur zurückgeben, wenn die Beziehung und beide Entitäten an
      der angefragten Position bekannt sind.
    - Zusätzliche Tests für gleichnamige Aliase, unbekannte Bücher, leere
-     Suchanfragen, Positionsgrenzen und leere Extraktionsergebnisse schreiben.
+     Suchanfragen, Positionsgrenzen und leere Extraktionsergebnisse schreiben;
+     ohne Extraktion liefern Entitätenliste und Lookup leere Trefferlisten.
 
 2. **Gemeinsame Positions- und Auflösungslogik**
    - Eine Position anhand des gespeicherten Buchbereichs validieren; negative
@@ -102,8 +103,6 @@ betrieben werden.
 
 - Recap-Ausgabe in Phase 3: deterministische Liste belegter Ereignisse oder
   optionale OpenAI-Zusammenfassung ausschließlich aus gefilterten Fakten.
-- Behandlung einer leeren Extraktion: leere Trefferliste oder separater
-  Statusfehler mit Hinweis auf den Extraktionsjob.
 
 ## Bewusst zurückgestellt
 

@@ -14,7 +14,16 @@ from alembic import command
 from app.config import Settings, get_settings
 from app.database import create_database_engine, get_session
 from app.main import app
-from app.models import Book, Chapter, Job, Paragraph
+from app.models import (
+    Book,
+    Chapter,
+    Entity,
+    EntityAlias,
+    Fact,
+    Job,
+    Paragraph,
+    Relationship,
+)
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
@@ -372,3 +381,269 @@ def test_extraction_job_api_reports_missing_and_unready_books(client: TestClient
     start_response = client.post(f"/books/{book_id}/extraction-jobs")
     assert start_response.status_code == 409
     assert start_response.json()["detail"]["code"] == "book_not_ready_for_extraction"
+
+
+def _create_lookup_book(client: TestClient, *, with_extraction: bool = True) -> str:
+    with Session(client.app.state.test_engine) as session:
+        book = Book(
+            title="Synthetischer Roman",
+            source_hash="c" * 64 if with_extraction else "d" * 64,
+            status="ready",
+        )
+        chapters = [
+            Chapter(
+                book=book,
+                index=0,
+                title="Anfang",
+                start_position=0,
+                end_position=2,
+            ),
+            Chapter(
+                book=book,
+                index=1,
+                title="Später",
+                start_position=3,
+                end_position=5,
+            ),
+        ]
+        for position in range(6):
+            chapter = chapters[0] if position <= 2 else chapters[1]
+            book.paragraphs.append(
+                Paragraph(
+                    chapter=chapter,
+                    position=position,
+                    text=f"Absatz {position}",
+                )
+            )
+
+        if with_extraction:
+            marta = Entity(
+                book=book,
+                type="person",
+                canonical_name="Marta",
+                first_position=0,
+            )
+            village = Entity(
+                book=book,
+                type="place",
+                canonical_name="Dorf",
+                first_position=1,
+            )
+            lea = Entity(
+                book=book,
+                type="person",
+                canonical_name="Lea",
+                first_position=2,
+            )
+            secret = Entity(
+                book=book,
+                type="concept",
+                canonical_name="Geheimnis",
+                first_position=4,
+            )
+            marta.aliases.extend(
+                [
+                    EntityAlias(alias="die Wirtin", first_position=1),
+                    EntityAlias(alias="Frau Keller", first_position=4),
+                    EntityAlias(alias="die Fremde", first_position=3),
+                ]
+            )
+            lea.aliases.append(EntityAlias(alias="die Fremde", first_position=3))
+
+            book.facts.extend(
+                [
+                    Fact(
+                        entity=marta,
+                        chapter=chapters[0],
+                        text="Marta erscheint.",
+                        position=0,
+                        source_excerpt="Marta trat ein.",
+                        kind="event",
+                    ),
+                    Fact(
+                        entity=village,
+                        chapter=chapters[0],
+                        text="Das Dorf liegt am Fluss.",
+                        position=1,
+                        source_excerpt="Das Dorf lag am Fluss.",
+                        kind="description",
+                    ),
+                    Fact(
+                        entity=marta,
+                        chapter=chapters[0],
+                        text="Marta führt den Laden.",
+                        position=2,
+                        source_excerpt="Sie führte den Laden.",
+                        kind="description",
+                    ),
+                    Fact(
+                        entity=marta,
+                        chapter=chapters[1],
+                        text="Marta kennt den geheimen Plan.",
+                        position=5,
+                        source_excerpt="Sie kannte den geheimen Plan.",
+                        kind="event",
+                    ),
+                ]
+            )
+            book.relationships.extend(
+                [
+                    Relationship(
+                        entity_a=marta,
+                        entity_b=village,
+                        label="lebt in",
+                        position=2,
+                    ),
+                    Relationship(
+                        entity_a=marta,
+                        entity_b=secret,
+                        label="kennt",
+                        position=3,
+                    ),
+                ]
+            )
+
+        session.add(book)
+        session.commit()
+        return book.id
+
+
+def test_entity_list_hides_entities_and_aliases_until_introduced(client: TestClient) -> None:
+    book_id = _create_lookup_book(client)
+    expected_names = [
+        {"Marta"},
+        {"Marta", "Dorf"},
+        {"Marta", "Dorf", "Lea"},
+        {"Marta", "Dorf", "Lea"},
+        {"Marta", "Dorf", "Lea", "Geheimnis"},
+        {"Marta", "Dorf", "Lea", "Geheimnis"},
+    ]
+
+    for position, names in enumerate(expected_names):
+        response = client.get(
+            f"/books/{book_id}/entities",
+            params={"position": position},
+        )
+
+        assert response.status_code == 200
+        entities = response.json()
+        assert {entity["canonical_name"] for entity in entities} == names
+        assert all(entity["first_position"] <= position for entity in entities)
+        for entity in entities:
+            assert all(alias["first_position"] <= position for alias in entity["aliases"])
+
+    at_position_0 = client.get(
+        f"/books/{book_id}/entities",
+        params={"position": 0},
+    ).json()
+    assert at_position_0[0]["aliases"] == []
+    at_position_1 = client.get(
+        f"/books/{book_id}/entities",
+        params={"position": 1},
+    ).json()
+    marta = next(entity for entity in at_position_1 if entity["canonical_name"] == "Marta")
+    assert {alias["alias"] for alias in marta["aliases"]} == {"die Wirtin"}
+
+
+def test_lookup_filters_every_fact_and_relationship_by_reading_position(
+    client: TestClient,
+) -> None:
+    book_id = _create_lookup_book(client)
+
+    for position in range(6):
+        response = client.get(
+            f"/books/{book_id}/lookup",
+            params={"q": "Marta", "position": position},
+        )
+
+        assert response.status_code == 200
+        payload = response.json()
+        serialized = response.text
+        assert "Marta führt den Laden." not in serialized or position >= 2
+        assert "Marta kennt den geheimen Plan." not in serialized or position == 5
+        assert "Geheimnis" not in serialized or position >= 4
+        assert "lebt in" not in serialized or position >= 2
+        assert "kennt" not in serialized or position >= 4
+        matches = payload["matches"]
+        if position == 0:
+            assert matches[0]["facts"][0]["text"] == "Marta erscheint."
+        for match in matches:
+            assert all(fact["position"] <= position for fact in match["facts"])
+            assert all(
+                relationship["position"] <= position
+                for relationship in match["relationships"]
+            )
+
+
+def test_lookup_alias_is_position_gated_and_ambiguous_alias_is_not_collapsed(
+    client: TestClient,
+) -> None:
+    book_id = _create_lookup_book(client)
+    hidden_alias = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "die Fremde", "position": 2},
+    )
+    assert hidden_alias.status_code == 200
+    assert hidden_alias.json()["matches"] == []
+
+    introduced_alias = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "die Fremde", "position": 3},
+    )
+    assert introduced_alias.status_code == 200
+    assert {
+        match["entity"]["canonical_name"] for match in introduced_alias.json()["matches"]
+    } == {"Marta", "Lea"}
+
+    hidden_later_alias = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "Frau Keller", "position": 3},
+    )
+    assert hidden_later_alias.status_code == 200
+    assert hidden_later_alias.json()["matches"] == []
+
+
+def test_lookup_rejects_invalid_positions_and_empty_queries(client: TestClient) -> None:
+    book_id = _create_lookup_book(client)
+
+    for position in (-1, 6):
+        response = client.get(
+            f"/books/{book_id}/lookup",
+            params={"q": "Marta", "position": position},
+        )
+        assert response.status_code == 422
+
+    empty_query = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "  ", "position": 0},
+    )
+    assert empty_query.status_code == 422
+
+
+def test_lookup_reports_unknown_books_and_empty_extraction_as_empty_results(
+    client: TestClient,
+) -> None:
+    missing = client.get(
+        "/books/missing/lookup",
+        params={"q": "Marta", "position": 0},
+    )
+    assert missing.status_code == 404
+    missing_entities = client.get(
+        "/books/missing/entities",
+        params={"position": 0},
+    )
+    assert missing_entities.status_code == 404
+
+    empty_book_id = _create_lookup_book(client, with_extraction=False)
+    entities = client.get(
+        f"/books/{empty_book_id}/entities",
+        params={"position": 0},
+    )
+    lookup = client.get(
+        f"/books/{empty_book_id}/lookup",
+        params={"q": "Marta", "position": 0},
+    )
+    assert entities.status_code == 200
+    assert entities.json() == []
+    assert lookup.status_code == 200
+    assert lookup.json()["matches"] == []
