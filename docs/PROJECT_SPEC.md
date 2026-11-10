@@ -184,8 +184,11 @@ evidence-based. Output language is configurable (default: German).
 - `GET /books`, `GET /books/{id}`, `DELETE /books/{id}`
 - `GET /books/{id}/jobs` (processing progress)
 - `GET /books/{id}/chapters`
-- `GET /books/{id}/content/{chapter_id}` (text/HTML for the reader)
-- `GET/PUT /books/{id}/progress`
+- `GET /books/{id}/content/{chapter_id}` (chapter metadata and ordered
+  paragraphs; clients render book content as text, not executable HTML)
+- `GET /books/{id}/progress` (saved position or `null`)
+- `PUT /books/{id}/progress` (persist a position belonging to a stored
+  paragraph)
 - `GET /books/{id}/entities?position=` (filtered list, optional type filter)
 - `GET /books/{id}/lookup?q=&position=`
 - `GET /books/{id}/recap?position=` (chronological event facts and
@@ -199,8 +202,9 @@ evidence-based. Output language is configurable (default: German).
 
 Views:
 
-1. **Library:** books, upload, processing status.
-2. **Reader:** book text with epub.js, automatic position saving, and progress.
+1. **Library:** books, upload, and processing status.
+2. **Reader:** render stored chapter paragraphs as text, navigate chapters,
+   track the current paragraph, and persist/restore reading progress.
 3. **Notes panel** (sidebar or mobile bottom sheet): search field, list of
    characters/places seen so far, detail view with facts, relationships, and
    chapter references. Selected reader text can be looked up directly.

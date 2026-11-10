@@ -4,22 +4,291 @@
   background: #f5f2eb;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  display: grid;
-  place-items: center;
 }
 
-main {
-  max-width: 42rem;
-  padding: 2rem;
-  text-align: center;
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 2.75rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid #53634d;
+  border-radius: 0.45rem;
+  background: #53634d;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #3e4c39;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid #bd7d35;
+  outline-offset: 2px;
+}
+
+.app-shell {
+  width: min(100% - 2rem, 68rem);
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 2rem 0 4rem;
+}
+
+.app-header,
+.reader-toolbar,
+.book-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.app-header {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #d5d0c4;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
 }
 
 h1 {
+  margin-bottom: 0.25rem;
   line-height: 1.2;
+}
+
+.app-header p {
+  max-width: 44rem;
+  margin-bottom: 0;
+  color: #5f5b52;
+}
+
+.language-picker,
+.reader-toolbar label {
+  display: grid;
+  gap: 0.25rem;
+}
+
+select,
+input[type="file"] {
+  max-width: 100%;
+}
+
+select {
+  min-height: 2.5rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #908a7d;
+  border-radius: 0.4rem;
+  background: #fffefa;
+  color: inherit;
+}
+
+.library,
+.reader {
+  padding-top: 1.5rem;
+}
+
+.upload-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #d5d0c4;
+  border-radius: 0.6rem;
+  background: #fffefa;
+}
+
+.upload-form label {
+  font-weight: 650;
+}
+
+.file-name {
+  color: #5f5b52;
+  overflow-wrap: anywhere;
+}
+
+.book-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-card {
+  padding: 1rem;
+  border: 1px solid #d5d0c4;
+  border-radius: 0.6rem;
+  background: #fffefa;
+}
+
+.book-card h3 {
+  margin-bottom: 0.25rem;
+}
+
+.book-card p {
+  margin-bottom: 0.2rem;
+  color: #5f5b52;
+}
+
+.empty-state,
+.message {
+  padding: 1rem;
+  border-radius: 0.5rem;
+  background: #fffefa;
+}
+
+.message p:last-child {
+  margin-bottom: 0.5rem;
+}
+
+.error {
+  border: 1px solid #b5483d;
+  color: #7d211a;
+}
+
+.success {
+  border: 1px solid #53634d;
+  color: #35442f;
+}
+
+.reader-toolbar {
+  margin-bottom: 1.25rem;
+}
+
+.reader-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #d5d0c4;
+}
+
+.reader-heading p,
+.save-status,
+.chapter-position {
+  color: #5f5b52;
+}
+
+.reader-scroll {
+  height: min(68vh, 52rem);
+  min-height: 18rem;
+  overflow: auto;
+  padding: clamp(1rem, 4vw, 3rem);
+  border: 1px solid #d5d0c4;
+  border-radius: 0.6rem;
+  background: #fffefa;
+  scroll-behavior: smooth;
+}
+
+.reader-scroll article {
+  max-width: 44rem;
+  margin: 0 auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.12rem;
+  line-height: 1.85;
+}
+
+.reader-scroll article h3 {
+  margin-bottom: 1.5rem;
+  font-family: system-ui, sans-serif;
+  font-size: 1.35rem;
+}
+
+.reader-scroll article p {
+  scroll-margin-top: 1rem;
+  white-space: pre-wrap;
+}
+
+.reader-scroll article p[aria-current="location"] {
+  background: #f8eedc;
+}
+
+.chapter-position {
+  margin: 0.5rem 0;
+  text-align: right;
+}
+
+@media (max-width: 600px) {
+  .app-shell {
+    width: min(100% - 1.25rem, 68rem);
+    padding-top: 1rem;
+  }
+
+  .app-header {
+    align-items: flex-start;
+  }
+
+  .app-header h1 {
+    font-size: 1.45rem;
+  }
+
+  .language-picker {
+    flex: 0 0 auto;
+  }
+
+  .upload-form {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .upload-form input[type="file"] {
+    width: 100%;
+  }
+
+  .book-card {
+    align-items: flex-start;
+  }
+
+  .reader-toolbar {
+    align-items: flex-start;
+  }
+
+  .reader-toolbar label {
+    max-width: 58%;
+  }
+
+  .reader-toolbar select {
+    max-width: 100%;
+  }
+
+  .reader-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .reader-scroll {
+    height: 68vh;
+    min-height: 16rem;
+    padding: 1rem;
+  }
 }

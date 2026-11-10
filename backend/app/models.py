@@ -30,6 +30,10 @@ class Book(Base):
             "status IN ('uploaded', 'parsing', 'extracting', 'parsed', 'ready', 'error')",
             name="ck_books_status",
         ),
+        CheckConstraint(
+            "current_position IS NULL OR current_position >= 0",
+            name="ck_books_current_position_nonnegative",
+        ),
         UniqueConstraint("source_hash", name="uq_books_source_hash"),
     )
 
@@ -40,6 +44,7 @@ class Book(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="uploaded")
     source_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_position: Mapped[int | None] = mapped_column(Integer)
 
     chapters: Mapped[list["Chapter"]] = relationship(
         back_populates="book",

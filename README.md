@@ -25,6 +25,10 @@ The AI output language defaults to German and can be changed with
 also defaults to German; use its language selector to switch to English. Its
 translation map is designed to accommodate additional languages.
 
+The web app provides a library, EPUB upload, and an in-app reader. Reading
+progress is stored per book and restored when the book is reopened. The reader
+renders extracted paragraph text as text, not as executable HTML.
+
 ```bash
 docker compose up --build
 ```
@@ -96,6 +100,20 @@ normalized exact names and aliases (no substring matching) and returns facts
 with their kind, position, chapter reference, and source excerpt. A
 relationship is returned only when the relationship and both entities are
 known by that position.
+
+The reader's current position is available through
+`GET /api/books/{id}/progress` and can be updated with
+`PUT /api/books/{id}/progress`. The GET response has a nullable
+`current_position` until the reader saves its first position. Updates must
+refer to an existing paragraph position; invalid values return HTTP 422 with
+`invalid_reading_position`.
+
+```bash
+curl http://localhost:8080/api/books/BOOK_ID/progress
+curl -X PUT http://localhost:8080/api/books/BOOK_ID/progress \
+  -H "Content-Type: application/json" \
+  -d '{"position":42}'
+```
 
 Unknown books return HTTP 404 (`book_not_found`). Invalid positions, including
 positions for books with no readable paragraphs, return HTTP 422

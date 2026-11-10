@@ -44,6 +44,9 @@ def test_migration_creates_schema_on_empty_database(
             "relationships",
             "extraction_checkpoints",
         } <= set(inspector.get_table_names())
+        assert "current_position" in {
+            column["name"] for column in inspector.get_columns("books")
+        }
         assert inspector.get_foreign_keys("chapters")[0]["options"]["ondelete"] == "CASCADE"
         assert inspector.get_foreign_keys("paragraphs")
         assert inspector.get_foreign_keys("entity_aliases")[0]["options"]["ondelete"] == "CASCADE"
@@ -182,6 +185,9 @@ def test_extraction_migration_can_be_downgraded_and_reapplied(
             inspect(engine).get_table_names()
         )
         assert "extraction_checkpoints" not in inspect(engine).get_table_names()
+        assert "current_position" not in {
+            column["name"] for column in inspect(engine).get_columns("books")
+        }
         assert "error_code" not in {
             column["name"] for column in inspect(engine).get_columns("jobs")
         }
@@ -198,6 +204,9 @@ def test_extraction_migration_can_be_downgraded_and_reapplied(
             "relationships",
             "extraction_checkpoints",
         } <= set(inspect(engine).get_table_names())
+        assert "current_position" in {
+            column["name"] for column in inspect(engine).get_columns("books")
+        }
     finally:
         engine.dispose()
 
@@ -211,6 +220,17 @@ def test_constraints_enforce_unique_positions_and_foreign_keys(
     engine = create_database_engine(database_url)
 
     with Session(engine) as session:
+        session.add(
+            Book(
+                title="Ungültige Leseposition",
+                source_hash="c" * 64,
+                current_position=-1,
+            )
+        )
+        with pytest.raises(IntegrityError):
+            session.commit()
+        session.rollback()
+
         book = Book(title="Test", source_hash="a" * 64)
         chapter = Chapter(
             book=book,
