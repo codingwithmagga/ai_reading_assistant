@@ -7,6 +7,12 @@ export interface Book {
   status: string;
 }
 
+export interface UploadedBook extends Book {
+  source_hash: string;
+  reused: boolean;
+  error: string | null;
+}
+
 export interface Chapter {
   id: string;
   book_id: string;
@@ -113,6 +119,210 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || isString(value);
+}
+
+function isNonNegativeInteger(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= 0
+  );
+}
+
+function isArrayOf<T>(
+  value: unknown,
+  isItem: (item: unknown) => item is T,
+): value is T[] {
+  return Array.isArray(value) && value.every(isItem);
+}
+
+function isBook(value: unknown): value is Book & Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.title) &&
+    isNullableString(value.author) &&
+    isNullableString(value.language) &&
+    isString(value.created_at) &&
+    isString(value.status)
+  );
+}
+
+function isUploadedBook(value: unknown): value is UploadedBook {
+  return (
+    isBook(value) &&
+    isString(value.source_hash) &&
+    typeof value.reused === "boolean" &&
+    isNullableString(value.error)
+  );
+}
+
+function isChapter(value: unknown): value is Chapter & Record<string, unknown> {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.book_id) &&
+    isNonNegativeInteger(value.index) &&
+    isNullableString(value.title) &&
+    isNonNegativeInteger(value.start_position) &&
+    isNonNegativeInteger(value.end_position) &&
+    value.start_position <= value.end_position
+  );
+}
+
+function isParagraph(value: unknown): value is Paragraph {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.chapter_id) &&
+    isNonNegativeInteger(value.position) &&
+    isString(value.text)
+  );
+}
+
+function isChapterContent(value: unknown): value is ChapterContent {
+  return (
+    isChapter(value) &&
+    isArrayOf(value.paragraphs, isParagraph) &&
+    value.paragraphs.every(
+      (paragraph) =>
+        paragraph.chapter_id === value.id &&
+        paragraph.position >= value.start_position &&
+        paragraph.position <= value.end_position,
+    )
+  );
+}
+
+function isReadingProgress(value: unknown): value is ReadingProgress {
+  return (
+    isRecord(value) &&
+    isString(value.book_id) &&
+    (value.current_position === null ||
+      isNonNegativeInteger(value.current_position))
+  );
+}
+
+function isEntityType(value: unknown): value is EntityType {
+  return (
+    value === "person" ||
+    value === "place" ||
+    value === "group" ||
+    value === "object" ||
+    value === "concept"
+  );
+}
+
+function isFactKind(value: unknown): value is FactKind {
+  return (
+    value === "description" ||
+    value === "relationship" ||
+    value === "event" ||
+    value === "motivation"
+  );
+}
+
+function isEntityAlias(value: unknown): value is EntityAlias {
+  return (
+    isRecord(value) &&
+    isString(value.alias) &&
+    isNonNegativeInteger(value.first_position)
+  );
+}
+
+function isEntityListItem(value: unknown): value is EntityListItem {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isEntityType(value.type) &&
+    isString(value.canonical_name) &&
+    isNonNegativeInteger(value.first_position) &&
+    isArrayOf(value.aliases, isEntityAlias)
+  );
+}
+
+function isLookupEntitySummary(value: unknown): value is LookupEntitySummary {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isEntityType(value.type) &&
+    isString(value.canonical_name) &&
+    isNonNegativeInteger(value.first_position)
+  );
+}
+
+function isLookupFact(value: unknown): value is LookupFact {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.text) &&
+    isFactKind(value.kind) &&
+    isNonNegativeInteger(value.position) &&
+    isString(value.chapter_id) &&
+    isNonNegativeInteger(value.chapter_index) &&
+    isNullableString(value.chapter_title) &&
+    isString(value.source_excerpt)
+  );
+}
+
+function isLookupRelationship(value: unknown): value is LookupRelationship {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isLookupEntitySummary(value.entity_a) &&
+    isLookupEntitySummary(value.entity_b) &&
+    isString(value.label) &&
+    isNonNegativeInteger(value.position)
+  );
+}
+
+function isEntityLookupMatch(value: unknown): value is EntityLookupMatch {
+  return (
+    isRecord(value) &&
+    isLookupEntitySummary(value.entity) &&
+    isArrayOf(value.aliases, isEntityAlias) &&
+    isArrayOf(value.facts, isLookupFact) &&
+    isArrayOf(value.relationships, isLookupRelationship)
+  );
+}
+
+function isEntityLookupResponse(value: unknown): value is EntityLookupResponse {
+  return (
+    isRecord(value) &&
+    isString(value.query) &&
+    isNonNegativeInteger(value.position) &&
+    isArrayOf(value.matches, isEntityLookupMatch)
+  );
+}
+
+function isRecapEvent(value: unknown): value is RecapEvent {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.text) &&
+    isNonNegativeInteger(value.position) &&
+    isString(value.chapter_id) &&
+    isNonNegativeInteger(value.chapter_index) &&
+    isNullableString(value.chapter_title) &&
+    isString(value.source_excerpt) &&
+    isLookupEntitySummary(value.entity)
+  );
+}
+
+function isRecapResponse(value: unknown): value is RecapResponse {
+  return (
+    isRecord(value) &&
+    isNonNegativeInteger(value.position) &&
+    isArrayOf(value.events, isRecapEvent) &&
+    isArrayOf(value.characters, isEntityListItem)
+  );
+}
+
 export class ApiError extends Error {
   readonly code: string | undefined;
 
@@ -129,7 +339,11 @@ function validateReadingPosition(position: number): void {
   }
 }
 
-async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
+async function requestJson<T>(
+  path: string,
+  isResponse: (value: unknown) => value is T,
+  init?: RequestInit,
+): Promise<T> {
   const response = await fetch(`/api${path}`, init);
   const responseText = await response.text();
   let payload: unknown;
@@ -164,38 +378,45 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   if (payload === undefined) {
     throw new ApiError("The server returned an empty response.");
   }
-  return payload as T;
+  if (!isResponse(payload)) {
+    throw new ApiError("The server returned an invalid response.");
+  }
+  return payload;
 }
 
 export function getBooks(): Promise<Book[]> {
-  return requestJson<Book[]>("/books");
+  return requestJson("/books", (value): value is Book[] =>
+    isArrayOf(value, isBook),
+  );
 }
 
-export function uploadBook(file: File): Promise<Book & { reused: boolean }> {
+export function uploadBook(file: File): Promise<UploadedBook> {
   const body = new FormData();
   body.append("file", file);
-  return requestJson<Book & { reused: boolean }>("/books", {
-    method: "POST",
-    body,
-  });
+  return requestJson("/books", isUploadedBook, { method: "POST", body });
 }
 
 export function getChapters(bookId: string): Promise<Chapter[]> {
-  return requestJson<Chapter[]>(`/books/${encodeURIComponent(bookId)}/chapters`);
+  return requestJson(
+    `/books/${encodeURIComponent(bookId)}/chapters`,
+    (value): value is Chapter[] => isArrayOf(value, isChapter),
+  );
 }
 
 export function getChapterContent(
   bookId: string,
   chapterId: string,
 ): Promise<ChapterContent> {
-  return requestJson<ChapterContent>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/content/${encodeURIComponent(chapterId)}`,
+    isChapterContent,
   );
 }
 
 export function getReadingProgress(bookId: string): Promise<ReadingProgress> {
-  return requestJson<ReadingProgress>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/progress`,
+    isReadingProgress,
   );
 }
 
@@ -203,8 +424,9 @@ export function saveReadingProgress(
   bookId: string,
   position: number,
 ): Promise<ReadingProgress> {
-  return requestJson<ReadingProgress>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/progress`,
+    isReadingProgress,
     {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -223,8 +445,9 @@ export function getBookEntities(
   if (entityType) {
     params.set("type", entityType);
   }
-  return requestJson<EntityListItem[]>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/entities?${params.toString()}`,
+    (value): value is EntityListItem[] => isArrayOf(value, isEntityListItem),
   );
 }
 
@@ -238,8 +461,9 @@ export function lookupBookEntity(
     q: query,
     position: String(position),
   });
-  return requestJson<EntityLookupResponse>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/lookup?${params.toString()}`,
+    isEntityLookupResponse,
   );
 }
 
@@ -249,7 +473,8 @@ export function getBookRecap(
 ): Promise<RecapResponse> {
   validateReadingPosition(position);
   const params = new URLSearchParams({ position: String(position) });
-  return requestJson<RecapResponse>(
+  return requestJson(
     `/books/${encodeURIComponent(bookId)}/recap?${params.toString()}`,
+    isRecapResponse,
   );
 }

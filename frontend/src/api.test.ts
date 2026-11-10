@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  ApiError,
   getBookEntities,
   getBookRecap,
+  getBooks,
+  getChapterContent,
+  getChapters,
+  getReadingProgress,
   lookupBookEntity,
+  uploadBook,
 } from "./api";
 
 afterEach(() => {
@@ -99,6 +105,183 @@ describe("notes API client", () => {
     await expect(getBookRecap("book-id", 5)).rejects.toMatchObject({
       code: "invalid_reading_position",
       message: "Invalid position.",
+    });
+  });
+
+  it("rejects successful responses that do not match the book response type", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify([{ id: "book-id", title: 42 }]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const response = getBooks();
+
+    await expect(response).rejects.toBeInstanceOf(ApiError);
+    await expect(response).rejects.toMatchObject({
+      message: "The server returned an invalid response.",
+    });
+  });
+
+  it("validates nested recap fields in successful responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            position: 2,
+            events: [],
+            characters: [
+              {
+                id: "entity-id",
+                type: "unknown",
+                canonical_name: "Marta",
+                first_position: 0,
+                aliases: [],
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(getBookRecap("book-id", 2)).rejects.toMatchObject({
+      message: "The server returned an invalid response.",
+    });
+  });
+
+  it("accepts valid library, upload, chapter, and progress response shapes", async () => {
+    const responseBodies = [
+      JSON.stringify([
+        {
+          id: "book-id",
+          title: "Book",
+          author: null,
+          language: "en",
+          created_at: "2026-11-10T00:00:00Z",
+          status: "parsed",
+        },
+      ]),
+      JSON.stringify({
+        id: "book-id",
+        title: "Book",
+        author: null,
+        language: "en",
+        created_at: "2026-11-10T00:00:00Z",
+        status: "parsed",
+        source_hash: "hash",
+        reused: false,
+        error: null,
+      }),
+      JSON.stringify([
+        {
+          id: "chapter-id",
+          book_id: "book-id",
+          index: 0,
+          title: null,
+          start_position: 0,
+          end_position: 0,
+        },
+      ]),
+      JSON.stringify({
+        id: "chapter-id",
+        book_id: "book-id",
+        index: 0,
+        title: null,
+        start_position: 0,
+        end_position: 0,
+        paragraphs: [
+          {
+            id: "paragraph-id",
+            chapter_id: "chapter-id",
+            position: 0,
+            text: "Text",
+          },
+        ],
+      }),
+      JSON.stringify({ book_id: "book-id", current_position: null }),
+    ];
+    let responseIndex = 0;
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(responseBodies[responseIndex++], {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["epub"], "book.epub");
+
+    await expect(getBooks()).resolves.toHaveLength(1);
+    await expect(uploadBook(file)).resolves.toMatchObject({
+      source_hash: "hash",
+      reused: false,
+      error: null,
+    });
+    await expect(getChapters("book-id")).resolves.toHaveLength(1);
+    await expect(
+      getChapterContent("book-id", "chapter-id"),
+    ).resolves.toMatchObject({
+      paragraphs: [{ text: "Text" }],
+    });
+    await expect(getReadingProgress("book-id")).resolves.toEqual({
+      book_id: "book-id",
+      current_position: null,
+    });
+  });
+
+  it("rejects malformed nested lookup facts in successful responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            query: "Marta",
+            position: 2,
+            matches: [
+              {
+                entity: {
+                  id: "entity-id",
+                  type: "person",
+                  canonical_name: "Marta",
+                  first_position: 0,
+                },
+                aliases: [],
+                facts: [
+                  {
+                    id: "fact-id",
+                    text: "A fact",
+                    kind: "unrecognized",
+                    position: 1,
+                    chapter_id: "chapter-id",
+                    chapter_index: 0,
+                    chapter_title: null,
+                    source_excerpt: "Source",
+                  },
+                ],
+                relationships: [],
+              },
+            ],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(lookupBookEntity("book-id", "Marta", 2)).rejects.toMatchObject({
+      message: "The server returned an invalid response.",
     });
   });
 });

@@ -14,8 +14,9 @@ applyTo: "backend/**/*.py"
 - Keep route handlers focused on HTTP concerns and validation. Put reusable
   domain behavior in the existing application modules; do not introduce a
   layered architecture or abstraction without a concrete need.
-- Validate external input at API boundaries and return explicit, stable error
-  responses. Keep response/request schemas in sync with the frontend contract.
+- Validate request data at API boundaries and declare/validate response data
+  with the existing Pydantic schemas. Return explicit, stable error responses
+  and keep request/response schemas synchronized with the frontend contract.
 - Preserve spoiler protection in database queries: filter by the requested
   position before returning facts, aliases, or relationships. Do not move this
   enforcement into prompts or the frontend.

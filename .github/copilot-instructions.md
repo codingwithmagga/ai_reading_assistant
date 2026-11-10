@@ -52,6 +52,9 @@
   interpretations would materially change the implementation.
 - Keep errors explicit; do not hide failures behind broad catches, silent
   defaults, or success-shaped fallbacks.
+- Validate API data on both sides of the boundary. In particular, treat parsed
+  frontend response JSON as `unknown` and validate its runtime shape before
+  using it as a typed value.
 - Update relevant tests and documentation with production changes. Review the
   final diff for unrelated edits and run the checks relevant to the change.
 - For every task, check whether the relevant project documentation and AI

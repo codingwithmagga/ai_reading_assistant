@@ -67,8 +67,11 @@ model is not authoritative for positions.
 
 ## API changes
 
-Keep API request and response schemas explicit. An API change should be
-implemented and tested across the backend endpoint/schema, frontend types and
+Keep API request and response schemas explicit. Validate incoming requests and
+backend responses with Pydantic, and validate parsed backend response payloads
+in the frontend at runtime before treating them as typed data. Keep frontend
+requests aligned with the API contract. An API change should be implemented
+and tested across the backend endpoint/schema, frontend runtime validators and
 client, and affected UI behavior. The generated OpenAPI documentation is
 available from the running backend at `/api/docs`.
 

@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -21,7 +22,12 @@ const book: api.Book = {
 beforeEach(() => {
   window.localStorage.clear();
   vi.spyOn(api, "getBooks").mockResolvedValue([]);
-  vi.spyOn(api, "uploadBook").mockResolvedValue({ ...book, reused: false });
+  vi.spyOn(api, "uploadBook").mockResolvedValue({
+    ...book,
+    source_hash: "test-hash",
+    reused: false,
+    error: null,
+  });
   vi.spyOn(api, "getChapters").mockResolvedValue([]);
   vi.spyOn(api, "getReadingProgress").mockResolvedValue({
     book_id: book.id,
@@ -50,6 +56,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -189,6 +196,7 @@ describe("App", () => {
       expect(api.saveReadingProgress).toHaveBeenCalledWith(book.id, 3);
     });
     vi.mocked(api.saveReadingProgress).mockClear();
+    vi.useFakeTimers();
 
     fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
       target: { value: "chapter-1" },
@@ -203,8 +211,11 @@ describe("App", () => {
     );
     expect(screen.getByText("2 von 4")).toBeInTheDocument();
     expect(screen.getByText(/Leseposition:/)).toHaveTextContent("4 von 4");
-    await new Promise((resolve) => window.setTimeout(resolve, 600));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(600);
+    });
     expect(api.saveReadingProgress).not.toHaveBeenCalled();
+    vi.useRealTimers();
 
     fireEvent.change(screen.getByLabelText("Eingabemethode"), {
       target: { value: "percentage" },
