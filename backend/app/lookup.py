@@ -65,3 +65,39 @@ def find_entities_by_name(
         if normalize_entity_name(alias.alias) == normalized_query
     )
     return [entity for entity in entities if entity.id in matches]
+
+
+def list_entities_at_position(
+    session: Session,
+    *,
+    book_id: str,
+    position: int,
+    entity_type: str | None = None,
+) -> list[tuple[Entity, list[EntityAlias]]]:
+    entity_statement = (
+        select(Entity)
+        .where(Entity.book_id == book_id, Entity.first_position <= position)
+        .order_by(Entity.first_position, Entity.canonical_name, Entity.id)
+    )
+    if entity_type is not None:
+        entity_statement = entity_statement.where(Entity.type == entity_type)
+    entities = list(session.scalars(entity_statement))
+    if not entities:
+        return []
+
+    aliases_by_entity: dict[str, list[EntityAlias]] = {entity.id: [] for entity in entities}
+    aliases = session.scalars(
+        select(EntityAlias)
+        .join(Entity, Entity.id == EntityAlias.entity_id)
+        .where(
+            Entity.book_id == book_id,
+            Entity.id.in_(aliases_by_entity),
+            Entity.first_position <= position,
+            EntityAlias.first_position <= position,
+        )
+        .order_by(EntityAlias.first_position, EntityAlias.alias, EntityAlias.id)
+    )
+    for alias in aliases:
+        aliases_by_entity[alias.entity_id].append(alias)
+
+    return [(entity, aliases_by_entity[entity.id]) for entity in entities]

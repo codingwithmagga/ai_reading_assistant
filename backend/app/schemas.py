@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.extraction_schemas import EntityType
+
 
 class BookResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -59,3 +61,20 @@ class JobResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     created_at: datetime
+
+
+class EntityAliasResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    alias: str
+    first_position: int
+
+
+class EntityListItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: EntityType
+    canonical_name: str
+    first_position: int
+    aliases: list[EntityAliasResponse]

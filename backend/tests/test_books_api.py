@@ -544,6 +544,30 @@ def test_entity_list_hides_entities_and_aliases_until_introduced(client: TestCli
     marta = next(entity for entity in at_position_1 if entity["canonical_name"] == "Marta")
     assert {alias["alias"] for alias in marta["aliases"]} == {"die Wirtin"}
 
+    all_entities = client.get(
+        f"/books/{book_id}/entities",
+        params={"position": 5},
+    ).json()
+    assert [entity["canonical_name"] for entity in all_entities] == [
+        "Marta",
+        "Dorf",
+        "Lea",
+        "Geheimnis",
+    ]
+
+    people = client.get(
+        f"/books/{book_id}/entities",
+        params={"position": 5, "type": "person"},
+    )
+    assert people.status_code == 200
+    assert [entity["canonical_name"] for entity in people.json()] == ["Marta", "Lea"]
+
+    invalid_type = client.get(
+        f"/books/{book_id}/entities",
+        params={"position": 5, "type": "unknown"},
+    )
+    assert invalid_type.status_code == 422
+
 
 def test_lookup_filters_every_fact_and_relationship_by_reading_position(
     client: TestClient,

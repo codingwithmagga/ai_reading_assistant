@@ -2,7 +2,16 @@ import logging
 from hashlib import sha256
 from pathlib import PurePath
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+)
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -15,11 +24,19 @@ from app.extraction_jobs import (
     create_extraction_job,
     process_extraction_job,
 )
+from app.extraction_schemas import EntityType
+from app.lookup import (
+    LookupPositionError,
+    list_entities_at_position,
+    validate_reading_position,
+)
 from app.models import Book, Chapter, Job, Paragraph
 from app.schemas import (
     BookResponse,
     ChapterContentResponse,
     ChapterResponse,
+    EntityAliasResponse,
+    EntityListItemResponse,
     JobResponse,
     UploadResponse,
 )
@@ -158,6 +175,52 @@ def get_book(book_id: str, session: Session = Depends(get_session)) -> Book:
             detail={"code": "book_not_found", "message": "Buch nicht gefunden."},
         )
     return book
+
+
+@router.get(
+    "/{book_id}/entities",
+    response_model=list[EntityListItemResponse],
+)
+def list_book_entities(
+    book_id: str,
+    position: int = Query(),
+    entity_type: EntityType | None = Query(default=None, alias="type"),
+    session: Session = Depends(get_session),
+) -> list[EntityListItemResponse]:
+    _require_book(session, book_id)
+    try:
+        validate_reading_position(session, book_id, position)
+    except LookupPositionError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_reading_position",
+                "message": str(error),
+            },
+        ) from error
+
+    entities = list_entities_at_position(
+        session,
+        book_id=book_id,
+        position=position,
+        entity_type=entity_type.value if entity_type is not None else None,
+    )
+    return [
+        EntityListItemResponse(
+            id=entity.id,
+            type=EntityType(entity.type),
+            canonical_name=entity.canonical_name,
+            first_position=entity.first_position,
+            aliases=[
+                EntityAliasResponse(
+                    alias=alias.alias,
+                    first_position=alias.first_position,
+                )
+                for alias in aliases
+            ],
+        )
+        for entity, aliases in entities
+    ]
 
 
 @router.get("/{book_id}/chapters", response_model=list[ChapterResponse])
