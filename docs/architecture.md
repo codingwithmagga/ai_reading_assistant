@@ -1,0 +1,76 @@
+# Architecture Overview
+
+The [project specification](./PROJECT_SPEC.md) is the authoritative reference
+for product scope, the data model, API behavior, and spoiler-safety
+requirements. This document summarizes the current implementation boundaries
+to help contributors navigate the code.
+
+## System components
+
+- **Backend:** Python 3.12+, FastAPI, Pydantic, SQLAlchemy, and SQLite. Alembic
+  manages schema migrations.
+- **Frontend:** React and TypeScript, built with Vite. `App.tsx` owns the
+  library and upload experience; `Reader.tsx` owns reading and notes workflows.
+- **Persistence:** Books, chapters, paragraphs, extracted entities and facts,
+  jobs, and reading progress are stored in SQLite.
+- **External AI:** The OpenAI client is used for extraction only. The source
+  EPUB is parsed locally; extraction sends only the approved text block and
+  known-entity context required for that operation.
+
+## Backend responsibilities
+
+- `app/main.py` creates the FastAPI application and mounts the book and query
+  routers.
+- `app/books.py` provides book, chapter, upload, job, and reading-progress
+  endpoints.
+- `app/book_queries.py` provides entity, lookup, and recap endpoints.
+- `app/epub_parser.py` parses EPUB input into ordered chapters and paragraphs.
+- `app/extraction_jobs.py`, `app/openai_extractor.py`,
+  `app/extraction_schemas.py`, and `app/extraction_prompt.py` implement
+  extraction orchestration, model interaction, validation, and prompts.
+- `app/lookup.py` contains position-aware database queries; `app/models.py`,
+  `app/schemas.py`, `app/database.py`, and Alembic migrations define persistence
+  and API data structures.
+
+The backend currently uses focused modules rather than a strict
+controller/service/repository hierarchy. Keep new code aligned with those
+existing boundaries; extract a layer only when it solves a concrete problem.
+
+## Frontend responsibilities
+
+- `src/App.tsx` handles the library, upload, language selection, and view
+  selection.
+- `src/Reader.tsx` handles chapter display, saved/manual reading positions,
+  lookup, characters, and recap.
+- `src/api.ts` defines typed backend requests and responses.
+- `src/i18n.ts` contains UI translations and localized error helpers.
+
+Keep HTTP details in the API client where practical, and present book text as
+text rather than executable HTML.
+
+## Position and spoiler boundary
+
+Paragraph positions are the single authoritative reading coordinate. They are
+monotonically increasing within a book, and the query position is inclusive:
+only information with introduction/fact position less than or equal to the
+requested position can be returned. Aliases and relationships have their own
+position constraints; both entities in a relationship must also be known.
+
+The backend validates the requested position and filters data in database
+queries before producing a response. The frontend must send the active
+position with each query and must not compensate for an unfiltered backend
+response by hiding later information.
+
+Extraction proceeds through chapters in reading order. Model output is
+validated, and the server maps paragraph references to stored positions; the
+model is not authoritative for positions.
+
+## API changes
+
+Keep API request and response schemas explicit. An API change should be
+implemented and tested across the backend endpoint/schema, frontend types and
+client, and affected UI behavior. The generated OpenAPI documentation is
+available from the running backend at `/api/docs`.
+
+The PWA and other roadmap items are governed by the project specification;
+do not assume a planned feature is already implemented.
