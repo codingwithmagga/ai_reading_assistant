@@ -11,7 +11,10 @@ This monorepo contains a Python backend and a React frontend. The complete
 product description, architecture, data model, API, risks, and phase acceptance
 criteria are in [docs/PROJECT_SPEC.md](docs/PROJECT_SPEC.md). AI-assisted
 development guidelines are in
-[.github/copilot-instructions.md](.github/copilot-instructions.md).
+[.github/copilot-instructions.md](.github/copilot-instructions.md). See
+[docs/architecture.md](docs/architecture.md) for the current system boundaries,
+[docs/development.md](docs/development.md) for the developer workflow, and
+[docs/testing.md](docs/testing.md) for tests and quality checks.
 
 ## Start with Docker Compose
 
