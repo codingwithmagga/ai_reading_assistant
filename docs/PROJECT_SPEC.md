@@ -207,14 +207,18 @@ Views:
    track the current paragraph, and persist/restore reading progress.
 3. **Notes panel** (sidebar or mobile bottom sheet): search field, list of
    characters/places seen so far, detail view with facts, relationships, and
-   chapter references. Selected reader text can be looked up directly.
+   chapter references. Selected reader text can be looked up directly. The
+   panel mirrors the current reading position by default and falls back to a
+   manual chapter/percentage selection if the user is reading outside the app.
 4. **Position-selection fallback:** chapter/percentage selector for reading
    outside the app.
 
 Requirements: responsive (mobile-first), PWA manifest, service worker for the
 app shell, and dark mode. The UI defaults to German and offers a language
 selector; English is supported initially, with translations structured so
-additional languages can be added.
+additional languages can be added. All new user-facing copy is translated into
+German and English, and later languages can be added without changing the
+data model.
 
 AI-generated notes default to German. Set `APP_OUTPUT_LANGUAGE` (for example,
 to `en`) to request another output language independently of the UI language.

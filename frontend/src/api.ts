@@ -32,6 +32,78 @@ export interface ReadingProgress {
   current_position: number | null;
 }
 
+export type EntityType = "person" | "place" | "group" | "object" | "concept";
+export type FactKind = "description" | "relationship" | "event" | "motivation";
+
+export interface EntityAlias {
+  alias: string;
+  first_position: number;
+}
+
+export interface EntityListItem {
+  id: string;
+  type: EntityType;
+  canonical_name: string;
+  first_position: number;
+  aliases: EntityAlias[];
+}
+
+export interface LookupEntitySummary {
+  id: string;
+  type: EntityType;
+  canonical_name: string;
+  first_position: number;
+}
+
+export interface LookupFact {
+  id: string;
+  text: string;
+  kind: FactKind;
+  position: number;
+  chapter_id: string;
+  chapter_index: number;
+  chapter_title: string | null;
+  source_excerpt: string;
+}
+
+export interface LookupRelationship {
+  id: string;
+  entity_a: LookupEntitySummary;
+  entity_b: LookupEntitySummary;
+  label: string;
+  position: number;
+}
+
+export interface EntityLookupMatch {
+  entity: LookupEntitySummary;
+  aliases: EntityAlias[];
+  facts: LookupFact[];
+  relationships: LookupRelationship[];
+}
+
+export interface EntityLookupResponse {
+  query: string;
+  position: number;
+  matches: EntityLookupMatch[];
+}
+
+export interface RecapEvent {
+  id: string;
+  text: string;
+  position: number;
+  chapter_id: string;
+  chapter_index: number;
+  chapter_title: string | null;
+  source_excerpt: string;
+  entity: LookupEntitySummary;
+}
+
+export interface RecapResponse {
+  position: number;
+  events: RecapEvent[];
+  characters: EntityListItem[];
+}
+
 interface ApiErrorDetail {
   code?: string;
   message?: string;
@@ -48,6 +120,12 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
     this.code = code;
+  }
+}
+
+function validateReadingPosition(position: number): void {
+  if (!Number.isSafeInteger(position) || position < 0) {
+    throw new RangeError("Reading position must be a non-negative safe integer.");
   }
 }
 
@@ -132,5 +210,46 @@ export function saveReadingProgress(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ position }),
     },
+  );
+}
+
+export function getBookEntities(
+  bookId: string,
+  position: number,
+  entityType?: EntityType,
+): Promise<EntityListItem[]> {
+  validateReadingPosition(position);
+  const params = new URLSearchParams({ position: String(position) });
+  if (entityType) {
+    params.set("type", entityType);
+  }
+  return requestJson<EntityListItem[]>(
+    `/books/${encodeURIComponent(bookId)}/entities?${params.toString()}`,
+  );
+}
+
+export function lookupBookEntity(
+  bookId: string,
+  query: string,
+  position: number,
+): Promise<EntityLookupResponse> {
+  validateReadingPosition(position);
+  const params = new URLSearchParams({
+    q: query,
+    position: String(position),
+  });
+  return requestJson<EntityLookupResponse>(
+    `/books/${encodeURIComponent(bookId)}/lookup?${params.toString()}`,
+  );
+}
+
+export function getBookRecap(
+  bookId: string,
+  position: number,
+): Promise<RecapResponse> {
+  validateReadingPosition(position);
+  const params = new URLSearchParams({ position: String(position) });
+  return requestJson<RecapResponse>(
+    `/books/${encodeURIComponent(bookId)}/recap?${params.toString()}`,
   );
 }
