@@ -70,8 +70,11 @@ den bestehenden Bucheintrag zurück. Die EPUB-Quelldatei wird nach dem Parsing
 nicht dauerhaft gespeichert; gespeichert werden Metadaten und extrahierter
 Text. Die API enthält außerdem `GET /api/books`, `GET /api/books/{id}`,
 `GET /api/books/{id}/chapters` und
-`GET /api/books/{id}/content/{chapter_id}`. OpenAPI-Schemas und interaktive
-Dokumentation sind unter <http://localhost:8080/api/docs> verfügbar.
+`GET /api/books/{id}/content/{chapter_id}`. Eine Extraktion startet mit
+`POST /api/books/{id}/extraction-jobs` (HTTP 202); Status, sichere Fehlermeldung
+und Tokenzähler liefert `GET /api/books/{id}/jobs`. Ein bereits aktiver Job
+führt zu HTTP 409. OpenAPI-Schemas und interaktive Dokumentation sind unter
+<http://localhost:8080/api/docs> verfügbar.
 
 Container im Hintergrund starten und stoppen:
 

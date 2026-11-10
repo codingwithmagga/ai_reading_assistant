@@ -1,22 +1,30 @@
+import logging
 from hashlib import sha256
 from pathlib import PurePath
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.database import get_session
+from app.database import SessionLocal, get_session
 from app.epub_parser import EpubParsingError, parse_epub
+from app.extraction_jobs import (
+    ExtractionJobAlreadyActiveError,
+    create_extraction_job,
+    process_extraction_job,
+)
 from app.models import Book, Chapter, Job, Paragraph
 from app.schemas import (
     BookResponse,
     ChapterContentResponse,
     ChapterResponse,
+    JobResponse,
     UploadResponse,
 )
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/books", tags=["books"])
 
 
@@ -156,9 +164,7 @@ def get_book(book_id: str, session: Session = Depends(get_session)) -> Book:
 def list_chapters(book_id: str, session: Session = Depends(get_session)) -> list[Chapter]:
     _require_book(session, book_id)
     statement = (
-        select(Chapter)
-        .where(Chapter.book_id == book_id)
-        .order_by(Chapter.index, Chapter.id)
+        select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.index, Chapter.id)
     )
     return list(session.scalars(statement))
 
@@ -196,6 +202,61 @@ def get_chapter_content(
         end_position=chapter.end_position,
         paragraphs=list(paragraphs),
     )
+
+
+@router.post(
+    "/{book_id}/extraction-jobs",
+    response_model=JobResponse,
+    status_code=202,
+)
+def start_extraction_job(
+    book_id: str,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+) -> Job:
+    _require_book(session, book_id)
+    try:
+        job = create_extraction_job(session, book_id)
+    except ExtractionJobAlreadyActiveError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "extraction_job_active",
+                "message": str(error),
+            },
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "book_not_ready_for_extraction",
+                "message": str(error),
+            },
+        ) from error
+
+    background_tasks.add_task(run_extraction_job_background, job.id)
+    return job
+
+
+@router.get("/{book_id}/jobs", response_model=list[JobResponse])
+def list_book_jobs(book_id: str, session: Session = Depends(get_session)) -> list[Job]:
+    _require_book(session, book_id)
+    return list(
+        session.scalars(
+            select(Job).where(Job.book_id == book_id).order_by(Job.created_at.desc(), Job.id.desc())
+        )
+    )
+
+
+def run_extraction_job_background(job_id: str) -> None:
+    try:
+        with SessionLocal() as session:
+            process_extraction_job(session, job_id)
+    except Exception as error:
+        logger.error(
+            "Extraction background job failed",
+            extra={"job_id": job_id, "error_code": type(error).__name__},
+        )
 
 
 def _require_book(session: Session, book_id: str) -> Book:

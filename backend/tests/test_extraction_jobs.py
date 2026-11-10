@@ -220,9 +220,13 @@ def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
     )
 
 
-def test_only_one_active_extraction_job_is_allowed_per_book(session: Session) -> None:
+def test_pending_extraction_job_is_reused_and_running_job_is_rejected(session: Session) -> None:
     book = _create_parsed_book(session)
-    create_extraction_job(session, book.id)
+    original_job = create_extraction_job(session, book.id)
+    assert create_extraction_job(session, book.id).id == original_job.id
+    original_job.status = "running"
+    original_job.lease_expires_at = datetime.now(UTC) + timedelta(minutes=5)
+    session.commit()
 
     with pytest.raises(ExtractionJobAlreadyActiveError):
         create_extraction_job(session, book.id)

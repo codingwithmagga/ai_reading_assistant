@@ -42,3 +42,20 @@ class ParagraphResponse(BaseModel):
 
 class ChapterContentResponse(ChapterResponse):
     paragraphs: list[ParagraphResponse]
+
+
+class JobResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    book_id: str
+    type: str
+    status: str
+    progress: int
+    last_completed_chapter_index: int | None
+    last_completed_block_index: int | None
+    error_code: str | None
+    error: str | None
+    input_tokens: int
+    output_tokens: int
+    created_at: datetime
