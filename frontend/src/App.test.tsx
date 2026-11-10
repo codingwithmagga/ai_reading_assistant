@@ -27,6 +27,12 @@ beforeEach(() => {
     book_id: book.id,
     current_position: null,
   });
+  vi.spyOn(api, "getBookEntities").mockResolvedValue([]);
+  vi.spyOn(api, "getBookRecap").mockResolvedValue({
+    position: 0,
+    events: [],
+    characters: [],
+  });
   vi.spyOn(api, "getChapterContent").mockResolvedValue({
     id: "chapter-1",
     book_id: book.id,
@@ -192,7 +198,7 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByText(/Manuelle Position aktiv/)).toHaveTextContent(
       "Manuelle Position aktiv",
     );
     expect(screen.getByText("2 von 4")).toBeInTheDocument();
@@ -217,7 +223,7 @@ describe("App", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Reader-Position verwenden" }),
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getByText(/Folgt der aktuellen Leseposition/)).toHaveTextContent(
       "Folgt der aktuellen Leseposition",
     );
     expect(screen.getByText("4 von 4")).toBeInTheDocument();
@@ -436,5 +442,116 @@ describe("App", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Die Suche ist fehlgeschlagen. Die Anfrage ist fehlgeschlagen.",
     );
+  });
+
+  it("loads known characters and chronological recap at the active notes position", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 1,
+      paragraphs: [
+        {
+          id: "paragraph-0",
+          chapter_id: "chapter-1",
+          position: 0,
+          text: "Liora enters.",
+        },
+        {
+          id: "paragraph-1",
+          chapter_id: "chapter-1",
+          position: 1,
+          text: "Liora finds the key.",
+        },
+      ],
+    });
+    vi.mocked(api.getBookEntities).mockResolvedValue([
+      {
+        id: "liora",
+        type: "person",
+        canonical_name: "Liora",
+        first_position: 0,
+        aliases: [{ alias: "the traveler", first_position: 1 }],
+      },
+    ]);
+    vi.mocked(api.getBookRecap).mockResolvedValue({
+      position: 1,
+      characters: [],
+      events: [
+        {
+          id: "event-1",
+          text: "Liora finds a key.",
+          position: 1,
+          chapter_id: "chapter-1",
+          chapter_index: 0,
+          chapter_title: "First chapter",
+          source_excerpt: "She found a small key.",
+          entity: {
+            id: "liora",
+            type: "person",
+            canonical_name: "Liora",
+            first_position: 0,
+          },
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    await screen.findByText("Liora");
+    expect(api.getBookEntities).toHaveBeenLastCalledWith(book.id, 0, "person");
+    expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
+
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+
+    expect(await screen.findByText("Liora finds a key.")).toBeInTheDocument();
+    expect(screen.getByText("Liora").closest("li")).toHaveTextContent(
+      "the traveler",
+    );
+    expect(screen.getByText("She found a small key.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(api.getBookEntities).toHaveBeenLastCalledWith(
+        book.id,
+        1,
+        "person",
+      );
+      expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 1);
+    });
+
+    vi.mocked(api.getBookEntities).mockImplementation(
+      () => new Promise<api.EntityListItem[]>(() => {}),
+    );
+    vi.mocked(api.getBookRecap).mockImplementation(
+      () => new Promise<api.RecapResponse>(() => {}),
+    );
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+
+    expect(await screen.findByText("Figuren werden geladen …")).toBeInTheDocument();
+    expect(screen.queryByText("Liora", { selector: "strong" })).toBeNull();
+    expect(screen.queryByText("Liora finds a key.")).toBeNull();
   });
 });

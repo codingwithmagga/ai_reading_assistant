@@ -361,6 +361,42 @@ select {
   overflow-wrap: anywhere;
 }
 
+.notes-data {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d5d0c4;
+  overflow-wrap: anywhere;
+}
+
+.notes-data h3 {
+  margin-bottom: 0.6rem;
+}
+
+.notes-data .message {
+  padding: 0.75rem;
+}
+
+.character-list,
+.recap-events {
+  padding-left: 1.4rem;
+}
+
+.character-list li + li,
+.recap-events li + li {
+  margin-top: 0.6rem;
+}
+
+.recap-events p {
+  margin-bottom: 0.35rem;
+}
+
+.recap-events blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid #d5d0c4;
+  color: #5f5b52;
+}
+
 .lookup-match h3 {
   margin-bottom: 0.2rem;
 }

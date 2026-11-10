@@ -10,8 +10,12 @@ import {
   Book,
   Chapter,
   ChapterContent,
+  EntityListItem,
   EntityLookupResponse,
+  RecapResponse,
   getBooks,
+  getBookEntities,
+  getBookRecap,
   getChapterContent,
   getChapters,
   getReadingProgress,
@@ -96,6 +100,13 @@ const translations = {
     positionLabel: "Position",
     chapterLabel: "Kapitel",
     noLookupPosition: "Für die Suche ist keine Leseposition verfügbar.",
+    knownCharacters: "Bekannte Figuren",
+    noKnownCharacters: "Bis zu dieser Position sind keine Figuren bekannt.",
+    loadingCharacters: "Figuren werden geladen …",
+    recapTitle: "Was bisher geschah",
+    noRecapEvents: "Bis zu dieser Position sind keine Ereignisse bekannt.",
+    loadingRecap: "Rückblick wird geladen …",
+    notesLoadFailed: "Notizen konnten nicht geladen werden.",
     entityTypes: {
       person: "Person",
       place: "Ort",
@@ -179,6 +190,13 @@ const translations = {
     positionLabel: "Position",
     chapterLabel: "Chapter",
     noLookupPosition: "No reading position is available for lookup.",
+    knownCharacters: "Known characters",
+    noKnownCharacters: "No characters are known up to this position.",
+    loadingCharacters: "Loading characters …",
+    recapTitle: "What has happened so far",
+    noRecapEvents: "No events are known up to this position.",
+    loadingRecap: "Loading recap …",
+    notesLoadFailed: "Notes could not be loaded.",
     entityTypes: {
       person: "Person",
       place: "Place",
@@ -435,8 +453,20 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     useState<EntityLookupResponse | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [characters, setCharacters] = useState<EntityListItem[]>([]);
+  const [charactersPosition, setCharactersPosition] = useState<number | null>(
+    null,
+  );
+  const [charactersLoading, setCharactersLoading] = useState(false);
+  const [charactersError, setCharactersError] = useState<string | null>(null);
+  const [recap, setRecap] = useState<RecapResponse | null>(null);
+  const [recapPosition, setRecapPosition] = useState<number | null>(null);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapError, setRecapError] = useState<string | null>(null);
+  const [retryNotes, setRetryNotes] = useState(0);
   const latestPosition = useRef<number | null>(null);
   const lookupRequestId = useRef(0);
+  const notesRequestId = useRef(0);
   const activeLookupPositionRef = useRef<number | null>(null);
   const lookupTermRef = useRef("");
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
@@ -445,6 +475,10 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   const activeNotesPosition = manualPosition ?? currentPosition;
   const activeLookupPosition = selectedTextPosition ?? activeNotesPosition;
   activeLookupPositionRef.current = activeLookupPosition;
+  const visibleCharacters =
+    charactersPosition === activeNotesPosition ? characters : [];
+  const visibleRecap =
+    recapPosition === activeNotesPosition ? recap : null;
 
   useEffect(() => {
     copyRef.current = copy;
@@ -460,6 +494,63 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   useEffect(() => {
     setSelectedTextPosition(null);
   }, [activeNotesPosition]);
+
+  useEffect(() => {
+    let active = true;
+    const requestId = ++notesRequestId.current;
+    if (activeNotesPosition === null) {
+      setCharacters([]);
+      setCharactersPosition(null);
+      setRecap(null);
+      setRecapPosition(null);
+      setCharactersError(null);
+      setRecapError(null);
+      setCharactersLoading(false);
+      setRecapLoading(false);
+      return () => {
+        active = false;
+      };
+    }
+
+    const position = activeNotesPosition;
+    setCharacters([]);
+    setCharactersPosition(null);
+    setRecap(null);
+    setRecapPosition(null);
+    setCharactersLoading(true);
+    setRecapLoading(true);
+    setCharactersError(null);
+    setRecapError(null);
+
+    void Promise.allSettled([
+      getBookEntities(book.id, position, "person"),
+      getBookRecap(book.id, position),
+    ]).then(([charactersResult, recapResult]) => {
+      if (!active || requestId !== notesRequestId.current) {
+        return;
+      }
+      if (charactersResult.status === "fulfilled") {
+        setCharacters(charactersResult.value);
+        setCharactersPosition(position);
+      } else {
+        setCharactersError(
+          getErrorMessage(charactersResult.reason, copyRef.current),
+        );
+      }
+      if (recapResult.status === "fulfilled") {
+        setRecap(recapResult.value);
+        setRecapPosition(position);
+      } else {
+        setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
+      }
+      setCharactersLoading(false);
+      setRecapLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [activeNotesPosition, book.id, retryNotes]);
 
   useEffect(() => {
     let active = true;
@@ -1151,6 +1242,78 @@ function Reader({ book, copy, onBack }: ReaderProps) {
                 ))}
               </div>
             )}
+            <section className="notes-data" aria-labelledby="characters-heading">
+              <h3 id="characters-heading">{copy.knownCharacters}</h3>
+              {charactersLoading ? (
+                <p role="status">{copy.loadingCharacters}</p>
+              ) : charactersError ? (
+                <div className="message error" role="alert">
+                  <p>{copy.notesLoadFailed} {charactersError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRetryNotes((attempt) => attempt + 1)}
+                  >
+                    {copy.retry}
+                  </button>
+                </div>
+              ) : visibleCharacters.length === 0 ? (
+                <p className="empty-state" role="status">
+                  {copy.noKnownCharacters}
+                </p>
+              ) : (
+                <ul className="character-list">
+                  {visibleCharacters.map((character) => (
+                    <li key={character.id}>
+                      <strong>{character.canonical_name}</strong>
+                      {character.aliases.length > 0 && (
+                        <span>
+                          {" "}
+                          ({character.aliases
+                            .map((alias) => alias.alias)
+                            .join(", ")})
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section className="notes-data" aria-labelledby="recap-heading">
+              <h3 id="recap-heading">{copy.recapTitle}</h3>
+              {recapLoading ? (
+                <p role="status">{copy.loadingRecap}</p>
+              ) : recapError ? (
+                <div className="message error" role="alert">
+                  <p>{copy.notesLoadFailed} {recapError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setRetryNotes((attempt) => attempt + 1)}
+                  >
+                    {copy.retry}
+                  </button>
+                </div>
+              ) : !visibleRecap || visibleRecap.events.length === 0 ? (
+                <p className="empty-state" role="status">
+                  {copy.noRecapEvents}
+                </p>
+              ) : visibleRecap ? (
+                <ol className="recap-events">
+                  {visibleRecap.events.map((event) => (
+                    <li key={event.id}>
+                      <p>{event.text}</p>
+                      <p className="fact-metadata">
+                        {event.entity.canonical_name} · {copy.chapterLabel}{" "}
+                        {event.chapter_title || event.chapter_index + 1} ·{" "}
+                        {copy.positionLabel} {event.position + 1}
+                      </p>
+                      <blockquote>
+                        <strong>{copy.source}:</strong> {event.source_excerpt}
+                      </blockquote>
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+            </section>
           </details>
         </aside>
       </div>
