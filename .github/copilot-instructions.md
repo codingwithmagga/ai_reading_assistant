@@ -44,6 +44,12 @@
   validation that is appropriate instead.
 - For bug fixes, first reproduce the bug with a failing regression test, then
   fix it and run that test plus relevant regression checks.
+- Add integration tests where they provide meaningful coverage across
+  boundaries, such as API, database, extraction, or user-facing workflows.
+  Keep focused unit tests for isolated logic and edge cases. A unit test may be
+  removed only when an integration test fully preserves its behavior and edge
+  case coverage; do not reduce coverage merely to reduce the test count.
+- E2E tests are out of scope for now; do not introduce them unless requested.
 - Keep changes focused; refactor when it provides a concrete improvement, not
   as unrelated cleanup.
 - Preserve existing behavior and public contracts unless a change is requested.

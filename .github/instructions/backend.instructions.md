@@ -26,6 +26,12 @@ applyTo: "backend/**/*.py"
 - Use the configured pytest framework. Prefer plain `assert`, small focused
   fixtures for shared setup, parametrization for equivalent cases, and tests
   for edge and error cases.
+- Add integration tests when they verify meaningful behavior across
+  boundaries, using the migrated test database and fakes for external services
+  where appropriate. Existing unit tests may be removed only if integration
+  tests fully retain their behavior and edge-case coverage; do not remove them
+  just to reduce test count. Follow [the test strategy](../../docs/testing.md).
+- E2E tests are out of scope for now; do not introduce them unless requested.
 - Avoid broad exception handling, silent defaults, and swallowed errors.
   Handle expected failures explicitly and preserve useful error context.
 - Do not add a dependency for trivial functionality. Check the standard
