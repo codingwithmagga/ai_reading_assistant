@@ -286,6 +286,115 @@ select {
   text-align: right;
 }
 
+.reader-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.reader-main,
+.notes-panel {
+  min-width: 0;
+}
+
+.notes-panel {
+  padding: 1rem;
+  border: 1px solid #d5d0c4;
+  border-radius: 0.6rem;
+  background: #fffefa;
+}
+
+.notes-panel summary {
+  font-size: 1.1rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.lookup-form {
+  display: grid;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.lookup-form label {
+  font-weight: 600;
+}
+
+.lookup-form input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid #908a7d;
+  border-radius: 0.4rem;
+}
+
+.help-text,
+.selection-context,
+.fact-metadata,
+.entity-type {
+  margin-bottom: 0;
+  color: #5f5b52;
+  font-size: 0.9rem;
+}
+
+.lookup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.secondary-button {
+  border-color: #908a7d;
+  background: #fffefa;
+  color: #24231f;
+}
+
+.secondary-button:hover:not(:disabled) {
+  background: #f0ede5;
+}
+
+.lookup-match {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d5d0c4;
+  overflow-wrap: anywhere;
+}
+
+.lookup-match h3 {
+  margin-bottom: 0.2rem;
+}
+
+.lookup-match h4 {
+  margin: 1rem 0 0.4rem;
+}
+
+.lookup-match p {
+  margin-bottom: 0.5rem;
+}
+
+.fact-list,
+.lookup-match ul {
+  padding-left: 1.25rem;
+}
+
+.fact-list li + li {
+  margin-top: 0.75rem;
+}
+
+.fact-list blockquote {
+  margin: 0.5rem 0;
+  padding-left: 0.75rem;
+  border-left: 3px solid #d5d0c4;
+  color: #5f5b52;
+}
+
+@media (max-width: 900px) {
+  .reader-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 600px) {
   .app-shell {
     width: min(100% - 1.25rem, 68rem);

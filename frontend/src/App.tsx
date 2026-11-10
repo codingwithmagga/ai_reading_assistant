@@ -10,10 +10,12 @@ import {
   Book,
   Chapter,
   ChapterContent,
+  EntityLookupResponse,
   getBooks,
   getChapterContent,
   getChapters,
   getReadingProgress,
+  lookupBookEntity,
   saveReadingProgress,
   uploadBook,
 } from "./api";
@@ -76,6 +78,31 @@ const translations = {
     uploadTooLarge: "Die EPUB-Datei überschreitet die erlaubte Größe.",
     invalidEpub: "Die Datei ist kein gültiges, lesbares EPUB.",
     serverBookNotFound: "Das Buch wurde nicht gefunden.",
+    notesPanel: "Notizen und Nachschlagen",
+    emptySearchQuery: "Bitte gib einen Namen oder Begriff ein.",
+    exactMatchHelp: "Suche nach einem exakten Namen oder Alias.",
+    searchEntity: "Figur, Ort oder Begriff",
+    search: "Suchen",
+    clearSearch: "Suche leeren",
+    searchLoading: "Suche läuft …",
+    noSearchMatches: "Keine passenden Einträge an dieser Leseposition.",
+    searchFailed: "Die Suche ist fehlgeschlagen.",
+    selectionAtPosition: "Markierter Text wird an Position {position} gesucht.",
+    noFacts: "Für diesen Eintrag sind hier noch keine Fakten bekannt.",
+    aliases: "Bekannte Namen",
+    facts: "Fakten",
+    relationships: "Beziehungen",
+    source: "Textbeleg",
+    positionLabel: "Position",
+    chapterLabel: "Kapitel",
+    noLookupPosition: "Für die Suche ist keine Leseposition verfügbar.",
+    entityTypes: {
+      person: "Person",
+      place: "Ort",
+      group: "Gruppe",
+      object: "Gegenstand",
+      concept: "Begriff",
+    },
   },
   en: {
     heading: "Spoiler-Free Reading Assistant",
@@ -134,6 +161,31 @@ const translations = {
     uploadTooLarge: "The EPUB file exceeds the allowed size.",
     invalidEpub: "The file is not a valid, readable EPUB.",
     serverBookNotFound: "The book could not be found.",
+    notesPanel: "Notes and lookup",
+    emptySearchQuery: "Enter a name or concept to search.",
+    exactMatchHelp: "Search for an exact name or alias.",
+    searchEntity: "Character, place, or concept",
+    search: "Search",
+    clearSearch: "Clear search",
+    searchLoading: "Searching …",
+    noSearchMatches: "No matching entries at this reading position.",
+    searchFailed: "The search failed.",
+    selectionAtPosition: "Selected text will be searched at position {position}.",
+    noFacts: "No facts are known for this entry at this position.",
+    aliases: "Known names",
+    facts: "Facts",
+    relationships: "Relationships",
+    source: "Source excerpt",
+    positionLabel: "Position",
+    chapterLabel: "Chapter",
+    noLookupPosition: "No reading position is available for lookup.",
+    entityTypes: {
+      person: "Person",
+      place: "Place",
+      group: "Group",
+      object: "Object",
+      concept: "Concept",
+    },
   },
 };
 
@@ -164,6 +216,12 @@ function getErrorMessage(error: unknown, copy: Copy): string {
 
 function getStatusLabel(status: string, copy: Copy): string {
   return Object.entries(copy.statuses).find(([key]) => key === status)?.[1] ?? status;
+}
+
+function getEntityTypeLabel(type: string, copy: Copy): string {
+  return type in copy.entityTypes
+    ? copy.entityTypes[type as keyof Copy["entityTypes"]]
+    : type;
 }
 
 function getSavedLanguage(): Language {
@@ -369,14 +427,39 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   const [manualPositionError, setManualPositionError] = useState<string | null>(
     null,
   );
+  const [lookupTerm, setLookupTerm] = useState("");
+  const [selectedTextPosition, setSelectedTextPosition] = useState<
+    number | null
+  >(null);
+  const [lookupResponse, setLookupResponse] =
+    useState<EntityLookupResponse | null>(null);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
   const latestPosition = useRef<number | null>(null);
+  const lookupRequestId = useRef(0);
+  const activeLookupPositionRef = useRef<number | null>(null);
+  const lookupTermRef = useRef("");
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
   const copyRef = useRef(copy);
+  const activeNotesPosition = manualPosition ?? currentPosition;
+  const activeLookupPosition = selectedTextPosition ?? activeNotesPosition;
+  activeLookupPositionRef.current = activeLookupPosition;
 
   useEffect(() => {
     copyRef.current = copy;
   }, [copy]);
+
+  useEffect(() => {
+    lookupRequestId.current += 1;
+    setLookupResponse(null);
+    setLookupError(null);
+    setLookupLoading(false);
+  }, [activeNotesPosition, selectedTextPosition]);
+
+  useEffect(() => {
+    setSelectedTextPosition(null);
+  }, [activeNotesPosition]);
 
   useEffect(() => {
     let active = true;
@@ -598,9 +681,94 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     );
   }
 
-  const activeNotesPosition = manualPosition ?? currentPosition;
   const manualPositionDisplay =
     activeNotesPosition === null ? "—" : activeNotesPosition + 1;
+
+  async function performLookup(query: string, position: number | null) {
+    const normalizedQuery = query.trim();
+    if (!normalizedQuery) {
+      setLookupError(copy.emptySearchQuery);
+      setLookupResponse(null);
+      return;
+    }
+    if (position === null) {
+      setLookupError(copy.noLookupPosition);
+      setLookupResponse(null);
+      return;
+    }
+
+    const requestId = ++lookupRequestId.current;
+    setLookupLoading(true);
+    setLookupError(null);
+    setLookupResponse(null);
+    try {
+      const response = await lookupBookEntity(book.id, normalizedQuery, position);
+      if (
+        requestId === lookupRequestId.current &&
+        activeLookupPositionRef.current === position &&
+        lookupTermRef.current.trim() === normalizedQuery
+      ) {
+        setLookupResponse(response);
+      }
+    } catch (error) {
+      if (
+        requestId === lookupRequestId.current &&
+        activeLookupPositionRef.current === position &&
+        lookupTermRef.current.trim() === normalizedQuery
+      ) {
+        setLookupError(getErrorMessage(error, copyRef.current));
+      }
+    } finally {
+      if (requestId === lookupRequestId.current) {
+        setLookupLoading(false);
+      }
+    }
+  }
+
+  function submitLookup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void performLookup(lookupTerm, activeLookupPosition);
+  }
+
+  function captureSelectedText() {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    const focusNode = selection?.focusNode;
+    const focusElement =
+      focusNode instanceof Element ? focusNode : focusNode?.parentElement;
+    const paragraph = focusElement?.closest<HTMLElement>(
+      "[data-reading-position]",
+    );
+    if (
+      !selectedText ||
+      !paragraph ||
+      !scrollContainer.current?.contains(paragraph)
+    ) {
+      return;
+    }
+
+    const position = Number(paragraph.dataset.readingPosition);
+    if (!Number.isSafeInteger(position) || position < 0) {
+      return;
+    }
+    lookupRequestId.current += 1;
+    lookupTermRef.current = selectedText;
+    setLookupTerm(selectedText);
+    setSelectedTextPosition(position);
+    setLookupResponse(null);
+    setLookupError(null);
+    setLookupLoading(false);
+  }
+
+  function clearLookup() {
+    lookupRequestId.current += 1;
+    lookupTermRef.current = "";
+    setLookupTerm("");
+    setSelectedTextPosition(null);
+    setLookupResponse(null);
+    setLookupError(null);
+    setLookupLoading(false);
+  }
 
   if (readerLoading) {
     return <p role="status">{copy.loadingReader}</p>;
@@ -797,59 +965,195 @@ function Reader({ book, copy, onBack }: ReaderProps) {
           <button type="submit">{copy.applyPosition}</button>
         </form>
       </section>
-      {progressError && (
-        <div className="message error" role="alert">
-          <p>
-            {copy.saveFailed} {progressError}
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setProgressError(null);
-              setRetrySave((attempt) => attempt + 1);
-            }}
-          >
-            {copy.retry}
-          </button>
-        </div>
-      )}
-      {!progressError && savingProgress && (
-        <p className="save-status" role="status">
-          {copy.savePending}
-        </p>
-      )}
-      <div
-        className="reader-scroll"
-        ref={scrollContainer}
-        tabIndex={0}
-        aria-label={copy.readerContent}
-      >
-        {chapterLoading ? (
-          <p role="status">{copy.loadingChapter}</p>
-        ) : chapterContent ? (
-          <article>
-            <h3>
-              {chapterContent.title ||
-                `${copy.chapter} ${chapterContent.index + 1}`}
-            </h3>
-            {chapterContent.paragraphs.map((paragraph) => (
-              <p
-                key={paragraph.id}
-                id={`paragraph-${paragraph.position}`}
-                data-reading-position={paragraph.position}
-                aria-current={
-                  currentPosition === paragraph.position ? "location" : undefined
-                }
-              >
-                {paragraph.text}
+      <div className="reader-columns">
+        <div className="reader-main">
+          {progressError && (
+            <div className="message error" role="alert">
+              <p>
+                {copy.saveFailed} {progressError}
               </p>
-            ))}
-          </article>
-        ) : null}
+              <button
+                type="button"
+                onClick={() => {
+                  setProgressError(null);
+                  setRetrySave((attempt) => attempt + 1);
+                }}
+              >
+                {copy.retry}
+              </button>
+            </div>
+          )}
+          {!progressError && savingProgress && (
+            <p className="save-status" role="status">
+              {copy.savePending}
+            </p>
+          )}
+          <div
+            className="reader-scroll"
+            ref={scrollContainer}
+            tabIndex={0}
+            aria-label={copy.readerContent}
+            onMouseUp={captureSelectedText}
+            onKeyUp={captureSelectedText}
+          >
+            {chapterLoading ? (
+              <p role="status">{copy.loadingChapter}</p>
+            ) : chapterContent ? (
+              <article>
+                <h3>
+                  {chapterContent.title ||
+                    `${copy.chapter} ${chapterContent.index + 1}`}
+                </h3>
+                {chapterContent.paragraphs.map((paragraph) => (
+                  <p
+                    key={paragraph.id}
+                    id={`paragraph-${paragraph.position}`}
+                    data-reading-position={paragraph.position}
+                    aria-current={
+                      currentPosition === paragraph.position
+                        ? "location"
+                        : undefined
+                    }
+                  >
+                    {paragraph.text}
+                  </p>
+                ))}
+              </article>
+            ) : null}
+          </div>
+          <p className="chapter-position">
+            {activeChapter?.title ||
+              `${copy.chapter} ${(activeChapter?.index ?? 0) + 1}`}
+          </p>
+        </div>
+        <aside className="notes-panel" aria-label={copy.notesPanel}>
+          <details open>
+            <summary>{copy.notesPanel}</summary>
+            <form className="lookup-form" onSubmit={submitLookup}>
+              <label htmlFor="entity-lookup">{copy.searchEntity}</label>
+              <p id="lookup-help" className="help-text">
+                {copy.exactMatchHelp}
+              </p>
+              <input
+                id="entity-lookup"
+                type="search"
+                value={lookupTerm}
+                aria-describedby="lookup-help"
+                onChange={(event) => {
+                  const value = event.currentTarget.value;
+                  lookupTermRef.current = value;
+                  lookupRequestId.current += 1;
+                  setLookupTerm(value);
+                  setSelectedTextPosition(null);
+                  setLookupResponse(null);
+                  setLookupError(null);
+                  setLookupLoading(false);
+                }}
+              />
+              {selectedTextPosition !== null && (
+                <p className="selection-context" role="status">
+                  {copy.selectionAtPosition.replace(
+                    "{position}",
+                    String(selectedTextPosition + 1),
+                  )}
+                </p>
+              )}
+              <div className="lookup-actions">
+                <button type="submit" disabled={lookupLoading}>
+                  {lookupLoading ? copy.searchLoading : copy.search}
+                </button>
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={clearLookup}
+                  disabled={!lookupTerm && !lookupResponse && !lookupError}
+                >
+                  {copy.clearSearch}
+                </button>
+              </div>
+            </form>
+            {lookupError && (
+              <div className="message error" role="alert">
+                <p>
+                  {copy.searchFailed} {lookupError}
+                </p>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void performLookup(lookupTerm, activeLookupPosition)
+                  }
+                  disabled={lookupLoading}
+                >
+                  {copy.retry}
+                </button>
+              </div>
+            )}
+            {lookupLoading && (
+              <p role="status">{copy.searchLoading}</p>
+            )}
+            {lookupResponse && lookupResponse.matches.length === 0 && (
+              <p className="empty-state" role="status">
+                {copy.noSearchMatches}
+              </p>
+            )}
+            {lookupResponse && lookupResponse.matches.length > 0 && (
+              <div className="lookup-results" aria-live="polite">
+                {lookupResponse.matches.map((match) => (
+                  <article className="lookup-match" key={match.entity.id}>
+                    <h3>{match.entity.canonical_name}</h3>
+                    <p className="entity-type">
+                      {getEntityTypeLabel(match.entity.type, copy)}
+                    </p>
+                    {match.aliases.length > 0 && (
+                      <p>
+                        <strong>{copy.aliases}:</strong>{" "}
+                        {match.aliases.map((alias) => alias.alias).join(", ")}
+                      </p>
+                    )}
+                    <h4>{copy.facts}</h4>
+                    {match.facts.length > 0 ? (
+                      <ul className="fact-list">
+                        {match.facts.map((fact) => (
+                          <li key={fact.id}>
+                            <p>{fact.text}</p>
+                            <p className="fact-metadata">
+                              {fact.kind} · {copy.chapterLabel}{" "}
+                              {fact.chapter_title ||
+                                fact.chapter_index + 1}{" "}
+                              · {copy.positionLabel} {fact.position + 1}
+                            </p>
+                            <blockquote>
+                              <strong>{copy.source}:</strong>{" "}
+                              {fact.source_excerpt}
+                            </blockquote>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>{copy.noFacts}</p>
+                    )}
+                    {match.relationships.length > 0 && (
+                      <>
+                        <h4>{copy.relationships}</h4>
+                        <ul>
+                          {match.relationships.map((relationship) => (
+                            <li key={relationship.id}>
+                              {relationship.entity_a.canonical_name}{" "}
+                              {relationship.label}{" "}
+                              {relationship.entity_b.canonical_name} (
+                              {copy.positionLabel} {relationship.position + 1})
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </details>
+        </aside>
       </div>
-      <p className="chapter-position">
-        {activeChapter?.title || `${copy.chapter} ${(activeChapter?.index ?? 0) + 1}`}
-      </p>
     </section>
   );
 }

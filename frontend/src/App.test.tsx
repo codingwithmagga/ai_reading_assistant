@@ -238,4 +238,203 @@ describe("App", () => {
       expect(api.saveReadingProgress).toHaveBeenCalledWith(book.id, 2);
     });
   });
+
+  it("looks up the entered term at the manual position and renders result data as text", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 1,
+      paragraphs: [
+        {
+          id: "paragraph-0",
+          chapter_id: "chapter-1",
+          position: 0,
+          text: "Liora enters the room.",
+        },
+        {
+          id: "paragraph-1",
+          chapter_id: "chapter-1",
+          position: 1,
+          text: "She notices a map.",
+        },
+      ],
+    });
+    vi.spyOn(api, "lookupBookEntity").mockResolvedValue({
+      query: "Liora",
+      position: 1,
+      matches: [
+        {
+          entity: {
+            id: "entity-1",
+            type: "person",
+            canonical_name: "Liora",
+            first_position: 0,
+          },
+          aliases: [{ alias: "the traveler", first_position: 1 }],
+          facts: [
+            {
+              id: "fact-1",
+              text: "<script>not executable</script>",
+              kind: "description",
+              position: 1,
+              chapter_id: "chapter-1",
+              chapter_index: 0,
+              chapter_title: "First chapter",
+              source_excerpt: "<img src=x onerror=alert(1)>",
+            },
+          ],
+          relationships: [],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    await screen.findByText("She notices a map.");
+
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+    fireEvent.change(screen.getByLabelText("Figur, Ort oder Begriff"), {
+      target: { value: "Liora" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Suchen" }));
+
+    expect(await screen.findByRole("heading", { name: "Liora" })).toBeInTheDocument();
+    expect(api.lookupBookEntity).toHaveBeenCalledWith(book.id, "Liora", 1);
+    expect(screen.getByText("<script>not executable</script>")).toBeInTheDocument();
+    expect(
+      screen.getByText("<img src=x onerror=alert(1)>"),
+    ).toBeInTheDocument();
+    expect(document.querySelector("script, img")).toBeNull();
+  });
+
+  it("prefills selected text and searches using the selected paragraph position", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 1,
+      paragraphs: [
+        {
+          id: "paragraph-0",
+          chapter_id: "chapter-1",
+          position: 0,
+          text: "Liora enters the room.",
+        },
+        {
+          id: "paragraph-1",
+          chapter_id: "chapter-1",
+          position: 1,
+          text: "She notices a map.",
+        },
+      ],
+    });
+    vi.spyOn(api, "lookupBookEntity").mockResolvedValue({
+      query: "notices a map",
+      position: 1,
+      matches: [],
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    const paragraph = await screen.findByText("She notices a map.");
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    window.getSelection()?.removeAllRanges();
+    window.getSelection()?.addRange(range);
+    fireEvent.mouseUp(screen.getByLabelText("Buchtext"));
+
+    expect(screen.getByLabelText("Figur, Ort oder Begriff")).toHaveValue(
+      "She notices a map.",
+    );
+    expect(screen.getByText(/Markierter Text wird an Position 2 gesucht/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Suchen" }));
+
+    expect(await screen.findByText(/Keine passenden Einträge/)).toBeInTheDocument();
+    expect(api.lookupBookEntity).toHaveBeenCalledWith(
+      book.id,
+      "She notices a map.",
+      1,
+    );
+  });
+
+  it("shows a localized error when the entity lookup fails", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 0,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 0,
+      paragraphs: [],
+    });
+    vi.spyOn(api, "lookupBookEntity").mockRejectedValue(new Error("network down"));
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    await screen.findByLabelText("Figur, Ort oder Begriff");
+    fireEvent.change(screen.getByLabelText("Figur, Ort oder Begriff"), {
+      target: { value: "Liora" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Suchen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Suche ist fehlgeschlagen. Die Anfrage ist fehlgeschlagen.",
+    );
+  });
 });
