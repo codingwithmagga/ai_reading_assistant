@@ -591,12 +591,29 @@ def test_lookup_filters_every_fact_and_relationship_by_reading_position(
         matches = payload["matches"]
         if position == 0:
             assert matches[0]["facts"][0]["text"] == "Marta erscheint."
+            assert matches[0]["facts"][0]["source_excerpt"] == "Marta trat ein."
+            assert matches[0]["facts"][0]["chapter_index"] == 0
         for match in matches:
             assert all(fact["position"] <= position for fact in match["facts"])
             assert all(
                 relationship["position"] <= position
                 for relationship in match["relationships"]
             )
+            assert all(alias["first_position"] <= position for alias in match["aliases"])
+            for relationship in match["relationships"]:
+                assert relationship["entity_a"]["first_position"] <= position
+                assert relationship["entity_b"]["first_position"] <= position
+
+    before_relationship = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "Marta", "position": 1},
+    ).json()["matches"][0]
+    assert before_relationship["relationships"] == []
+    after_relationship = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "Marta", "position": 2},
+    ).json()["matches"][0]
+    assert [item["label"] for item in after_relationship["relationships"]] == ["lebt in"]
 
 
 def test_lookup_alias_is_position_gated_and_ambiguous_alias_is_not_collapsed(
@@ -618,6 +635,12 @@ def test_lookup_alias_is_position_gated_and_ambiguous_alias_is_not_collapsed(
     assert {
         match["entity"]["canonical_name"] for match in introduced_alias.json()["matches"]
     } == {"Marta", "Lea"}
+    assert all(
+        relationship["entity_a"]["first_position"] <= 3
+        and relationship["entity_b"]["first_position"] <= 3
+        for match in introduced_alias.json()["matches"]
+        for relationship in match["relationships"]
+    )
 
     hidden_later_alias = client.get(
         f"/books/{book_id}/lookup",
@@ -625,6 +648,13 @@ def test_lookup_alias_is_position_gated_and_ambiguous_alias_is_not_collapsed(
     )
     assert hidden_later_alias.status_code == 200
     assert hidden_later_alias.json()["matches"] == []
+
+    partial_name = client.get(
+        f"/books/{book_id}/lookup",
+        params={"q": "Mart", "position": 5},
+    )
+    assert partial_name.status_code == 200
+    assert partial_name.json()["matches"] == []
 
 
 def test_lookup_rejects_invalid_positions_and_empty_queries(client: TestClient) -> None:

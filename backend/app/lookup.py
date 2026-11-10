@@ -1,8 +1,8 @@
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, aliased
 
 from app.entity_resolution import normalize_entity_name
-from app.models import Entity, EntityAlias, Paragraph
+from app.models import Chapter, Entity, EntityAlias, Fact, Paragraph, Relationship
 
 
 class LookupPositionError(ValueError):
@@ -101,3 +101,71 @@ def list_entities_at_position(
         aliases_by_entity[alias.entity_id].append(alias)
 
     return [(entity, aliases_by_entity[entity.id]) for entity in entities]
+
+
+def get_entity_aliases(
+    session: Session,
+    *,
+    entity_id: str,
+    position: int,
+) -> list[EntityAlias]:
+    return list(
+        session.scalars(
+            select(EntityAlias)
+            .where(
+                EntityAlias.entity_id == entity_id,
+                EntityAlias.first_position <= position,
+            )
+            .order_by(EntityAlias.first_position, EntityAlias.alias, EntityAlias.id)
+        )
+    )
+
+
+def get_entity_facts(
+    session: Session,
+    *,
+    book_id: str,
+    entity_id: str,
+    position: int,
+) -> list[tuple[Fact, Chapter]]:
+    return list(
+        session.execute(
+            select(Fact, Chapter)
+            .join(Chapter, Chapter.id == Fact.chapter_id)
+            .where(
+                Fact.book_id == book_id,
+                Fact.entity_id == entity_id,
+                Fact.position <= position,
+            )
+            .order_by(Fact.position, Fact.kind, Fact.id)
+        )
+    )
+
+
+def get_entity_relationships(
+    session: Session,
+    *,
+    book_id: str,
+    entity_id: str,
+    position: int,
+) -> list[tuple[Relationship, Entity, Entity]]:
+    entity_a = aliased(Entity)
+    entity_b = aliased(Entity)
+    return list(
+        session.execute(
+            select(Relationship, entity_a, entity_b)
+            .join(entity_a, entity_a.id == Relationship.entity_a_id)
+            .join(entity_b, entity_b.id == Relationship.entity_b_id)
+            .where(
+                Relationship.book_id == book_id,
+                Relationship.position <= position,
+                or_(
+                    Relationship.entity_a_id == entity_id,
+                    Relationship.entity_b_id == entity_id,
+                ),
+                entity_a.first_position <= position,
+                entity_b.first_position <= position,
+            )
+            .order_by(Relationship.position, Relationship.label, Relationship.id)
+        )
+    )
