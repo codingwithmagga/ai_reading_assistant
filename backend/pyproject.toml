@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ai-reading-assistant"
 version = "0.1.0"
-description = "Spoilerfreier Lesebegleiter für DRM-freie EPUBs"
+description = "Spoiler-free reading assistant for DRM-free EPUBs"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.13,<2",

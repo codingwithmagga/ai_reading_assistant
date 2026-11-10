@@ -201,5 +201,5 @@ def test_chapter_input_only_contains_local_references_and_supplied_text() -> Non
 def test_system_prompt_forbids_later_chapters_and_global_positions() -> None:
     prompt = load_extraction_system_prompt()
 
-    assert "späteren Kapiteln" in prompt
-    assert "keine globalen Positionen" in prompt
+    assert "later chapters" in prompt
+    assert "global positions" in prompt

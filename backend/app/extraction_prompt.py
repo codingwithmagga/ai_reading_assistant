@@ -19,7 +19,7 @@ def build_chapter_input(
     output_language: str = DEFAULT_OUTPUT_LANGUAGE,
 ) -> str:
     payload = {
-        "task": "Extrahiere Entitäten, Aliase, Fakten und belegte Beziehungen.",
+        "task": "Extract entities, aliases, facts, and supported relationships.",
         "output_language": output_language,
         "chapter_title": chapter_title,
         "paragraphs": [

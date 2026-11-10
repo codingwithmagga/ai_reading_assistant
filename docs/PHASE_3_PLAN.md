@@ -1,118 +1,115 @@
-# Phase 3 Plan: Abfrage-API mit Spoilerfilter
+# Phase 3 Plan: Spoiler-Filtered Query API
 
-## Ziel und Abgrenzung
+## Goal and scope
 
-Die API ermöglicht das Nachschlagen bereits extrahierter Entitäten und Fakten
-bis zu einer vom Client übermittelten Leseposition. Die Spoilergrenze wird
-ausschließlich serverseitig in Datenbankabfragen durchgesetzt. Namen, Aliase,
-Fakten oder Beziehungen aus späteren Positionen dürfen weder Suchtreffer noch
-indirekte Metadaten beeinflussen.
+The API allows clients to look up already extracted entities and facts up to a
+reading position supplied by the client. The spoiler boundary is enforced
+exclusively in server-side database queries. Names, aliases, facts, or
+relationships from later positions must not affect search results or indirect
+metadata.
 
-Diese Phase implementiert keine Reader-Oberfläche, keine Benutzerkonten und
-keine Änderung der Extraktionspipeline. Die App hat weiterhin keine
-Anmeldung; sie bleibt auf localhost beziehungsweise einen geschützten
-VPN-/Reverse-Proxy-Zugang beschränkt und darf nicht ungeschützt öffentlich
-betrieben werden.
+This phase does not implement a reader UI, user accounts, or changes to the
+extraction pipeline. The app still has no sign-in; keep it on localhost or
+behind protected VPN/reverse-proxy access and never expose it publicly without
+protection.
 
-## Vorbedingungen
+## Prerequisites
 
-- Phase 2 speichert Entitäten und Aliase mit `first_position`, Fakten und
-  Beziehungen mit serverseitig berechneter `position` und liefert
-  Jobfortschritt.
-- Es gibt noch keine Zusammenfassungs- oder Recap-Daten pro Kapitel.
-- Kapitel und Absätze besitzen lückenlose globale Positionen ab 0.
+- Phase 2 stores entities and aliases with `first_position`, facts and
+  relationships with server-calculated `position`, and provides job progress.
+- There is no per-chapter summary or recap data yet.
+- Chapters and paragraphs have contiguous global positions starting at 0.
 
-## Umsetzungsschritte
+## Implementation steps
 
-1. **Spoilerfilter-Tests zuerst**
-   - Synthetisches Testbuch mit mehreren Entitäten, Aliassen, Fakten,
-     Beziehungen und Kapitelgrenzen anlegen.
-   - Für jede Testposition nachweisen, dass keine Antwort Inhalte mit
-     `position` größer als der Abfrageposition enthält.
-   - Vor der ersten Erwähnung darf eine Entität nicht erscheinen; ein Alias
-     ist erst ab seiner `first_position` suchbar.
-   - Beziehungen nur zurückgeben, wenn die Beziehung und beide Entitäten an
-     der angefragten Position bekannt sind.
-   - Zusätzliche Tests für gleichnamige Aliase, unbekannte Bücher, leere
-     Suchanfragen, Positionsgrenzen und leere Extraktionsergebnisse schreiben;
-     ohne Extraktion liefern Entitätenliste und Lookup leere Trefferlisten.
+1. **Write spoiler-filter tests first**
+   - Create a synthetic test book with multiple entities, aliases, facts,
+     relationships, and chapter boundaries.
+   - For every test position, prove that no response contains content whose
+     `position` is greater than the query position.
+   - An entity must not appear before its first mention; an alias is searchable
+     only from its `first_position`.
+   - Return a relationship only when the relationship and both entities are
+     known at the requested position.
+   - Add tests for same-name aliases, unknown books, empty queries, position
+     boundaries, and empty extraction results; without extraction, the entity
+     list and lookup return empty result lists.
 
-2. **Gemeinsame Positions- und Auflösungslogik**
-   - Eine Position anhand des gespeicherten Buchbereichs validieren; negative
-     oder größere als die letzte Absatzposition liegende Werte mit einem
-     definierten 422-Fehler ablehnen, nicht stillschweigend begrenzen.
-   - Kanonische Namen und bis zur Position eingeführte Aliase normalisiert
-     exakt suchen; keine fuzzy- oder externe Modellauflösung hinzufügen.
-   - Mehrdeutige Aliase nicht automatisch einer Entität zuordnen. Treffer
-     dürfen die konkurrierenden bis dahin bekannten Entitäten ausweisen oder
-     als mehrdeutig markiert sein.
+2. **Shared position and resolution logic**
+   - Validate a position against the stored book range; reject negative values
+     and values beyond the last paragraph position with a defined 422 error,
+     rather than silently clamping.
+   - Match canonical names and aliases introduced by the requested position
+     using normalized exact matching; do not add fuzzy or external model
+     resolution.
+   - Do not automatically assign ambiguous aliases to an entity. Results may
+     show competing entities known by that point or mark the alias ambiguous.
 
-3. **Entitätenliste**
-   - `GET /books/{id}/entities?position=...` liefert nur Entitäten mit
-     `first_position <= position`, optional nach Entitätstyp gefiltert.
-   - Mitgelieferte Aliase müssen jeweils `first_position <= position`
-     erfüllen.
-   - Antwortfelder und Sortierung deterministisch halten; keine zukünftigen
-     Faktenzahlen, Aliasnamen oder Beziehungen als Metadaten vorab verraten.
+3. **Entity list**
+   - `GET /books/{id}/entities?position=...` returns only entities with
+     `first_position <= position`, optionally filtered by entity type.
+   - Any included alias must satisfy `first_position <= position`.
+   - Keep response fields and ordering deterministic; do not reveal future
+     fact counts, alias names, or relationships through metadata.
 
 4. **Lookup**
-   - `GET /books/{id}/lookup?q=...&position=...` sucht nach kanonischem Namen
-     oder bis dahin eingeführtem Alias.
-   - Nur passende Entitäten, Fakten und Beziehungen mit Position kleiner oder
-     gleich der Abfrageposition ausliefern.
-   - Jeden Fakt mit Typ, Kapitelreferenz, Quellauszug und Position ausgeben.
-     Positionen dienen der Prüfung, nicht als Inhalt jenseits der Grenze.
-   - Fehlerfälle mit konsistenten 404-/422-Fehlercodes beschreiben.
+   - `GET /books/{id}/lookup?q=...&position=...` searches canonical names or
+     aliases introduced by that point.
+   - Return only matching entities, facts, and relationships whose positions
+     are less than or equal to the query position.
+   - Include each fact's type, chapter reference, source excerpt, and position.
+     Positions are for verification, not a way to disclose content beyond the
+     boundary.
+   - Define consistent 404/422 error codes.
 
-5. **Recap und bisher aufgetretene Figuren**
-   - `GET /books/{id}/recap?position=...` darf ausschließlich bereits
-     spoilergefilterte Informationen nutzen.
-   - Das Recap ist eine deterministische, chronologische Liste der
-     `event`-Fakten mit `position <= position`, inklusive Kapitel und
-     Quellauszug. Es verwendet kein Modell und überträgt keinen zusätzlichen
-     Buchtext.
-   - Die Antwort enthält außerdem bisher aufgetretene Figuren aus derselben
-     spoilergefilterten Entitäten-/Aliasabfrage wie `/entities?type=person`.
+5. **Recap and characters seen so far**
+   - `GET /books/{id}/recap?position=...` may use only already
+     spoiler-filtered information.
+   - The recap is a deterministic, chronological list of `event` facts with
+     `position <= position`, including chapter and source excerpt. It uses no
+     model and transfers no additional book text.
+   - The response also includes characters seen so far, using the same
+     spoiler-filtered entity/alias query as `/entities?type=person`.
 
-6. **Dokumentation und Abnahme**
-   - OpenAPI-Antwortschemas, Fehlercodes, Sortierung und inklusive
-     Positionssemantik in README und Projektspezifikation dokumentieren.
-   - README um Lookup-/Entitäten-/Recap-Beispiele ergänzen.
-   - Phase 2 bleibt ohne neue Abhängigkeit von der Lookup-API; für Phase 3
-     müssen die vollständigen Backend-Tests und Ruff erfolgreich sein.
+6. **Documentation and acceptance**
+   - Document OpenAPI response schemas, error codes, sorting, and inclusive
+     position semantics in the README and project specification.
+   - Add lookup/entity/recap examples to the README.
+   - Phase 2 must not depend on the lookup API; all backend tests and Ruff
+     must pass for Phase 3.
 
-## Abnahmestatus
+## Acceptance status
 
-- Schritte 1–6 umgesetzt; die Recap-Variante ist deterministisch und basiert
-  auf `event`-Fakten. Es werden keine zusätzlichen Inhalte an OpenAI gesendet.
-- API-Antwortschemas sind über FastAPI/OpenAPI unter `/api/docs` verfügbar.
-- Die Spoilerfilter-Tests decken jede Position der synthetischen Testsequenz,
-  Alias-Einführungen, Mehrdeutigkeiten, Beziehungen, Positionsfehler und leere
-  Extraktion ab.
-- Extraktionspipeline und Phase 2 importieren keine Lookup-API-Logik; die
-  API-Routen kapseln die Abfragefunktionen.
-- Abnahme verifiziert: Ruff erfolgreich; vollständige Backend-Testsuite mit
-  74 bestandenen Tests.
+- Steps 1–6 are implemented; recap is deterministic and based on `event`
+  facts. No additional content is sent to OpenAI.
+- API response schemas are available through FastAPI/OpenAPI at `/api/docs`.
+- Spoiler-filter tests cover every position in the synthetic sequence, alias
+  introductions, ambiguity, relationships, position errors, and empty
+  extraction.
+- The extraction pipeline and Phase 2 do not import lookup API logic; API
+  routes encapsulate query functionality.
+- Acceptance verified: Ruff passes; the full backend test suite passes with
+  74 tests.
 
-## Geplante Tests
+## Planned tests
 
-- Für jede Position einer synthetischen Testsequenz sind alle ausgegebenen
-  Fakten und Beziehungen positionsmäßig <= Abfrageposition.
-- Entity-Liste und Lookup verbergen Entitäten und Aliase vor deren erster
-  Erwähnung.
-- Mehrdeutige Aliase führen nie zu einer unbelegten Einzelzuordnung.
-- Beziehungen werden nur ausgegeben, wenn Beziehung und beide Endpunkte
-  spoilerfrei bekannt sind.
-- Positionen < 0 und > letzte Absatzposition ergeben definierte 422-Antworten.
-- Fremde Kapitel- oder Buch-IDs, unbekannte Bücher und fehlende Suchtreffer
-  liefern definierte Fehlerantworten.
-- Recap erhält ausschließlich vorgefilterte Fakten; kein Test benötigt
-  Netzwerkzugriff oder einen echten OpenAI-Key.
+- At every position in a synthetic sequence, all returned facts and
+  relationships have position <= the query position.
+- Entity list and lookup hide entities and aliases before their first mention.
+- Ambiguous aliases never produce an unsupported single-entity assignment.
+- Relationships are returned only when the relationship and both endpoints
+  are known without spoilers.
+- Positions < 0 and > the last paragraph position produce defined 422
+  responses.
+- Foreign chapter or book IDs, unknown books, and missing search results
+  produce defined error responses.
+- Recap receives only pre-filtered facts; no test requires network access or a
+  real OpenAI key.
 
-## Bewusst zurückgestellt
+## Explicitly deferred
 
-- Fuzzy-Suche und automatische Alias-/Entitätsverschmelzung.
-- Öffentliche Bereitstellung ohne Anmeldung; Zugangsschutz bleibt eine eigene
-  Server-/Authentifizierungsaufgabe.
-- Kapitelzusammenfassungen aus nicht gefiltertem Text, Reader-Integration und
-  persistierte Lesefortschritte.
+- Fuzzy search and automatic alias/entity merging.
+- Public deployment without sign-in; access protection remains a separate
+  server/authentication task.
+- Chapter summaries generated from unfiltered text, reader integration, and
+  persisted reading progress.

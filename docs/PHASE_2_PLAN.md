@@ -1,175 +1,167 @@
-# Phase 2 Plan: Kapitelweise Extraktions-Pipeline
+# Phase 2 Plan: Chapter-by-Chapter Extraction Pipeline
 
-## Ziel und Abgrenzung
+## Goal and scope
 
-Ein bereits geparstes Buch wird anhand seiner gespeicherten Kapitel und
-Absätze sequenziell verarbeitet. Die Pipeline extrahiert Entitäten,
-zeitgebundene Aliase, belegte Fakten und Beziehungen, speichert validierte
-Ergebnisse und ermöglicht das Fortsetzen fehlgeschlagener Jobs.
+An already parsed book is processed sequentially using its stored chapters and
+paragraphs. The pipeline extracts entities, time-bound aliases, supported
+facts, and relationships, stores validated results, and allows failed jobs to
+resume.
 
-Diese Phase implementiert **keine Lookup-/Spoilerfilter-API** (Phase 3), keinen
-Reader oder Notizen-Frontend (Phasen 4–5) und keine PWA. Es werden nur die
-Entitäten und Fakten dieses Buches erzeugt. Die Modellantwort ist nicht
-vertrauenswürdig: Reihenfolge, Positionszuordnung, Belege und Spoilergrenze
-werden serverseitig kontrolliert.
+This phase does **not** implement the lookup/spoiler-filter API (Phase 3), a
+reader or notes frontend (Phases 4–5), or a PWA. Only entities and facts from
+the current book are produced. Model output is untrusted: order, position
+assignment, evidence, and spoiler boundaries are controlled server-side.
 
-## Vorbedingungen und Abgrenzung zum Ist-Stand
+## Prerequisites and current-state boundaries
 
-- Bücher, Kapitel, Absätze und Jobs aus Phase 1 sind vorhanden; ein vollständig
-  geparstes Buch hat Status `parsed`.
-- Die Tabellen `entities`, `entity_aliases`, `facts` und `relationships`
-  existieren noch und müssen mit einer Alembic-Migration ergänzt werden.
-- Der Upload parst derzeit synchron. Die Extraktion wird zunächst als eigener,
-  explizit startbarer Backend-Job umgesetzt; Upload und Extraktion dürfen
-  nicht gekoppelt werden, bevor der Jobzustand Wiederaufnahme unterstützt.
-- Vor einer Anfrage ans Modell muss sichergestellt sein, dass der Job nur
-  Kapitel bis einschließlich des zu bearbeitenden Kapitels übergibt. Spätere
-  Kapitel dürfen weder im Prompt noch in einem Hilfskontext enthalten sein.
+- Books, chapters, paragraphs, and jobs from Phase 1 exist; a fully parsed
+  book has status `parsed`.
+- The `entities`, `entity_aliases`, `facts`, and `relationships` tables do not
+  yet exist and must be added by an Alembic migration.
+- Upload currently parses synchronously. Initially, extraction is a separate,
+  explicitly started backend job; upload and extraction must not be coupled
+  before job state supports resumption.
+- Before sending a request to the model, ensure that the job passes only
+  chapters up to and including the chapter being processed. Later chapters
+  must not appear in the prompt or any supporting context.
 
-## Umsetzungsschritte
+## Implementation steps
 
-1. **Datenmodell und Migration**
-   - SQLAlchemy-Modelle und Alembic-Migration für `entities`,
-     `entity_aliases`, `facts` und `relationships` ergänzen.
-   - `entities`: Buch-FK, Typ (`person|place|group|object|concept`),
-     kanonischer Name, erste bekannte Position.
-   - `entity_aliases`: Entitäts-FK, Alias, erste bekannte Position;
-     Aliasnamen sind erst ab dieser Position verwendbar.
-   - `facts`: Buch- und Entitäts-FKs, Text, serverseitig berechnete Position,
-     Kapitel-FK, Quellauszug (max. 200 Zeichen) und Typ
+1. **Data model and migration**
+   - Add SQLAlchemy models and an Alembic migration for `entities`,
+     `entity_aliases`, `facts`, and `relationships`.
+   - `entities`: book FK, type (`person|place|group|object|concept`), canonical
+     name, first known position.
+   - `entity_aliases`: entity FK, alias, first known position; aliases are
+     usable only from this position onward.
+   - `facts`: book and entity FKs, text, server-calculated position, chapter
+     FK, source excerpt (max. 200 characters), and type
      (`description|relationship|event|motivation`).
-   - `relationships`: Buch-FK, beide Entitäts-FKs, Label und Position.
-   - Positionen müssen nichtnegativ sein. Eindeutige Constraints schützen
-     doppelte Aliase und identische Extraktionsergebnisse; Indizes mindestens
-     auf `(book_id, position)`, `(book_id, canonical_name)` sowie
-     `(entity_id, first_position)` anlegen.
-   - Migration und Downgrade auf SQLite testen; Fremdschlüssel müssen aktiv
-     bleiben.
+   - `relationships`: book FK, both entity FKs, label, and position.
+   - Positions must be nonnegative. Unique constraints protect against
+     duplicate aliases and identical extraction results; add indexes at least
+     on `(book_id, position)`, `(book_id, canonical_name)`, and
+     `(entity_id, first_position)`.
+   - Test migration and downgrade on SQLite; foreign keys must remain enabled.
 
-2. **Extraktionsschema und Prompt**
-   - Pydantic-Schemas für Kapitelresultate und deren Entitäten, Aliase, Fakten
-     und Beziehungen definieren. Modellfelder enthalten nur eine
-     Kapitel-/Absatzreferenz, niemals eine globale Position.
-   - Kapitelreferenzen und Absatz-IDs/Indizes in der Eingabe eindeutig
-     nummerieren; der Server prüft jede Antwort gegen genau diese erlaubten
-     Bezüge.
-   - Quellauszüge müssen aus dem referenzierten Absatz stammen. Fakten ohne
-     ausreichenden Beleg, mit unbekannter Referenz, leerem Inhalt oder
-     Quellauszug über 200 Zeichen werden abgelehnt oder entsprechend der
-     festgelegten Validierungsregel ausgelassen.
-   - Prompt und JSON-Ausgabeschema in eigenen Dateien halten. Anweisung:
-     ausschließlich den mitgelieferten Text verwenden, nicht raten und kein
-     Buchvorwissen einbringen. Prompting ist zusätzliche Absicherung, kein
-     Spoiler-Schutzmechanismus.
-   - Extraktionssprache aus der vorhandenen `APP_OUTPUT_LANGUAGE`-Einstellung
-     lesen.
+2. **Extraction schema and prompt**
+   - Define Pydantic schemas for chapter results and their entities, aliases,
+     facts, and relationships. Model fields contain a chapter/paragraph
+     reference only, never a global position.
+   - Assign unique numbered references to chapter inputs and paragraph IDs or
+     indexes; the server validates every response against exactly those
+     allowed references.
+   - Source excerpts must come from the referenced paragraph. Reject or omit
+     facts without sufficient evidence, with an unknown reference, with empty
+     content, or with a source excerpt longer than 200 characters, according
+     to the defined validation rule.
+   - Keep the prompt and JSON output schema in separate files. Instruct the
+     model to use only supplied text, not guess, and not rely on prior
+     knowledge of the book. Prompting is an additional safeguard, not a
+     spoiler-protection mechanism.
+   - Read the extraction language from the existing `APP_OUTPUT_LANGUAGE`
+     setting.
 
-3. **OpenAI-Client und Konfiguration**
-   - Offiziellen OpenAI-Python-Client hinter einer schmalen,
-     injizierbaren Schnittstelle kapseln, damit Tests ohne Netz und API-Key
-     laufen.
-   - API-Key bleibt optional für den App-Start, wird aber beim Start eines
-     Extraktionsjobs explizit benötigt; bei fehlendem Key einen klaren
-     Konfigurationsfehler liefern und den Job nicht als erfolgreich markieren.
-   - Modellname, maximale Antwort-/Retry-Anzahl und gegebenenfalls Timeout
-     über Konfiguration beziehen. Keine Prompts oder API-Schlüssel in Logs
-     ausgeben.
-   - Die OpenAI Responses API mit strukturiertem Output/JSON-Schema verwenden
-     und trotzdem jede Antwort mit Pydantic validieren. Bei ungültiger Ausgabe
-     begrenzte Wiederholungen mit validierungsbezogener Korrekturanweisung;
-     danach Job als Fehler markieren.
-   - Nur die aktuell erlaubten Kapitel-/Absatzblöcke und den zulässigen
-     Entitätskontext an OpenAI übertragen; Datenübertragung transparent
-     dokumentieren. Keine vollständige EPUB-Datei an den Anbieter senden.
+3. **OpenAI client and configuration**
+   - Wrap the official OpenAI Python client behind a narrow, injectable
+     interface so tests run without network access or an API key.
+   - The API key remains optional when starting the app, but is explicitly
+     required to start an extraction job; if absent, return a clear
+     configuration error and do not mark the job successful.
+   - Read model name, maximum response/retry count, and any timeout from
+     configuration. Never log prompts or API keys.
+   - Use the OpenAI Responses API with structured output/JSON Schema and still
+     validate every response with Pydantic. Retry invalid output a limited
+     number of times with validation-related correction instructions; then
+     mark the job as failed.
+   - Send OpenAI only the currently allowed chapter/paragraph blocks and
+     permitted entity context; document the data transfer transparently. Do
+     not send the complete EPUB file to the provider.
 
-4. **Sequenzielle Verarbeitung, Wiederaufnahme und Kosten**
-   - Pro Buch höchstens einen aktiven Extraktionsjob zulassen.
-   - Kapitel streng nach `chapters.index` verarbeiten. Das Modell erhält nur
-     Absätze des aktuellen Kapitels und den bis zum vorherigen Kapitel
-     gespeicherten Entitäts-/Aliasbestand.
-   - Bei langen Kapiteln Absätze in zusammenhängenden, geordneten Blöcken
-     verarbeiten; Prompt und Entitätskontext enthalten nie spätere Blöcke.
-   - `jobs` um die zur Wiederaufnahme nötigen Informationen erweitern (zum
-     Beispiel zuletzt abgeschlossenes Kapitel, Tokenverbrauch und
-     Fehlercode). Kapitelresultat, Fortschritt und Checkpoint atomar speichern.
-   - Abbruch oder Fehler darf bereits bestätigte Kapitelresultate nicht
-     duplizieren. Neustart verarbeitet ab dem ersten nicht abgeschlossenen
-     Kapitel beziehungsweise Block weiter.
-   - Ein-/Ausgabetokens pro Modellaufruf und Gesamtsumme am Job erfassen;
-     Fortschritt monoton aktualisieren. Keine Modellaufrufe parallelisieren.
+4. **Sequential processing, resumption, and cost**
+   - Allow at most one active extraction job per book.
+   - Process chapters strictly by `chapters.index`. The model receives only
+     paragraphs from the current chapter and the entity/alias set saved up to
+     the preceding chapter.
+   - For long chapters, process paragraphs in contiguous, ordered blocks; the
+     prompt and entity context must not include later blocks.
+   - Extend `jobs` with information needed to resume (for example, the last
+     completed chapter, token usage, and error code). Save each chapter result,
+     progress, and checkpoint atomically.
+   - Cancellation or failure must not duplicate already confirmed chapter
+     results. A restart continues from the first incomplete chapter or block.
+   - Track input/output tokens per model call and total them on the job;
+     update progress monotonically. Do not parallelize model calls.
 
-5. **Entitätenabgleich und serverseitige Positionsvergabe**
-   - Namen zunächst normalisiert exakt gegen kanonische Namen und bereits
-     bekannte Aliase dieses Buchs abgleichen. Neue Entitäten erhalten
-     deterministische IDs und `first_position` aus der ersten belegten
-     Erwähnung.
-   - Explizite Modellreferenz auf eine vorhandene Entität nur akzeptieren,
-     wenn diese Entität im erlaubten Kontext enthalten ist. Automatische
-     fuzzy-/LLM-Zusammenführung ist nicht Teil dieser Phase; mehrdeutige
-     Fälle als getrennt oder ungelöst speichern und dokumentieren.
-   - Globale Position ausschließlich aus dem validierten Absatz des aktuellen
-     Kapitels berechnen; Position muss innerhalb des Kapitelbereichs liegen.
-   - Beziehungspartner müssen zum selben Buch gehören. Fakten, Alias und
-     Beziehungen nicht vor ihrer ersten belegten Position verfügbar machen.
+5. **Entity resolution and server-side position assignment**
+   - Initially match names by normalized exact comparison against canonical
+     names and known aliases for this book. New entities get deterministic
+     IDs and `first_position` based on their first supported mention.
+   - Accept an explicit model reference to an existing entity only if that
+     entity is included in the permitted context. Automatic fuzzy/LLM
+     merging is out of scope for this phase; store and document ambiguous
+     cases as separate or unresolved.
+   - Calculate global positions exclusively from validated paragraphs in the
+     current chapter; positions must fall within that chapter's range.
+   - Relationship endpoints must belong to the same book. Do not expose facts,
+     aliases, or relationships before their first supported position.
 
-6. **Jobsteuerung und API**
-   - Einen expliziten Start-Endpunkt für Extraktion eines geparsten Buchs
-     ergänzen, etwa `POST /books/{id}/extraction-jobs`; laufenden Job
-     wiederverwenden oder mit konsistentem Konfliktstatus antworten.
-   - `GET /books/{id}/jobs` liefert Jobtyp, Status, Prozentfortschritt,
-     letztes abgeschlossenes Kapitel, sichere Fehlermeldung und Tokenzähler.
-   - Erfolgreiche Extraktion setzt den Buchstatus auf `ready`; Fehler erhalten
-     `error` und einen wiederaufnehmbaren Jobzustand. `parsed` bleibt der
-     Zustand vor erfolgreicher Extraktion.
-   - Einen einzelnen Job ohne OpenAI-Zugriff lokal über Test-Doubles
-     ausführen können; keine neue öffentliche Lookup-Route hinzufügen.
+6. **Job control and API**
+   - Add an explicit endpoint to start extraction for a parsed book, such as
+     `POST /books/{id}/extraction-jobs`; reuse a running job or return a
+     consistent conflict status.
+   - `GET /books/{id}/jobs` returns job type, status, percentage progress, last
+     completed chapter, safe error message, and token counts.
+   - Successful extraction changes the book status to `ready`; failures
+     retain `error` and a resumable job state. `parsed` remains the status
+     before successful extraction.
+   - Allow a job to run locally without OpenAI access by using test doubles;
+     do not add a public lookup route.
 
-## Geplante Tests
+## Planned tests
 
-- Migration legt alle vier Tabellen, Fremdschlüssel, eindeutige Constraints
-  und Indizes an; Alembic erkennt danach keine Modelldifferenz.
-- Pydantic verwirft ungültige Entitätstypen, Faktenarten, fehlende Felder,
-  ungültige Absatzreferenzen und zu lange Quellauszüge.
-- Prompt-Input für Kapitel N enthält keine Absätze aus N+1 und keine
-  zukünftigen Entitäten oder Aliase.
-- Für Modellantworten mit gültigem Absatzbezug berechnet der Server exakt die
-  globale Datenbankposition. Modellpositionen werden weder entgegengenommen
-  noch vertraut.
-- Kein Fakt, Alias oder Beziehungseintrag kann auf einen Absatz außerhalb des
-  aktuellen Kapitels verweisen. Jeder Quellauszug ist im referenzierten
-  Absatztext enthalten.
-- Sequenzielle Mock-Ausführung prüft Kapitelreihenfolge und begrenzte
-  Blockreihenfolge. Der OpenAI-Client wird mit geprüftem Prompt und
-  JSON-Schema aufgerufen.
-- Fehler bei Modelltransport, ungültigem JSON, Validierung oder fehlendem
-  API-Key werden sichtbar als Jobfehler festgehalten; kein Fehler wird als
-  Erfolg kaschiert.
-- Abbruch nach Kapitel/Block und anschließende Wiederaufnahme verarbeitet nur
-  offene Arbeit und erzeugt keine doppelten Fakten/Entitäten.
-- Jobfortschritt bleibt monoton; Tokenzähler summieren gemeldete Nutzung.
-- Kein Test benötigt einen echten OpenAI-Key oder Netzwerkzugriff.
+- Migration creates all four tables, foreign keys, unique constraints, and
+  indexes; Alembic detects no model differences afterward.
+- Pydantic rejects invalid entity/fact types, missing fields, invalid
+  paragraph references, and overly long source excerpts.
+- The prompt input for chapter N contains no paragraphs from N+1 and no future
+  entities or aliases.
+- Given a model response with a valid paragraph reference, the server
+  calculates the exact global database position. Model-supplied positions
+  are neither accepted nor trusted.
+- No fact, alias, or relationship may reference a paragraph outside the
+  current chapter. Every source excerpt is contained in the referenced
+  paragraph text.
+- Sequential mock execution verifies chapter order and bounded block order.
+  The OpenAI client is called with the validated prompt and JSON Schema.
+- Model transport errors, invalid JSON, validation failures, or a missing API
+  key are visibly recorded as job failures; no failure is disguised as
+  success.
+- Cancellation after a chapter/block and subsequent resumption process only
+  unfinished work and create no duplicate facts or entities.
+- Job progress remains monotonic; token counters sum reported usage.
+- No test requires a real OpenAI key or network access.
 
-## Abnahmekriterien
+## Acceptance criteria
 
-- Migration ist auf leerer SQLite-Datenbank erfolgreich und entspricht den
-  Modellen.
-- Ein synthetisches Mehrkapitel-Testbuch erzeugt mit Mock-Modell Entitäten,
-  Aliase, Fakten und Beziehungen an korrekten globalen Positionen.
-- Bei Verarbeitung eines Kapitels ist nachweislich kein späterer Buchtext im
-  Modellinput vorhanden.
-- Sämtliche gespeicherten Fakten und Beziehungen haben einen gültigen
-  Absatzbezug und Position im Buchbereich; Quellauszüge sind nachprüfbar und
-  höchstens 200 Zeichen lang.
-- Jobfortschritt, Tokenverbrauch, Fehlerzustand und Wiederaufnahme sind durch
-  automatisierte Tests abgedeckt.
-- Backend-Tests und Ruff laufen lokal und in der Pull-Request-CI erfolgreich.
-- Die Phase endet vor Implementierung der Lookup-/Recap-API aus Phase 3.
+- Migration succeeds on an empty SQLite database and matches the models.
+- A synthetic multi-chapter test book produces entities, aliases, facts, and
+  relationships at correct global positions with a mock model.
+- Tests prove that later book text is absent from model input while a chapter
+  is being processed.
+- All stored facts and relationships have a valid paragraph reference and a
+  position within the book; source excerpts are verifiable and no longer than
+  200 characters.
+- Automated tests cover job progress, token usage, failure state, and
+  resumption.
+- Backend tests and Ruff pass locally and in pull-request CI.
+- The phase ends before implementation of the Phase 3 lookup/recap API.
 
-## Bewusst zurückgestellt
+## Explicitly deferred
 
-- Automatische fuzzy- oder LLM-gestützte Zusammenführung mehrdeutiger
-  Entitäten; zunächst keine riskante automatische Verschmelzung.
-- Lookup, Recap und Spoilerfilter-API; diese bekommen eigene Phase-3-Tests.
-- UI zur manuellen Korrektur oder Zusammenführung von Entitäten.
-- Batch-/Parallelverarbeitung mehrerer Kapitel, Hintergrund-Queue außerhalb
-  des vorhandenen Jobmodells und automatisches Re-Parsing.
+- Automatic fuzzy or LLM-assisted merging of ambiguous entities; do not
+  perform risky automatic merges initially.
+- Lookup, recap, and spoiler-filter API; these have their own Phase 3 tests.
+- UI for manual correction or merging of entities.
+- Batch/parallel processing of multiple chapters, background queues outside
+  the existing job model, and automatic re-parsing.
