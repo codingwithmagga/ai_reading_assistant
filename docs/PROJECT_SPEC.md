@@ -158,15 +158,36 @@ Deutsch).
 ## 7a. Abfrage
 
 - `GET /books/{id}/lookup?q=Marta&position=1234`: findet Entität per
-  Name/Alias (nur Aliase mit `first_position <= position`), liefert Kurzprofil,
-  Fakten und Beziehungen mit `position <= position`, jeweils mit
-  Kapitelverweis und Quellauszug.
-- Optional: Kurzfassung der gefilterten Fakten per Modell. Das Modell erhält
-  ausschließlich die bereits gefilterten Fakten.
+  exakt normalisiertem Namen/Alias (nur Aliase mit
+  `first_position <= position`), liefert Treffer in der Reihenfolge
+  `first_position`, kanonischer Name, ID. Die Treffer enthalten bis zur Position
+  eingeführte Aliase, Fakten mit `position <= position` (Typ, Position,
+  Kapitel-ID/-Index/-Titel und Quellauszug) und Beziehungen mit
+  `position <= position`. Eine Beziehung erscheint nur, wenn beide Entitäten
+  ebenfalls bis zur Position bekannt sind. Fakten und Beziehungen werden
+  deterministisch nach Position und anschließend Typ/Bezeichnung und ID
+  sortiert; unscharfe Suche ist nicht vorgesehen.
+- `GET /books/{id}/entities?position=1234&type=person`: liefert Entitäten mit
+  `first_position <= position`; optionale Typwerte sind `person`, `place`,
+  `group`, `object` und `concept`. Aliase werden ebenfalls nur bis zu ihrer
+  `first_position` ausgegeben. Sortierung: erste Position, kanonischer Name,
+  ID; Aliase: erste Position, Name, ID.
+- Eine optionale Kurzfassung per Modell ist zurückgestellt. Falls sie später
+  ergänzt wird, erhält das Modell ausschließlich bereits gefilterte Fakten.
 - Zusätzlich: "Bisher passiert" als chronologische Liste der belegten
   `event`-Fakten bis zur Position, jeweils mit Kapitel und Quellauszug, plus
   spoilergefilterte Personenliste "bisher aufgetreten". Das MVP verwendet dafür
   kein zusätzliches Modell und sendet keinen weiteren Buchtext an OpenAI.
+  Ereignisse sind nach Position, Entitätsname und ID sortiert; die Figurenliste
+  folgt der Entitätenlisten-Sortierung.
+- Die Position ist inklusiv und muss innerhalb der gespeicherten
+  Absatzpositionen des Buchs liegen. Eine Position außerhalb dieses Bereichs
+  oder ein Buch ohne lesbare Absätze liefert HTTP 422 mit
+  `invalid_reading_position`; ein unbekanntes Buch liefert HTTP 404 mit
+  `book_not_found`. Ein leerer Lookup-Begriff liefert HTTP 422 mit
+  `empty_lookup_query`. Keine Treffer bzw. eine leere Extraktion ergeben
+  erfolgreiche Antworten mit leeren Listen. Fehlende oder syntaktisch ungültige
+  Query-Parameter liefern FastAPIs HTTP-422-Validierungsantwort.
 
 ## 8. API-Übersicht (FastAPI)
 
@@ -181,7 +202,9 @@ Deutsch).
 - `GET /books/{id}/lookup?q=&position=`
 - `GET /books/{id}/recap?position=` (chronologische Ereignisfakten und bisher
   aufgetretene Figuren, strikt positionsgefiltert)
-- Fehlerformat einheitlich, OpenAPI-Doku automatisch
+- Fehlerdetails für Buch-/Positions-/Suchfehler enthalten `code` und
+  `message`; Parameterfehler verwenden FastAPIs Validierungsformat.
+- OpenAPI-Schemas und interaktive API-Doku werden automatisch erzeugt.
 
 ## 9. Frontend
 

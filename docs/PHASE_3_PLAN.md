@@ -75,11 +75,24 @@ betrieben werden.
      spoilergefilterten Entitäten-/Aliasabfrage wie `/entities?type=person`.
 
 6. **Dokumentation und Abnahme**
-   - OpenAPI-Schemas, Fehlerantworten, Sortierung und Positionssemantik
-     dokumentieren.
+   - OpenAPI-Antwortschemas, Fehlercodes, Sortierung und inklusive
+     Positionssemantik in README und Projektspezifikation dokumentieren.
    - README um Lookup-/Entitäten-/Recap-Beispiele ergänzen.
-   - Phase 2 bleibt nachweislich ohne neue Abhängigkeit von der Lookup-API;
-     Phase 3 wird erst nach grünen Backend-Tests und Ruff abgeschlossen.
+   - Phase 2 bleibt ohne neue Abhängigkeit von der Lookup-API; für Phase 3
+     müssen die vollständigen Backend-Tests und Ruff erfolgreich sein.
+
+## Abnahmestatus
+
+- Schritte 1–6 umgesetzt; die Recap-Variante ist deterministisch und basiert
+  auf `event`-Fakten. Es werden keine zusätzlichen Inhalte an OpenAI gesendet.
+- API-Antwortschemas sind über FastAPI/OpenAPI unter `/api/docs` verfügbar.
+- Die Spoilerfilter-Tests decken jede Position der synthetischen Testsequenz,
+  Alias-Einführungen, Mehrdeutigkeiten, Beziehungen, Positionsfehler und leere
+  Extraktion ab.
+- Extraktionspipeline und Phase 2 importieren keine Lookup-API-Logik; die
+  API-Routen kapseln die Abfragefunktionen.
+- Abnahme verifiziert: Ruff erfolgreich; vollständige Backend-Testsuite mit
+  74 bestandenen Tests.
 
 ## Geplante Tests
 

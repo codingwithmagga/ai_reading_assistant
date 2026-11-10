@@ -90,6 +90,24 @@ Das Recap ist eine deterministische, chronologische Ereignisliste aus den
 bereits extrahierten `event`-Fakten. Es verwendet kein Modell und überträgt
 keinen zusätzlichen Buchtext.
 
+Die Leseposition ist inklusiv und muss innerhalb der gespeicherten
+Absatzpositionen des Buchs liegen. `entities` unterstützt die Typen `person`,
+`place`, `group`, `object` und `concept`; Entitäten und Aliase werden
+deterministisch sortiert und erst ab ihrer jeweiligen Einführungsposition
+angezeigt. Der Lookup verwendet normalisierte exakte Namen und Aliase (keine
+Teilstringsuche) und gibt Fakten samt Typ, Position, Kapitelreferenz und
+Quellauszug zurück. Beziehungen erscheinen nur, wenn Beziehung und beide
+Entitäten bis zur Position bekannt sind.
+
+Unbekannte Bücher liefern HTTP 404 (`book_not_found`); ungültige oder für ein
+leeres Buch nicht prüfbare Lesepositionen liefern HTTP 422
+(`invalid_reading_position`). Ein leerer Lookup-Begriff liefert HTTP 422
+(`empty_lookup_query`). Fehlende oder ungültige Query-Parameter nutzen
+FastAPIs Standard-422-Validierung; nicht gefundene Entitäten und Bücher ohne
+Extraktion liefern erfolgreiche Antworten mit leeren Listen. Die
+Antwortschemas sind in der automatisch erzeugten OpenAPI-Dokumentation unter
+`/api/docs` beschrieben.
+
 Container im Hintergrund starten und stoppen:
 
 ```bash
