@@ -14,8 +14,11 @@ applyTo: "frontend/src/**/*.{ts,tsx}"
 - Use explicit TypeScript types at API and component boundaries. Avoid `any`
   unless there is no reasonable typed alternative.
 - Keep API calls in the API client (`frontend/src/api.ts`) rather than
-  presentation components when practical. Handle backend errors explicitly and
-  do not expose backend implementation details in the UI.
+  presentation components when practical. Treat parsed response JSON as
+  untrusted `unknown`: validate its runtime shape against the API contract
+  before exposing it as a typed value. Keep outgoing requests aligned with
+  their declared API contract. Handle backend and invalid-response errors
+  explicitly, and do not expose backend implementation details in the UI.
 - Test user-visible behavior: render components, interact as a user would, and
   assert visible results. Prefer accessible roles, labels, and visible text
   with React Testing Library. Do not couple tests to private functions,

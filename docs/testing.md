@@ -57,6 +57,8 @@ state or private implementation details.
 When changing an API contract, update backend tests, backend implementation
 and schemas, frontend types/client, and affected frontend tests. Run both
 backend and frontend checks for cross-stack changes.
+Frontend API-client tests should cover malformed successful responses so
+runtime response validation cannot regress.
 
 ## CI
 

@@ -3,223 +3,23 @@ import {
   Book,
   Chapter,
   ChapterContent,
-  EntityListItem,
-  EntityLookupResponse,
-  RecapResponse,
-  getBookEntities,
-  getBookRecap,
   getChapterContent,
   getChapters,
   getReadingProgress,
-  lookupBookEntity,
   saveReadingProgress,
 } from "./api";
-import { Copy, getEntityTypeLabel, getErrorMessage } from "./i18n";
+import {
+  NotesPanel,
+  PositionControls,
+  ReaderContent,
+} from "./ReaderComponents";
+import { Copy, getErrorMessage } from "./i18n";
+import { useReaderNotes } from "./useReaderNotes";
 
 export interface ReaderProps {
   book: Book;
   copy: Copy;
   onBack: () => void;
-}
-
-function getSelectionParagraph(
-  selection: Selection | null,
-  container: HTMLElement | null,
-): HTMLElement | null {
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-    return null;
-  }
-
-  const range = selection.getRangeAt(0);
-  const parent = range.commonAncestorContainer;
-  const paragraph =
-    parent instanceof Element
-      ? parent.closest<HTMLElement>("[data-reading-position]")
-      : parent.nodeType === Node.ELEMENT_NODE
-        ? (parent as Element).closest<HTMLElement>("[data-reading-position]")
-        : parent.parentElement?.closest<HTMLElement>("[data-reading-position]");
-
-  if (!paragraph || !container || !container.contains(paragraph)) {
-    return null;
-  }
-
-  return paragraph;
-}
-
-function ReaderContent({
-  chapterContent,
-  chapterLoading,
-  currentPosition,
-  copy,
-}: {
-  chapterContent: ChapterContent | null;
-  chapterLoading: boolean;
-  currentPosition: number | null;
-  copy: Copy;
-}) {
-  if (chapterLoading) {
-    return <p role="status">{copy.loadingChapter}</p>;
-  }
-
-  if (!chapterContent) {
-    return null;
-  }
-
-  return (
-    <article>
-      <h3>
-        {chapterContent.title || `${copy.chapter} ${chapterContent.index + 1}`}
-      </h3>
-      {chapterContent.paragraphs.map((paragraph) => (
-        <p
-          key={paragraph.id}
-          id={`paragraph-${paragraph.position}`}
-          data-reading-position={paragraph.position}
-          aria-current={
-            currentPosition === paragraph.position ? "location" : undefined
-          }
-        >
-          {paragraph.text}
-        </p>
-      ))}
-    </article>
-  );
-}
-
-function PositionControls({
-  activeNotesPosition,
-  chapters,
-  copy,
-  manualChapterId,
-  manualParagraphCount,
-  manualPosition,
-  manualPositionError,
-  onApplyManualPosition,
-  onFollowReader,
-  onManualChapterChange,
-  onManualParagraphChange,
-  onManualPositionMethodChange,
-  onPercentageChange,
-  paragraphInChapter,
-  percentage,
-  positionMethod,
-  totalPositions,
-}: {
-  activeNotesPosition: number | null;
-  chapters: Chapter[];
-  copy: Copy;
-  manualChapterId: string;
-  manualParagraphCount: number;
-  manualPosition: number | null;
-  manualPositionError: string | null;
-  onApplyManualPosition: (event: FormEvent<HTMLFormElement>) => void;
-  onFollowReader: () => void;
-  onManualChapterChange: (chapterId: string) => void;
-  onManualParagraphChange: (value: string) => void;
-  onManualPositionMethodChange: (value: "chapter" | "percentage") => void;
-  onPercentageChange: (value: string) => void;
-  paragraphInChapter: string;
-  percentage: string;
-  positionMethod: "chapter" | "percentage";
-  totalPositions: number;
-}) {
-  const manualPositionDisplay =
-    activeNotesPosition === null ? "—" : activeNotesPosition + 1;
-
-  return (
-    <section className="notes-position" aria-labelledby="notes-position-heading">
-      <div className="notes-position-status">
-        <h3 id="notes-position-heading">{copy.notesPosition}</h3>
-        <p role="status">
-          {manualPosition === null
-            ? copy.readerPositionActive
-            : copy.manualPositionActive}
-        </p>
-        <p>
-          {manualPositionDisplay} {copy.positionOf} {totalPositions + 1}
-        </p>
-        {manualPosition !== null && (
-          <button type="button" onClick={onFollowReader}>
-            {copy.followReader}
-          </button>
-        )}
-      </div>
-      <form
-        className="manual-position-form"
-        noValidate
-        onSubmit={onApplyManualPosition}
-      >
-        <h4>{copy.manualPosition}</h4>
-        <label>
-          <span>{copy.positionMethod}</span>
-          <select
-            value={positionMethod}
-            onChange={(event) => {
-              if (
-                event.currentTarget.value === "chapter" ||
-                event.currentTarget.value === "percentage"
-              ) {
-                onManualPositionMethodChange(event.currentTarget.value);
-              }
-            }}
-          >
-            <option value="chapter">{copy.byChapter}</option>
-            <option value="percentage">{copy.byPercentage}</option>
-          </select>
-        </label>
-        {positionMethod === "chapter" ? (
-          <div className="manual-position-fields">
-            <label>
-              <span>{copy.positionChapter}</span>
-              <select
-                value={manualChapterId}
-                onChange={(event) => {
-                  onManualChapterChange(event.currentTarget.value);
-                }}
-              >
-                {chapters.map((chapter) => (
-                  <option key={chapter.id} value={chapter.id}>
-                    {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>{copy.paragraphInChapter}</span>
-              <input
-                type="number"
-                min={1}
-                max={manualParagraphCount}
-                step={1}
-                value={paragraphInChapter}
-                onChange={(event) =>
-                  onManualParagraphChange(event.currentTarget.value)
-                }
-              />
-            </label>
-          </div>
-        ) : (
-          <label>
-            <span>{copy.percentage}</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="any"
-              value={percentage}
-              onChange={(event) => onPercentageChange(event.currentTarget.value)}
-            />
-          </label>
-        )}
-        {manualPositionError && (
-          <p className="message error" role="alert">
-            {manualPositionError}
-          </p>
-        )}
-        <button type="submit">{copy.applyPosition}</button>
-      </form>
-    </section>
-  );
 }
 
 export function Reader({ book, copy, onBack }: ReaderProps) {
@@ -244,134 +44,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     "chapter",
   );
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
-  const [lookupTerm, setLookupTerm] = useState("");
-  const [selectedTextPosition, setSelectedTextPosition] = useState<number | null>(null);
-  const [lookupResponse, setLookupResponse] = useState<EntityLookupResponse | null>(null);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-  const [lookupLoading, setLookupLoading] = useState(false);
-  const [characters, setCharacters] = useState<EntityListItem[]>([]);
-  const [charactersPosition, setCharactersPosition] = useState<number | null>(null);
-  const [charactersLoading, setCharactersLoading] = useState(false);
-  const [charactersError, setCharactersError] = useState<string | null>(null);
-  const [recap, setRecap] = useState<RecapResponse | null>(null);
-  const [recapPosition, setRecapPosition] = useState<number | null>(null);
-  const [recapLoading, setRecapLoading] = useState(false);
-  const [recapError, setRecapError] = useState<string | null>(null);
-  const [retryNotes, setRetryNotes] = useState(0);
   const latestPosition = useRef<number | null>(null);
-  const lookupRequestId = useRef(0);
-  const notesRequestId = useRef(0);
-  const lookupInFlight = useRef(new Map<string, Promise<EntityLookupResponse>>());
-  const notesInFlight = useRef(
-    new Map<
-      string,
-      Promise<
-        [
-          PromiseSettledResult<EntityListItem[]>,
-          PromiseSettledResult<RecapResponse>,
-        ]
-      >
-    >(),
-  );
-  const activeLookupPositionRef = useRef<number | null>(null);
-  const lookupTermRef = useRef("");
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
   const copyRef = useRef(copy);
   const activeNotesPosition = manualPosition ?? currentPosition;
-  const activeLookupPosition = selectedTextPosition ?? activeNotesPosition;
-  activeLookupPositionRef.current = activeLookupPosition;
-  const visibleCharacters =
-    charactersPosition === activeNotesPosition ? characters : [];
-  const visibleRecap =
-    recapPosition === activeNotesPosition ? recap : null;
+  const notes = useReaderNotes({
+    bookId: book.id,
+    position: activeNotesPosition,
+    copy,
+  });
 
   useEffect(() => {
     copyRef.current = copy;
   }, [copy]);
-
-  useEffect(() => {
-    lookupRequestId.current += 1;
-    setLookupResponse(null);
-    setLookupError(null);
-    setLookupLoading(false);
-  }, [activeNotesPosition, selectedTextPosition, copy]);
-
-  useEffect(() => {
-    setSelectedTextPosition(null);
-  }, [activeNotesPosition]);
-
-  useEffect(() => {
-    let active = true;
-    const requestId = ++notesRequestId.current;
-    if (activeNotesPosition === null) {
-      setCharacters([]);
-      setCharactersPosition(null);
-      setRecap(null);
-      setRecapPosition(null);
-      setCharactersError(null);
-      setRecapError(null);
-      setCharactersLoading(false);
-      setRecapLoading(false);
-      return () => {
-        active = false;
-      };
-    }
-
-    const position = activeNotesPosition;
-    const key = `${book.id}:${position}`;
-    setCharacters([]);
-    setCharactersPosition(null);
-    setRecap(null);
-    setRecapPosition(null);
-    setCharactersLoading(true);
-    setRecapLoading(true);
-    setCharactersError(null);
-    setRecapError(null);
-
-    const timer = window.setTimeout(() => {
-      let request = notesInFlight.current.get(key);
-      if (!request) {
-        request = Promise.allSettled([
-          getBookEntities(book.id, position, "person"),
-          getBookRecap(book.id, position),
-        ]);
-        notesInFlight.current.set(key, request);
-        void request.then(() => {
-          if (notesInFlight.current.get(key) === request) {
-            notesInFlight.current.delete(key);
-          }
-        });
-      }
-
-      void request.then(([charactersResult, recapResult]) => {
-        if (!active || requestId !== notesRequestId.current) {
-          return;
-        }
-        if (charactersResult.status === "fulfilled") {
-          setCharacters(charactersResult.value);
-          setCharactersPosition(position);
-        } else {
-          setCharactersError(
-            getErrorMessage(charactersResult.reason, copyRef.current),
-          );
-        }
-        if (recapResult.status === "fulfilled") {
-          setRecap(recapResult.value);
-          setRecapPosition(position);
-        } else {
-          setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
-        }
-        setCharactersLoading(false);
-        setRecapLoading(false);
-      });
-    }, 250);
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [activeNotesPosition, book.id, retryNotes]);
 
   useEffect(() => {
     let active = true;
@@ -591,100 +277,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     );
   }
 
-  async function performLookup(query: string, position: number | null) {
-    const normalizedQuery = query.trim();
-    if (!normalizedQuery) {
-      lookupRequestId.current += 1;
-      setLookupLoading(false);
-      setLookupResponse(null);
-      setLookupError(copy.emptySearchQuery);
-      return;
-    }
-    if (position === null) {
-      lookupRequestId.current += 1;
-      setLookupLoading(false);
-      setLookupResponse(null);
-      setLookupError(copy.noLookupPosition);
-      return;
-    }
-
-    const requestId = ++lookupRequestId.current;
-    const key = `${book.id}:${position}:${normalizedQuery}`;
-    setLookupLoading(true);
-    setLookupError(null);
-    setLookupResponse(null);
-    try {
-      let request = lookupInFlight.current.get(key);
-      if (!request) {
-        request = lookupBookEntity(book.id, normalizedQuery, position);
-        lookupInFlight.current.set(key, request);
-      }
-      const response = await request;
-      if (
-        requestId === lookupRequestId.current &&
-        activeLookupPositionRef.current === position &&
-        lookupTermRef.current.trim() === normalizedQuery
-      ) {
-        setLookupResponse(response);
-      }
-    } catch (error) {
-      if (
-        requestId === lookupRequestId.current &&
-        activeLookupPositionRef.current === position &&
-        lookupTermRef.current.trim() === normalizedQuery
-      ) {
-        setLookupError(getErrorMessage(error, copyRef.current));
-      }
-    } finally {
-      if (lookupInFlight.current.get(key)) {
-        lookupInFlight.current.delete(key);
-      }
-      if (requestId === lookupRequestId.current) {
-        setLookupLoading(false);
-      }
-    }
-  }
-
-  function submitLookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void performLookup(lookupTerm, activeLookupPosition);
-  }
-
-  function captureSelectedText() {
-    const selection = window.getSelection();
-    const paragraph = getSelectionParagraph(
-      selection,
-      scrollContainer.current,
-    );
-    const selectedText = selection?.toString().trim();
-
-    if (!selectedText || !paragraph) {
-      return;
-    }
-
-    const position = Number(paragraph.dataset.readingPosition);
-    if (!Number.isSafeInteger(position) || position < 0) {
-      return;
-    }
-    lookupRequestId.current += 1;
-    lookupTermRef.current = selectedText;
-    setLookupTerm(selectedText);
-    setSelectedTextPosition(position);
-    setLookupResponse(null);
-    setLookupError(null);
-    setLookupLoading(false);
-  }
-
-  function clearLookup() {
-    lookupRequestId.current += 1;
-    lookupTermRef.current = "";
-    setLookupTerm("");
-    setSelectedTextPosition(null);
-    setLookupResponse(null);
-    setLookupError(null);
-    setLookupLoading(false);
-  }
-
   if (readerLoading) {
     return <p role="status">{copy.loadingReader}</p>;
   }
@@ -830,8 +422,8 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
             ref={scrollContainer}
             tabIndex={0}
             aria-label={copy.readerContent}
-            onMouseUp={captureSelectedText}
-            onKeyUp={captureSelectedText}
+            onMouseUp={() => notes.captureSelectedText(scrollContainer.current)}
+            onKeyUp={() => notes.captureSelectedText(scrollContainer.current)}
           >
             <ReaderContent
               chapterContent={chapterContent}
@@ -845,210 +437,26 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           </p>
         </div>
 
-        <aside className="notes-panel" aria-label={copy.notesPanel}>
-          <details open>
-            <summary>{copy.notesPanel}</summary>
-            <form className="lookup-form" onSubmit={submitLookup}>
-              <label htmlFor="entity-lookup">{copy.searchEntity}</label>
-              <p id="lookup-help" className="help-text">
-                {copy.exactMatchHelp}
-              </p>
-              <input
-                id="entity-lookup"
-                type="search"
-                value={lookupTerm}
-                aria-describedby="lookup-help"
-                onChange={(event) => {
-                  const value = event.currentTarget.value;
-                  lookupTermRef.current = value;
-                  lookupRequestId.current += 1;
-                  setLookupTerm(value);
-                  setSelectedTextPosition(null);
-                  setLookupResponse(null);
-                  setLookupError(null);
-                  setLookupLoading(false);
-                }}
-              />
-              {selectedTextPosition !== null && (
-                <p className="selection-context" role="status">
-                  {copy.selectionAtPosition.replace(
-                    "{position}",
-                    String(selectedTextPosition + 1),
-                  )}
-                </p>
-              )}
-              <div className="lookup-actions">
-                <button type="submit" disabled={lookupLoading}>
-                  {lookupLoading ? copy.searchLoading : copy.search}
-                </button>
-                <button
-                  type="button"
-                  className="secondary-button"
-                  onClick={clearLookup}
-                  disabled={!lookupTerm && !lookupResponse && !lookupError}
-                >
-                  {copy.clearSearch}
-                </button>
-              </div>
-            </form>
-            {lookupError && (
-              <div className="message error" role="alert">
-                <p>
-                  {copy.searchFailed} {lookupError}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void performLookup(lookupTerm, activeLookupPosition)}
-                  disabled={lookupLoading}
-                >
-                  {copy.retry}
-                </button>
-              </div>
-            )}
-            {lookupLoading && <p role="status">{copy.searchLoading}</p>}
-            {lookupResponse && lookupResponse.matches.length === 0 && (
-              <p className="empty-state" role="status">
-                {copy.noSearchMatches}
-              </p>
-            )}
-            {lookupResponse && lookupResponse.matches.length > 0 && (
-              <div className="lookup-results" aria-live="polite">
-                {lookupResponse.matches.map((match) => (
-                  <article className="lookup-match" key={match.entity.id}>
-                    <h3>{match.entity.canonical_name}</h3>
-                    <p className="entity-type">
-                      {getEntityTypeLabel(match.entity.type, copy)}
-                    </p>
-                    {match.aliases.length > 0 && (
-                      <p>
-                        <strong>{copy.aliases}:</strong>{" "}
-                        {match.aliases.map((alias) => alias.alias).join(", ")}
-                      </p>
-                    )}
-                    <h4>{copy.facts}</h4>
-                    {match.facts.length > 0 ? (
-                      <ul className="fact-list">
-                        {match.facts.map((fact) => (
-                          <li key={fact.id}>
-                            <p>{fact.text}</p>
-                            <p className="fact-metadata">
-                              {fact.kind} · {copy.chapterLabel}{" "}
-                              {fact.chapter_title || fact.chapter_index + 1}{" "}
-                              · {copy.positionLabel} {fact.position + 1}
-                            </p>
-                            <blockquote>
-                              <strong>{copy.source}:</strong>{" "}
-                              {fact.source_excerpt}
-                            </blockquote>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p>{copy.noFacts}</p>
-                    )}
-                    {match.relationships.length > 0 && (
-                      <>
-                        <h4>{copy.relationships}</h4>
-                        <ul>
-                          {match.relationships.map((relationship) => (
-                            <li key={relationship.id}>
-                              {relationship.entity_a.canonical_name}{" "}
-                              {relationship.label}{" "}
-                              {relationship.entity_b.canonical_name} (
-                              {copy.positionLabel} {relationship.position + 1})
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                  </article>
-                ))}
-              </div>
-            )}
-
-            <section
-              className="notes-data"
-              aria-labelledby="characters-heading"
-              aria-live="polite"
-              aria-busy={charactersLoading}
-            >
-              <h3 id="characters-heading">{copy.knownCharacters}</h3>
-              {charactersLoading ? (
-                <p role="status">{copy.loadingCharacters}</p>
-              ) : charactersError ? (
-                <div className="message error" role="alert">
-                  <p>
-                    {copy.notesLoadFailed} {charactersError}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setRetryNotes((attempt) => attempt + 1)}
-                  >
-                    {copy.retry}
-                  </button>
-                </div>
-              ) : visibleCharacters.length > 0 ? (
-                <ul>
-                  {visibleCharacters.map((character) => (
-                    <li key={character.id}>
-                      <strong>{character.canonical_name}</strong>
-                      {character.aliases.length > 0 && (
-                        <>
-                          {" "}
-                          <span>
-                            ({character.aliases.map((alias) => alias.alias).join(", ")})
-                          </span>
-                        </>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="empty-state">{copy.noKnownCharacters}</p>
-              )}
-            </section>
-
-            <section
-              className="notes-data"
-              aria-labelledby="recap-heading"
-              aria-live="polite"
-              aria-busy={recapLoading}
-            >
-              <h3 id="recap-heading">{copy.recapTitle}</h3>
-              {recapLoading ? (
-                <p role="status">{copy.loadingRecap}</p>
-              ) : recapError ? (
-                <div className="message error" role="alert">
-                  <p>
-                    {copy.notesLoadFailed} {recapError}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setRetryNotes((attempt) => attempt + 1)}
-                  >
-                    {copy.retry}
-                  </button>
-                </div>
-              ) : visibleRecap && visibleRecap.events.length > 0 ? (
-                <ul>
-                  {visibleRecap.events.map((event) => (
-                    <li key={`${event.position}-${event.text}`}>
-                      <strong>
-                        {event.chapter_title || `${copy.chapter} ${event.chapter_index + 1}`}
-                      </strong>
-                      <p>{event.text}</p>
-                      <blockquote>
-                        <strong>{copy.source}:</strong> {event.source_excerpt}
-                      </blockquote>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="empty-state">{copy.noRecapEvents}</p>
-              )}
-            </section>
-          </details>
-        </aside>
+        <NotesPanel
+          copy={copy}
+          lookupTerm={notes.lookupTerm}
+          selectedTextPosition={notes.selectedTextPosition}
+          lookupResponse={notes.lookupResponse}
+          lookupError={notes.lookupError}
+          lookupLoading={notes.lookupLoading}
+          onLookupSubmit={notes.submitLookup}
+          onLookupTermChange={notes.changeLookupTerm}
+          onLookupClear={notes.clearLookup}
+          onLookupRetry={notes.retryLookup}
+          characters={notes.characters}
+          charactersLoading={notes.charactersLoading}
+          charactersError={notes.charactersError}
+          onCharactersRetry={notes.retryCharacters}
+          recap={notes.recap}
+          recapLoading={notes.recapLoading}
+          recapError={notes.recapError}
+          onRecapRetry={notes.retryRecap}
+        />
       </div>
     </section>
   );
