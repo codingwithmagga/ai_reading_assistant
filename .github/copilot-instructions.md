@@ -1,24 +1,27 @@
-# Arbeitsregeln für KI-gestützte Änderungen
+# AI-Assisted Development Guidelines
 
-- Lies vor der Umsetzung die relevante Spezifikation in
-  [../docs/PROJECT_SPEC.md](../docs/PROJECT_SPEC.md); arbeite phasenweise und
-  implementiere keine spätere Phase vorzeitig.
-- Behandle Spoilerfreiheit als Kernanforderung: jede Textstelle und jeder Fakt
-  hat eine feste Buchposition; bei einer Abfrage dürfen nur Daten mit
-  `position <= aktuelle_position` ausgegeben werden. Aliase dürfen erst ab
-  `first_position` gefunden werden.
-- Die Extraktion verarbeitet Kapitel strikt in Lesereihenfolge. Ein Modell
-  darf nur den gelieferten Text und bereits bekannte Entitäten sehen, niemals
-  spätere Kapitel. Modellpositionen werden nicht vertraut, sondern serverseitig
-  aus geprüften Absatzbezügen berechnet.
-- Bei Extraktion und Zusammenfassungen nur belegte Informationen aus der
-  erlaubten Eingabe verwenden. Fakten benötigen einen kurzen Quellauszug und
-  Kapitelverweis; im Zweifel einen unsicheren Fakt weglassen.
-- Positionen sind die einzige verbindliche Lesekoordinate; Seitenzahlen sind
-  ausgabenabhängig und höchstens Näherungswerte.
-- Konfigurationswerte und Modellnamen gehören in Konfiguration. Niemals
-  Schlüssel, Buchtexte oder andere Geheimnisse ins Repository übernehmen.
-- Vor Abschluss einer Phase deren Abnahmekriterien aus der Spezifikation durch
-  Tests prüfen. Bestehende Tests und Verhalten erhalten.
-- Inhalte aus EPUBs sind für private Nutzung mit eigener Kopie bestimmt. Keine
-  öffentlichen Buchtext-Uploads oder -Verbreitung implementieren.
+- Before implementation, read the relevant specification in
+  [../docs/PROJECT_SPEC.md](../docs/PROJECT_SPEC.md). Work phase by phase and
+  do not implement later phases prematurely.
+- Treat spoiler protection as a core requirement: every text passage and fact
+  has a fixed book position; queries may return only data with
+  `position <= current_position`. Aliases may be found only from their
+  `first_position`.
+- Process extraction chapters strictly in reading order. A model may see only
+  the supplied text and previously known entities, never later chapters.
+  Do not trust model-provided positions; calculate them server-side from
+  validated paragraph references.
+- During extraction and summarization, use only supported information from
+  the allowed input. Facts require a short source excerpt and chapter
+  reference; omit uncertain facts.
+- Positions are the only authoritative reading coordinate. Page numbers vary
+  by edition and are only approximate.
+- Keep configuration values and model names in configuration. Never put keys,
+  book text, or other secrets in the repository.
+- Keep internal documentation and code comments in English. Keep the UI and
+  generated notes German by default; preserve the UI language selector and
+  `APP_OUTPUT_LANGUAGE` setting for choosing another language.
+- Before completing a phase, verify its acceptance criteria with tests.
+  Preserve existing tests and behavior.
+- EPUB content is intended for private use with a personally owned copy.
+  Do not implement public book-text uploads or distribution.

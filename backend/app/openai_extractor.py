@@ -136,9 +136,9 @@ class OpenAIChapterExtractor:
                     {
                         "role": "user",
                         "content": (
-                            "Deine vorherige Ausgabe war ungültig. Korrigiere sie anhand "
-                            "dieser Validierungsfehler und gib ausschließlich das verlangte "
-                            f"JSON zurück:\n{validation_feedback}"
+                            "Your previous output was invalid. Correct it using these "
+                            "validation errors and return only the requested JSON:\n"
+                            f"{validation_feedback}"
                         ),
                     }
                 )

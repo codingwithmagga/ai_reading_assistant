@@ -1,112 +1,104 @@
-# Projektspezifikation: Spoilerfreier Lesebegleiter
+# Project Specification: Spoiler-Free Reading Assistant
 
-Dieses Dokument ist die verbindliche Arbeitsgrundlage für Produktumfang,
-Architektur und phasenweise Umsetzung.
+This document is the authoritative reference for product scope, architecture,
+and phased implementation.
 
-## 1. Ziel
+## 1. Goal
 
-Eine Web-App (als PWA auch auf dem Handy nutzbar), in die man ein Buch als EPUB
-hochlädt. Die App erzeugt aus dem Buchtext Notizen zu Figuren, Orten, Gruppen
-und Begriffen. Beim Lesen kann man jederzeit nachschlagen ("Wer ist Marta?")
-und bekommt **nur Informationen bis zur eigenen aktuellen Leseposition**.
-Spoiler sind durch die Architektur ausgeschlossen, nicht nur durch
-Prompt-Anweisungen.
+A web app, also usable on a phone as a PWA, where users upload an EPUB. The app
+generates notes from the book about characters, places, groups, and concepts.
+While reading, users can look something up (for example, "Who is Marta?") and
+get **only information up to their current reading position**. Spoilers are
+prevented by the architecture, not merely by prompt instructions.
 
-Typischer Anwendungsfall: Mitten im Roman taucht eine Figur auf, die zuletzt
-auf Seite 10 vorkam. Man schlägt sie kurz nach und liest weiter.
+Typical use case: A character appears midway through a novel, after last
+appearing on page 10. The reader quickly looks them up and continues reading.
 
-## 2. Umfang
+## 2. Scope
 
-### Im Umfang (MVP)
+### In scope (MVP)
 
-- Upload von DRM-freien EPUB-Dateien
-- Zerlegung des Buchs in Kapitel und Absätze mit fester Positionszählung
-- KI-gestützte Extraktion von Entitäten (Figuren, Orte, Gruppen, Objekte,
-  Begriffe) und Fakten, jeweils mit Position getaggt
-- Eingebauter Reader im Browser, der die Leseposition speichert
-- Nachschlage-Ansicht, die strikt nach Leseposition filtert
-- Manuelle Positionswahl (Kapitel/Absatz oder Prozent) als Alternative zum
-  Reader
-- Bibliothek mit mehreren Büchern
-- PWA: im Browser nutzbar und aufs Handy installierbar
+- Upload DRM-free EPUB files.
+- Split books into chapters and paragraphs with fixed positions.
+- Use AI to extract entities (characters, places, groups, objects, concepts)
+  and facts, each tagged with a position.
+- Provide a built-in browser reader that saves the reading position.
+- Provide a lookup view strictly filtered by reading position.
+- Allow manual position selection (chapter/paragraph or percentage) as an
+  alternative to the reader.
+- Support a library containing multiple books.
+- Provide a PWA usable in the browser and installable on a phone.
 
-### Nicht im Umfang (bewusst zurückgestellt)
+### Out of scope (deliberately deferred)
 
-- Live-Mitlesen mit externen Readern (Kindle, Kobo/KOReader-Sync)
-- Zugriff über den Kindle-Browser
-- Go-Backend (Backend ist Python)
-- Native App-Hüllen (iOS/Android), Mehrbenutzer-Konten,
-  Bezahlfunktionen
-- Hochladen oder Verbreiten urheberrechtlich geschützter Inhalte an Dritte
-  (Nutzung nur privat mit eigener Kopie)
+- Live synchronization with external readers (Kindle, Kobo/KOReader sync).
+- Access through the Kindle browser.
+- Go backend (the backend is Python).
+- Native app shells (iOS/Android), multi-user accounts, or paid features.
+- Uploading or distributing copyrighted content to third parties (personal use
+  only with the user's own copy).
 
-### Zugriff im selbst gehosteten Betrieb
+### Access for self-hosted deployments
 
-- Der MVP besitzt noch keine Benutzeranmeldung oder API-Autorisierung. Die
-  Compose-Portfreigabe ist nicht für einen ungeschützten Internetbetrieb
-  geeignet.
-- Vor einem Serverbetrieb muss der Zugriff auf den Eigentümer beschränkt
-  werden. Bevorzugt wird ein privater VPN-Zugang mit Host-Firewall; bei
-  öffentlichem HTTPS-Zugriff ist mindestens eine vertrauenswürdige
-  Authentifizierung am Reverse Proxy und TLS erforderlich.
-- Eine spätere anwendungsinterne Anmeldung muss auch API-Endpunkte und
-  Buchdaten schützen, nicht nur den Frontend-Zugang.
+- The MVP has no user sign-in or API authorization. The Compose port mapping
+  is not suitable for unprotected internet access.
+- Before running on a server, restrict access to the owner. A private VPN with
+  a host firewall is preferred; public HTTPS access requires at least trusted
+  reverse-proxy authentication and TLS.
+- Any future in-app sign-in must protect API endpoints and book data, not just
+  frontend access.
 
-## 3. Technologie-Stack
+## 3. Technology stack
 
-| Bereich | Wahl |
+| Area | Choice |
 |---|---|
 | Backend | Python 3.12+, FastAPI, Pydantic |
-| Datenbank | SQLite (SQLAlchemy 2.x, Alembic für Migrationen); später Postgres möglich |
-| EPUB-Verarbeitung | `ebooklib`, `beautifulsoup4` (lxml) |
-| KI | OpenAI API per offiziellem Python-SDK, strukturierte JSON-Ausgabe |
+| Database | SQLite (SQLAlchemy 2.x, Alembic migrations); PostgreSQL may be used later |
+| EPUB processing | `ebooklib`, `beautifulsoup4` (lxml) |
+| AI | OpenAI API through the official Python SDK, structured JSON output |
 | Frontend | React + TypeScript, Vite, PWA (`vite-plugin-pwa`) |
-| Reader | `epub.js` oder `react-reader` |
-| Tests | pytest (Backend), Vitest (Frontend) |
-| Konfiguration | `.env` (API-Key, Modellname), keine Schlüssel im Repo |
+| Reader | `epub.js` or `react-reader` |
+| Tests | pytest (backend), Vitest (frontend) |
+| Configuration | `.env` (API key, model name); no keys in the repository |
 
-Monorepo-Struktur:
+Monorepo structure:
 
 ```text
-/backend   FastAPI-App, Pipeline, Tests
-/frontend  React-App (Vite)
-/docs      ROADMAP.md, Entscheidungen und Projektspezifikation
+/backend   FastAPI app, pipeline, tests
+/frontend  React app (Vite)
+/docs      Roadmap, decisions, and project specification
 ```
 
-## 4. Kernprinzip: Spoilerfreiheit durch Architektur
+## 4. Core principle: spoiler protection by architecture
 
-1. **Jede Textstelle hat eine feste, monoton steigende Position** (siehe
-   Positionsmodell).
-2. **Die Extraktion läuft kapitelweise in Lesereihenfolge.** Beim Verarbeiten
-   von Kapitel N sieht das Modell nur die Kapitel 1..N und den bisher bekannten
-   Entitätsbestand, nie spätere Kapitel.
-3. **Jeder Fakt trägt die Position, ab der er im Buch bekannt ist**
-   (`position`, Quelle: Kapitel/Absatz im Text).
-4. **Bei Abfragen filtert die Datenbank hart:** Es werden nur Fakten mit
-   `position <= aktuelle_position` ausgeliefert. Zusammenfassungen werden zur
-   Abfragezeit aus diesen Fakten gebildet oder sind selbst nach Position
-   versioniert.
-5. Zusätzliche Absicherung: Das Modell wird bei der Extraktion angewiesen, nur
-   den gelieferten Text zu verwenden und kein Vorwissen über das Buch
-   einzubringen (wichtig bei bekannten Romanen, deren Ende im Modellwissen
-   steckt).
+1. **Every text passage has a fixed, monotonically increasing position** (see
+   the position model).
+2. **Extraction runs chapter by chapter in reading order.** While processing
+   chapter N, the model sees only chapters 1..N and the entities known so far,
+   never later chapters.
+3. **Every fact has the position at which it becomes known in the book**
+   (`position`, sourced from a chapter/paragraph in the text).
+4. **Queries are hard-filtered in the database:** only facts with
+   `position <= current_position` are returned. Summaries are generated at
+   query time from these facts or are themselves versioned by position.
+5. As an additional safeguard, instruct the model to use only supplied text
+   and not rely on prior knowledge of the book (important for well-known
+   novels whose endings may be in the model's training data).
 
-## 5. Positionsmodell
+## 5. Position model
 
-- Das Buch wird in `chapters` (Reihenfolge laut EPUB-Spine) und `paragraphs`
-  zerlegt.
-- Jeder Absatz erhält eine globale, fortlaufende `position` (Integer, 0..n).
-  Kapitelgrenzen sind Bereiche dieser Positionen.
-- Seitenzahlen sind ausgabenabhängig und werden nicht als Primärschlüssel
-  verwendet. Stattdessen:
-  - Reader liefert Kapitel + Absatz → Position
-  - Manuelle Eingabe "Prozent des Buchs" → Position über Zeichen- oder
-    Absatzanteil
-  - Optionale Näherung "Seite X" → Position über Absatzanteil (als ungefähr
-    kennzeichnen)
-- Leseposition pro Buch wird gespeichert (`reading_progress`).
+- Split the book into `chapters` (in EPUB spine order) and `paragraphs`.
+- Give each paragraph a global, contiguous `position` (integer, 0..n).
+  Chapter boundaries are ranges within these positions.
+- Page numbers vary by edition and are not used as primary keys. Instead:
+  - Reader supplies chapter + paragraph → position.
+  - Manual "percentage through the book" input → position based on character
+    or paragraph share.
+  - Optional approximate "page X" input → position based on paragraph share
+    (must be labeled approximate).
+- Save reading progress per book (`reading_progress`).
 
-## 6. Datenmodell (SQLite)
+## 6. Data model (SQLite)
 
 - `books`: id, title, author, language, created_at, status
   (`uploaded|parsing|extracting|ready|error`), source_hash
@@ -114,196 +106,198 @@ Monorepo-Struktur:
 - `paragraphs`: id, book_id, chapter_id, position, text
 - `entities`: id, book_id, type
   (`person|place|group|object|concept`), canonical_name, first_position
-- `entity_aliases`: id, entity_id, alias, first_position (Aliase wie "die
-  Wirtin", "Frau Keller" gelten erst ab ihrer Einführung)
+- `entity_aliases`: id, entity_id, alias, first_position (aliases such as
+  "the innkeeper" or "Mrs Keller" are valid only from their introduction)
 - `facts`: id, book_id, entity_id, text, position, chapter_id, source_excerpt
-  (kurze Textstelle zum Nachprüfen, max. ca. 200 Zeichen), kind
+  (short excerpt for verification, max. approx. 200 characters), kind
   (`description|relationship|event|motivation`)
 - `relationships`: id, book_id, entity_a_id, entity_b_id, label, position
 - `reading_progress`: id, book_id, position, updated_at
 - `jobs`: id, book_id, type, status, progress, error, created_at
-  (Hintergrundverarbeitung)
+  (background processing)
 
-Wichtige Indizes: `(book_id, position)` auf `facts`, `paragraphs`,
-`relationships`; `(book_id, canonical_name)` auf `entities`; Volltextsuche
-(FTS5) auf Aliasen und Fakten.
+Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
+`relationships`; `(book_id, canonical_name)` on `entities`; full-text search
+(FTS5) on aliases and facts.
 
-## 7. Verarbeitungs-Pipeline
+## 7. Processing pipeline
 
-1. **Upload und Parsing:** EPUB entpacken, Spine lesen, HTML zu Text bereinigen,
-   Kapitel und Absätze mit Positionen speichern. Fehlerhafte oder
-   DRM-geschützte Dateien mit klarer Meldung ablehnen.
-2. **Extraktion pro Kapitel (sequenziell):**
-   - Eingabe ans Modell: Kapiteltext (bei Bedarf in Blöcke geteilt,
-     Blockreihenfolge beibehalten) + kompakte Liste der bisher bekannten
-     Entitäten samt Aliasen.
-   - Ausgabe als validiertes JSON (Pydantic-Schema): neue Entitäten, neue
-     Aliase, neue Fakten (mit Absatzbezug und kurzem Quellauszug), Beziehungen.
-   - Entitäten-Abgleich: Neue Namen werden gegen vorhandene Entitäten und
-     Aliase gematcht (exakt, normalisiert, dann per Modell-Entscheidung), um
-     Duplikate zu vermeiden.
-   - Positionen der Fakten werden serverseitig aus dem Absatzbezug berechnet,
-     nicht vom Modell erfunden. Ungültige Bezüge werden verworfen oder der
-     Kapitelposition zugeordnet.
-3. **Fortschritt und Wiederaufnahme:** Jobstatus pro Kapitel speichern, damit
-   abgebrochene Läufe fortgesetzt werden können.
-4. **Qualitätsprüfungen:** Schema-Validierung, Retry bei ungültigem JSON,
-   Kostenzähler (Tokens pro Buch).
+1. **Upload and parsing:** Unpack EPUB, read spine, clean HTML into text, and
+   store chapters and paragraphs with positions. Reject malformed or
+   DRM-protected files with a clear message.
+2. **Chapter-by-chapter extraction (sequential):**
+   - Model input: chapter text (split into ordered blocks if needed) plus a
+     compact list of previously known entities and aliases.
+   - Validated JSON output (Pydantic schema): new entities, aliases, facts
+     (with paragraph reference and short source excerpt), and relationships.
+   - Entity resolution: match new names against existing entities and aliases
+     (exact, normalized, then model-assisted decision) to avoid duplicates.
+   - Calculate fact positions server-side from paragraph references; never
+     accept positions invented by the model. Reject invalid references or
+     assign them to the chapter position.
+3. **Progress and resumption:** Save job status per chapter so interrupted
+   runs can resume.
+4. **Quality checks:** Schema validation, retry invalid JSON, and track token
+   costs per book.
 
-Prompt-Regeln für die Extraktion (sinngemäß): Nur den gelieferten Text
-verwenden. Keine Vermutungen über spätere Handlung. Keine Wertungen. Fakten
-knapp und belegbar halten. Ausgabesprache ist konfigurierbar (Standard:
-Deutsch).
+Extraction prompt rules (in summary): use only the supplied text; do not
+speculate about later events; avoid value judgments; keep facts concise and
+evidence-based. Output language is configurable (default: German).
 
-## 7a. Abfrage
+## 7a. Query API
 
-- `GET /books/{id}/lookup?q=Marta&position=1234`: findet Entität per
-  exakt normalisiertem Namen/Alias (nur Aliase mit
-  `first_position <= position`), liefert Treffer in der Reihenfolge
-  `first_position`, kanonischer Name, ID. Die Treffer enthalten bis zur Position
-  eingeführte Aliase, Fakten mit `position <= position` (Typ, Position,
-  Kapitel-ID/-Index/-Titel und Quellauszug) und Beziehungen mit
-  `position <= position`. Eine Beziehung erscheint nur, wenn beide Entitäten
-  ebenfalls bis zur Position bekannt sind. Fakten und Beziehungen werden
-  deterministisch nach Position und anschließend Typ/Bezeichnung und ID
-  sortiert; unscharfe Suche ist nicht vorgesehen.
-- `GET /books/{id}/entities?position=1234&type=person`: liefert Entitäten mit
-  `first_position <= position`; optionale Typwerte sind `person`, `place`,
-  `group`, `object` und `concept`. Aliase werden ebenfalls nur bis zu ihrer
-  `first_position` ausgegeben. Sortierung: erste Position, kanonischer Name,
-  ID; Aliase: erste Position, Name, ID.
-- Eine optionale Kurzfassung per Modell ist zurückgestellt. Falls sie später
-  ergänzt wird, erhält das Modell ausschließlich bereits gefilterte Fakten.
-- Zusätzlich: "Bisher passiert" als chronologische Liste der belegten
-  `event`-Fakten bis zur Position, jeweils mit Kapitel und Quellauszug, plus
-  spoilergefilterte Personenliste "bisher aufgetreten". Das MVP verwendet dafür
-  kein zusätzliches Modell und sendet keinen weiteren Buchtext an OpenAI.
-  Ereignisse sind nach Position, Entitätsname und ID sortiert; die Figurenliste
-  folgt der Entitätenlisten-Sortierung.
-- Die Position ist inklusiv und muss innerhalb der gespeicherten
-  Absatzpositionen des Buchs liegen. Eine Position außerhalb dieses Bereichs
-  oder ein Buch ohne lesbare Absätze liefert HTTP 422 mit
-  `invalid_reading_position`; ein unbekanntes Buch liefert HTTP 404 mit
-  `book_not_found`. Ein leerer Lookup-Begriff liefert HTTP 422 mit
-  `empty_lookup_query`. Keine Treffer bzw. eine leere Extraktion ergeben
-  erfolgreiche Antworten mit leeren Listen. Fehlende oder syntaktisch ungültige
-  Query-Parameter liefern FastAPIs HTTP-422-Validierungsantwort.
+- `GET /books/{id}/lookup?q=Marta&position=1234`: finds an entity by
+  normalized exact name or alias (only aliases with
+  `first_position <= position`) and returns matches ordered by
+  `first_position`, canonical name, then ID. Matches include aliases
+  introduced up to the position, facts with `position <= position` (type,
+  position, chapter ID/index/title, and source excerpt), and relationships
+  with `position <= position`. A relationship is included only if both
+  entities are also known by that position. Facts and relationships are sorted
+  deterministically by position and then type/label and ID; fuzzy search is
+  not supported.
+- `GET /books/{id}/entities?position=1234&type=person`: returns entities with
+  `first_position <= position`; optional types are `person`, `place`, `group`,
+  `object`, and `concept`. Aliases are also included only up to their
+  `first_position`. Ordering: first position, canonical name, ID; aliases:
+  first position, name, ID.
+- Optional model-generated short summaries are deferred. If added later, the
+  model must receive only already filtered facts.
+- Also provide "What has happened so far" as a chronological list of supported
+  `event` facts up to the position, each with chapter and source excerpt, plus
+  a spoiler-filtered list of characters seen so far. The MVP uses no
+  additional model and sends no extra book text to OpenAI. Events are ordered
+  by position, entity name, and ID; the character list follows entity-list
+  ordering.
+- Position is inclusive and must fall within the book's stored paragraph
+  positions. An out-of-range position or a book with no readable paragraphs
+  returns HTTP 422 with `invalid_reading_position`; an unknown book returns
+  HTTP 404 with `book_not_found`. An empty lookup query returns HTTP 422 with
+  `empty_lookup_query`. No matches or empty extraction return successful
+  responses with empty lists. Missing or syntactically invalid query
+  parameters return FastAPI's HTTP 422 validation response.
 
-## 8. API-Übersicht (FastAPI)
+## 8. API overview (FastAPI)
 
-- `POST /books` (EPUB-Upload) → startet Parsing und Extraktion als
-  Hintergrundjob
+- `POST /books` (EPUB upload) → starts parsing and extraction as a background
+  job.
 - `GET /books`, `GET /books/{id}`, `DELETE /books/{id}`
-- `GET /books/{id}/jobs` (Verarbeitungsfortschritt)
+- `GET /books/{id}/jobs` (processing progress)
 - `GET /books/{id}/chapters`
-- `GET /books/{id}/content/{chapter_id}` (Text/HTML für den Reader)
+- `GET /books/{id}/content/{chapter_id}` (text/HTML for the reader)
 - `GET/PUT /books/{id}/progress`
-- `GET /books/{id}/entities?position=` (gefilterte Liste, Filter nach Typ)
+- `GET /books/{id}/entities?position=` (filtered list, optional type filter)
 - `GET /books/{id}/lookup?q=&position=`
-- `GET /books/{id}/recap?position=` (chronologische Ereignisfakten und bisher
-  aufgetretene Figuren, strikt positionsgefiltert)
-- Fehlerdetails für Buch-/Positions-/Suchfehler enthalten `code` und
-  `message`; Parameterfehler verwenden FastAPIs Validierungsformat.
-- OpenAPI-Schemas und interaktive API-Doku werden automatisch erzeugt.
+- `GET /books/{id}/recap?position=` (chronological event facts and
+  characters seen so far, strictly filtered by position)
+- Error details for book/position/search errors contain `code` and `message`;
+  parameter errors use FastAPI's validation format.
+- OpenAPI schemas and interactive API documentation are generated
+  automatically.
 
 ## 9. Frontend
 
-Ansichten:
+Views:
 
-1. **Bibliothek:** Bücher, Upload, Verarbeitungsstatus.
-2. **Reader:** Buchtext mit epub.js, speichert Position automatisch, zeigt
-   Fortschritt.
-3. **Notizen-Panel** (Seitenleiste bzw. Bottom Sheet am Handy): Suchfeld, Liste
-   der bisher aufgetretenen Figuren/Orte, Detailansicht mit Fakten,
-   Beziehungen und Kapitelverweisen. Markierter Text im Reader lässt sich
-   direkt nachschlagen.
-4. **Positionswahl-Fallback:** Kapitel-/Prozent-Auswahl, falls man den Text
-   woanders liest.
+1. **Library:** books, upload, processing status.
+2. **Reader:** book text with epub.js, automatic position saving, and progress.
+3. **Notes panel** (sidebar or mobile bottom sheet): search field, list of
+   characters/places seen so far, detail view with facts, relationships, and
+   chapter references. Selected reader text can be looked up directly.
+4. **Position-selection fallback:** chapter/percentage selector for reading
+   outside the app.
 
-Anforderungen: responsiv (Handy zuerst), PWA-Manifest, Service Worker für die
-App-Hülle, Dark Mode, UI-Sprache Deutsch (i18n-fähig).
+Requirements: responsive (mobile-first), PWA manifest, service worker for the
+app shell, and dark mode. The UI defaults to German and offers a language
+selector; English is supported initially, with translations structured so
+additional languages can be added.
+
+AI-generated notes default to German. Set `APP_OUTPUT_LANGUAGE` (for example,
+to `en`) to request another output language independently of the UI language.
 
 ## 10. Roadmap
 
 ### Phase 0: Setup
 
-- Monorepo, Tooling (ruff, mypy optional, pytest, ESLint, Vitest), `.env.example`,
-  README
-- Abnahme: Backend und Frontend starten lokal, Health-Endpoint erreichbar, CI
-  läuft Tests
+- Monorepo, tooling (ruff, optional mypy, pytest, ESLint, Vitest), `.env.example`,
+  README.
+- Acceptance: backend and frontend start locally, health endpoint is
+  reachable, CI runs tests.
 
-### Phase 1: EPUB-Parsing und Datenbank
+### Phase 1: EPUB parsing and database
 
-- Upload-Endpoint, Parsing in Kapitel/Absätze, Positionsvergabe, Migrationen
-- Abnahme: Test-EPUB (gemeinfreies Buch) wird korrekt zerlegt; Positionen sind
-  lückenlos und monoton; Kapitelreihenfolge stimmt
+- Upload endpoint, parse into chapters/paragraphs, assign positions, add
+  migrations.
+- Acceptance: a public-domain test EPUB is split correctly; positions are
+  contiguous and monotonic; chapter order is correct.
 
-### Phase 2: Extraktions-Pipeline
+### Phase 2: Extraction pipeline
 
-- Prompting, JSON-Schema, kapitelweise Verarbeitung, Entitäten-Abgleich,
-  Job-Fortschritt, Kostenzähler
-- Abnahme: Für ein Testbuch entstehen Entitäten und Fakten mit gültigen
-  Positionen; Abbruch und Fortsetzung funktionieren; Duplikatrate bei Figuren
-  akzeptabel (manuelle Stichprobe)
+- Prompting, JSON schema, chapter-by-chapter processing, entity resolution,
+  job progress, token-cost tracking.
+- Acceptance: a test book produces entities and facts at valid positions;
+  interruption and resumption work; character-duplicate rate is acceptable
+  (manual spot-check).
 
-### Phase 3: Abfrage-API mit Spoilerfilter
+### Phase 3: Spoiler-filtered query API
 
-- Lookup, Entitätenliste, Recap, Alias-Suche
-- Abnahme (automatisierter Test): Für jede Testposition enthält keine Antwort
-  einen Fakt mit `position` größer als die Abfrageposition; Aliase vor ihrer
-  Einführung werden nicht gefunden
+- Lookup, entity list, recap, alias search.
+- Acceptance (automated test): at every test position, no response contains a
+  fact whose `position` is later than the query position; aliases are not
+  found before introduction.
 
-### Phase 4: Frontend Grundgerüst
+### Phase 4: Frontend foundation
 
-- Bibliothek, Upload mit Statusanzeige, Reader mit Positionsspeicherung
-- Abnahme: Buch hochladen, lesen, Position bleibt nach Neuladen erhalten
+- Library, upload with status, reader with position persistence.
+- Acceptance: upload and read a book; position is retained after reload.
 
-### Phase 5: Notizen-Panel
+### Phase 5: Notes panel
 
-- Suche, Detailansicht, Nachschlagen markierter Wörter, manuelle Positionswahl
-- Abnahme: Nachschlagen im Reader zeigt nur Wissen bis zur aktuellen Position;
-  Positionswechsel nach vorn und zurück ändert die Ergebnisse entsprechend
+- Search, detail view, look up selected words, manual position selection.
+- Acceptance: reader lookup shows only information known at the current
+  position; moving forward and backward changes results accordingly.
 
-### Phase 6: PWA und Feinschliff
+### Phase 6: PWA and polish
 
-- Installierbar, Offline-Hülle, Fehlerzustände, Ladeanzeigen, Dark Mode,
-  Datenexport (JSON/Markdown der Notizen bis Position X)
-- Abnahme: Installation auf dem Handy funktioniert, Bedienung auf kleinem
-  Display ohne Probleme
+- Installable app, offline shell, error states, loading indicators, dark mode,
+  data export (JSON/Markdown notes up to position X).
+- Acceptance: phone installation works and the app is usable on a small
+  display.
 
-### Phase 7: Qualität und Bewertung
+### Phase 7: Quality and evaluation
 
-- Kleines Prüfset: 1-2 Bücher mit manuell gepflegten Referenznotizen, Messung
-  von Spoilerfreiheit (Pflicht: 0 Verstöße), Figurenabdeckung und Fehlerrate
-- Dokumentation: Setup, Kosten pro Buch, bekannte Grenzen
+- Small evaluation set: 1–2 books with manually maintained reference notes;
+  measure spoiler protection (required: zero violations), character coverage,
+  and error rate.
+- Documentation: setup, cost per book, known limitations.
 
-## 11. Risiken und Gegenmaßnahmen
+## 11. Risks and mitigations
 
-- **Modellwissen über bekannte Romane:** kann Spoiler in Fakten bringen.
-  Gegenmaßnahme: strenger Prompt, Quellauszug pflichtig, Stichproben mit
-  bekannten Büchern, im Zweifel Fakt verwerfen.
-- **Externer KI-Dienst:** Für die Extraktion werden die jeweils freigegebenen
-  Kapitel-/Textblöcke an die OpenAI API übertragen. Keine EPUB-Dateien oder
-  Geheimnisse ins Repository übernehmen; API-Key ausschließlich über `.env`.
-- **Figurenverwechslung und Duplikate:** Alias-Verwaltung, Abgleichsschritt,
-  Möglichkeit zum manuellen Zusammenführen in der UI (späterer Ausbau).
-- **Kosten:** lange Bücher bedeuten viele Tokens. Gegenmaßnahme: Kapitelweise
-  Verarbeitung, Caching, Kostenzähler, Modellwahl konfigurierbar.
-- **EPUB-Vielfalt:** Uneinheitliche Struktur (fehlende Kapitel, Fußnoten,
-  Bilder). Gegenmaßnahme: robuste Bereinigung, Tests mit mehreren EPUBs.
-- **Urheberrecht:** Nur private Nutzung mit eigener Kopie, keine öffentliche
-  Bereitstellung der Buchtexte.
-- **Halluzinationen:** Quellauszug und Kapitelverweis an jedem Fakt, damit man
-  nachprüfen kann; Hinweis in der UI, dass Einträge KI-generiert sind.
+- **Model knowledge of well-known novels:** may introduce spoilers into facts.
+  Mitigation: strict prompt, required source excerpts, spot-check well-known
+  books, and omit uncertain facts.
+- **External AI service:** approved chapter/text blocks are sent to the OpenAI
+  API for extraction. Do not put EPUBs or secrets in the repository; keep the
+  API key exclusively in `.env`.
+- **Character confusion and duplicates:** alias management and resolution;
+  manual merging in the UI may be added later.
+- **Cost:** long books require many tokens. Mitigation: chapter-by-chapter
+  processing, caching, token tracking, configurable model choice.
+- **EPUB diversity:** inconsistent structure (missing chapters, footnotes,
+  images). Mitigation: robust cleanup and tests against multiple EPUBs.
+- **Copyright:** personal use only with the user's own copy; do not publicly
+  serve book text.
+- **Hallucinations:** every fact has a source excerpt and chapter reference
+  for verification; the UI indicates that entries are AI-generated.
 
-## 12. Hinweise für die Umsetzung
+## 12. Implementation notes
 
-- Arbeite phasenweise; schließe jede Phase mit den genannten Abnahmetests ab,
-  bevor du die nächste beginnst.
-- Schreibe zuerst Tests für den Spoilerfilter (Phase 3), sie sind das zentrale
-  Qualitätsmerkmal.
-- Verwende keine Annahmen über Seitenzahlen; Position ist die einzige Wahrheit.
-- Halte Prompts, Schemas und Modellnamen in Konfiguration bzw. eigenen Dateien,
-  nicht verstreut im Code.
-- Keine Geheimnisse ins Repo; API-Schlüssel nur über `.env`.
-- Dokumentiere Entscheidungen kurz in `/docs`.
+- Work phase by phase; complete each phase's acceptance tests before starting
+  the next.
+- Write spoiler-filter tests first (Phase 3); they are the central quality
+  criterion.
+- Do not assume page numbers are stable; position is the only source of truth.
+- Keep prompts, schemas, and model names in configuration or separate files,
+  not scattered throughout the code.
+- Never put secrets in the repository; use `.env` for API keys.
+- Briefly document decisions in `/docs`.
