@@ -32,9 +32,13 @@ lint, and build commands.
 
 ## Branch and pull request workflow
 
-- Fetch the latest `origin/main` before starting a feature branch.
-- Keep changes on a feature branch; do not merge locally or push directly to
-  `main`.
+- Create a new, task-specific feature branch for every task from freshly
+  fetched `origin/main` (for example, `feature/MJS/<task-name>`). Create it
+  without tracking `origin/main`, then push it with
+  `git push --set-upstream origin <branch-name>` so its upstream is its own
+  matching `origin/<branch-name>`, not `origin/main`.
+- Keep changes on that feature branch; do not merge locally or push directly
+  to `main`.
 - CI is pull-request-only. The repository owner merges through the GitHub UI
   after checks pass.
 - Describe the purpose, behavior, and relevant test results in the pull

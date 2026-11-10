@@ -84,9 +84,14 @@
   conditionals, duplicated logic, magic values, dead code, unnecessary
   comments, and speculative abstractions. Comments should explain why, not
   restate what the code does.
-- CI is pull-request-only. Start work on a feature branch based on freshly
-  fetched `origin/main`. Push completed work to its matching feature branch and
-  prepare a pull request description; do not merge branches locally or push
-  commits directly to `main`. The repository owner merges through the GitHub UI
-  after checks pass.
+- Create a new, task-specific feature branch for every task, based on the
+  freshly fetched `origin/main` (for example,
+  `feature/MJS/<task-name>`). Create it without tracking `origin/main`, then
+  push it with `git push --set-upstream origin <branch-name>` so it tracks its
+  own matching `origin/<branch-name>`. Never leave a feature branch tracking
+  `origin/main`.
+- CI is pull-request-only. Push completed work to its matching feature branch
+  and prepare a pull request description; do not merge branches locally or
+  push commits directly to `main`. The repository owner merges through the
+  GitHub UI after checks pass.
 - Verify phase acceptance criteria with tests before starting later phase work.
