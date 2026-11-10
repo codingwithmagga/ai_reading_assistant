@@ -8,10 +8,10 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
+from app.entity_resolution import known_entities_at_position, persist_block_extraction
 from app.extraction_schemas import (
     ChapterExtraction,
     ChapterParagraph,
-    EntityType,
     KnownEntity,
 )
 from app.models import Book, Chapter, ExtractionCheckpoint, Job, Paragraph
@@ -240,7 +240,6 @@ def _process_chapters(
     if not set(checkpoint_map) <= expected_checkpoint_keys:
         raise ValueError("Der Job enthält Checkpoints außerhalb der Kapitelblöcke.")
 
-    known_entities: dict[str, tuple[str, EntityType, set[str]]] = {}
     completed_blocks = 0
     for chapter in chapters:
         for block_index, block in enumerate(chapter_blocks[chapter.id]):
@@ -263,7 +262,18 @@ def _process_chapters(
                 response = extractor.extract_with_usage(
                     chapter_title=chapter.title,
                     paragraphs=request_paragraphs,
-                    known_entities=_known_entity_context(known_entities),
+                    known_entities=known_entities_at_position(
+                        session,
+                        book.id,
+                        block[0].position - 1,
+                    ),
+                )
+                persist_block_extraction(
+                    session,
+                    book=book,
+                    chapter=chapter,
+                    paragraphs=block,
+                    extraction=response.extraction,
                 )
                 checkpoint = ExtractionCheckpoint(
                     job_id=job.id,
@@ -299,32 +309,7 @@ def _process_chapters(
                     raise ValueError("Ein Checkpoint passt nicht mehr zu den Buchabsätzen.")
                 completed_blocks += 1
 
-            extraction = ChapterExtraction.model_validate_json(checkpoint.result_json)
-            _update_known_entities(known_entities, extraction)
-
-
-def _update_known_entities(
-    known_entities: dict[str, tuple[str, EntityType, set[str]]],
-    extraction: ChapterExtraction,
-) -> None:
-    for entity in extraction.entities:
-        key = entity.canonical_name.casefold()
-        existing = known_entities.get(key)
-        if existing is None:
-            known_entities[key] = (entity.canonical_name, entity.entity_type, set())
-        elif existing[1] != entity.entity_type:
-            raise ValueError(
-                f"Entität {entity.canonical_name!r} hat widersprüchliche Typen in Checkpoints."
-            )
-
-    for alias in extraction.aliases:
-        entity_entry = known_entities.get(alias.entity_name.casefold())
-        if entity_entry is None:
-            raise ValueError(
-                f"Alias {alias.alias!r} verweist auf keine bekannte Entität "
-                f"({alias.entity_name!r})."
-            )
-        entity_entry[2].add(alias.alias)
+            ChapterExtraction.model_validate_json(checkpoint.result_json)
 
 
 def _make_blocks(paragraphs: Sequence[Paragraph], settings: Settings) -> list[list[Paragraph]]:
@@ -349,21 +334,6 @@ def _make_blocks(paragraphs: Sequence[Paragraph], settings: Settings) -> list[li
     if current:
         blocks.append(current)
     return blocks
-
-
-def _known_entity_context(
-    known_entities: dict[str, tuple[str, EntityType, set[str]]],
-) -> list[KnownEntity]:
-    return [
-        KnownEntity(
-            canonical_name=canonical_name,
-            entity_type=entity_type,
-            aliases=sorted(aliases, key=str.casefold),
-        )
-        for canonical_name, entity_type, aliases in (
-            known_entities[key] for key in sorted(known_entities)
-        )
-    ]
 
 
 def _as_utc(value: datetime | None) -> datetime | None:

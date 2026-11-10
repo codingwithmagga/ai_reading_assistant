@@ -1,10 +1,12 @@
 from datetime import UTC, datetime, timedelta
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.entity_resolution import known_entities_at_position
 from app.extraction_jobs import (
     ExtractionJobAlreadyActiveError,
     ExtractionJobBusyError,
@@ -16,8 +18,21 @@ from app.extraction_schemas import (
     ChapterExtraction,
     EntityExtraction,
     EntityType,
+    FactExtraction,
+    RelationshipExtraction,
 )
-from app.models import Base, Book, Chapter, ExtractionCheckpoint, Job, Paragraph
+from app.models import (
+    Base,
+    Book,
+    Chapter,
+    Entity,
+    EntityAlias,
+    ExtractionCheckpoint,
+    Fact,
+    Job,
+    Paragraph,
+    Relationship,
+)
 from app.openai_extractor import ExtractionResponse
 
 
@@ -50,6 +65,16 @@ class FakeExtractor:
             relationships=[],
         )
         return ExtractionResponse(extraction, input_tokens=10, output_tokens=3)
+
+
+class QueuedExtractor:
+    def __init__(self, extractions: list[ChapterExtraction]) -> None:
+        self.extractions = iter(extractions)
+        self.calls: list[dict[str, object]] = []
+
+    def extract_with_usage(self, **kwargs: object) -> ExtractionResponse:
+        self.calls.append(kwargs)
+        return ExtractionResponse(next(self.extractions), input_tokens=8, output_tokens=4)
 
 
 @pytest.fixture
@@ -137,6 +162,14 @@ def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: 
         (2, 1),
         (3, 1),
     ]
+    entities = list(session.scalars(select(Entity).where(Entity.book_id == book.id)))
+    assert len(entities) == 1
+    assert entities[0].first_position == 0
+    aliases = list(
+        session.scalars(select(EntityAlias).where(EntityAlias.entity_id == entities[0].id))
+    )
+    assert len(aliases) == 1
+    assert aliases[0].first_position == 0
 
 
 def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
@@ -177,6 +210,13 @@ def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
             )
         )
         == 3
+    )
+    assert len(list(session.scalars(select(Entity).where(Entity.book_id == book.id)))) == 1
+    assert (
+        len(
+            list(session.scalars(select(EntityAlias).join(Entity).where(Entity.book_id == book.id)))
+        )
+        == 1
     )
 
 
@@ -242,3 +282,247 @@ def test_paragraph_larger_than_block_limit_fails_the_job(session: Session) -> No
     assert job.status == "error"
     assert job.error_code == "ExtractionBookNotReadyError"
     assert "501" not in job.error
+
+
+def test_extraction_results_are_resolved_and_saved_at_server_positions(session: Session) -> None:
+    book = _create_parsed_book(session)
+    job = create_extraction_job(session, book.id)
+    first_block = ChapterExtraction(
+        entities=[
+            EntityExtraction(
+                canonical_name="Marta",
+                entity_type=EntityType.PERSON,
+                first_mention_ref="p0",
+            ),
+            EntityExtraction(
+                canonical_name="Dorf",
+                entity_type=EntityType.PLACE,
+                first_mention_ref="p1",
+            ),
+        ],
+        aliases=[
+            AliasExtraction(
+                entity_name="marta",
+                alias="die Wirtin",
+                paragraph_ref="p1",
+            )
+        ],
+        facts=[
+            FactExtraction(
+                entity_name="MARTA",
+                text="Marta öffnet die Tür.",
+                paragraph_ref="p0",
+                source_excerpt="Marta öffnet die Tür.",
+                kind="event",
+            )
+        ],
+        relationships=[
+            RelationshipExtraction(
+                entity_a_name="die Wirtin",
+                entity_b_name="Dorf",
+                label="lebt in",
+                paragraph_ref="p1",
+            )
+        ],
+    )
+    empty_extraction = ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[])
+    extractor = QueuedExtractor([first_block, empty_extraction, empty_extraction])
+
+    completed = _run(session, job, extractor)
+
+    assert completed.status == "completed"
+    entities = {
+        entity.canonical_name: entity
+        for entity in session.scalars(select(Entity).where(Entity.book_id == book.id))
+    }
+    assert set(entities) == {"Marta", "Dorf"}
+    assert entities["Marta"].id == str(
+        uuid5(
+            NAMESPACE_URL,
+            f"ai-reading-assistant:{book.id}:entity:person:marta",
+        )
+    )
+    assert entities["Marta"].first_position == 0
+    assert entities["Dorf"].first_position == 1
+    stored_alias = session.scalar(
+        select(EntityAlias).where(EntityAlias.entity_id == entities["Marta"].id)
+    )
+    assert stored_alias is not None
+    assert stored_alias.alias == "die Wirtin"
+    assert stored_alias.first_position == 1
+    stored_fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
+    assert stored_fact is not None
+    assert stored_fact.entity_id == entities["Marta"].id
+    assert stored_fact.chapter_id == book.chapters[0].id
+    assert stored_fact.position == 0
+    stored_relationship = session.scalar(
+        select(Relationship).where(Relationship.book_id == book.id)
+    )
+    assert stored_relationship is not None
+    assert stored_relationship.entity_a_id == entities["Marta"].id
+    assert stored_relationship.entity_b_id == entities["Dorf"].id
+    assert stored_relationship.position == 1
+    second_block_entities = extractor.calls[1]["known_entities"]
+    assert {entity.canonical_name for entity in second_block_entities} == {"Marta", "Dorf"}
+    assert next(
+        entity for entity in second_block_entities if entity.canonical_name == "Marta"
+    ).aliases == ["die Wirtin"]
+
+
+def test_fact_cannot_precede_entity_first_mention(session: Session) -> None:
+    book = _create_parsed_book(session)
+    job = create_extraction_job(session, book.id)
+    extraction = ChapterExtraction(
+        entities=[
+            EntityExtraction(
+                canonical_name="Marta",
+                entity_type=EntityType.PERSON,
+                first_mention_ref="p1",
+            )
+        ],
+        aliases=[],
+        facts=[
+            FactExtraction(
+                entity_name="Marta",
+                text="Marta geht.",
+                paragraph_ref="p0",
+                source_excerpt="Marta öffnet die Tür.",
+                kind="event",
+            )
+        ],
+        relationships=[],
+    )
+    extractor = QueuedExtractor(
+        [
+            extraction,
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="nicht im erlaubten Kontext"):
+        _run(session, job, extractor)
+
+    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
+    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
+    assert (
+        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
+        is None
+    )
+
+
+def test_ambiguous_prior_alias_is_not_auto_merged(session: Session) -> None:
+    book = _create_parsed_book(session)
+    first_entity = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Marta",
+        first_position=0,
+    )
+    second_entity = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Maria",
+        first_position=0,
+    )
+    first_entity.aliases.append(EntityAlias(alias="die Fremde", first_position=0))
+    second_entity.aliases.append(EntityAlias(alias="die Fremde", first_position=0))
+    session.add_all([first_entity, second_entity])
+    session.commit()
+    job = create_extraction_job(session, book.id)
+    empty_extraction = ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[])
+    fact_extraction = ChapterExtraction(
+        entities=[],
+        aliases=[],
+        facts=[
+            FactExtraction(
+                entity_name="die Fremde",
+                text="Sie kommt herein.",
+                paragraph_ref="p0",
+                source_excerpt="Marta reicht Tee.",
+                kind="event",
+            )
+        ],
+        relationships=[],
+    )
+    extractor = QueuedExtractor([empty_extraction, fact_extraction, empty_extraction])
+
+    with pytest.raises(ValueError, match="mehrdeutig"):
+        _run(session, job, extractor)
+
+    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
+    assert len(extractor.calls[1]["known_entities"]) == 2
+
+
+def test_alias_cannot_shadow_another_entities_canonical_name(session: Session) -> None:
+    book = _create_parsed_book(session)
+    job = create_extraction_job(session, book.id)
+    extraction = ChapterExtraction(
+        entities=[
+            EntityExtraction(
+                canonical_name="Marta",
+                entity_type=EntityType.PERSON,
+                first_mention_ref="p0",
+            ),
+            EntityExtraction(
+                canonical_name="Dorf",
+                entity_type=EntityType.PLACE,
+                first_mention_ref="p1",
+            ),
+        ],
+        aliases=[
+            AliasExtraction(
+                entity_name="Dorf",
+                alias="Marta",
+                paragraph_ref="p1",
+            )
+        ],
+        facts=[],
+        relationships=[],
+    )
+    extractor = QueuedExtractor(
+        [
+            extraction,
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+        ]
+    )
+
+    with pytest.raises(ValueError, match="mehrdeutig"):
+        _run(session, job, extractor)
+
+    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
+    assert (
+        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
+        is None
+    )
+
+
+def test_known_entity_context_excludes_entities_and_aliases_from_later_positions(
+    session: Session,
+) -> None:
+    book = _create_parsed_book(session)
+    earlier = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Marta",
+        first_position=0,
+    )
+    later = Entity(
+        book_id=book.id,
+        type="place",
+        canonical_name="Dorf",
+        first_position=2,
+    )
+    earlier.aliases.extend(
+        [
+            EntityAlias(alias="die Wirtin", first_position=1),
+            EntityAlias(alias="späterer Name", first_position=3),
+        ]
+    )
+    session.add_all([earlier, later])
+    session.commit()
+
+    context = known_entities_at_position(session, book.id, 1)
+
+    assert len(context) == 1
+    assert context[0].canonical_name == "Marta"
+    assert context[0].aliases == ["die Wirtin"]
