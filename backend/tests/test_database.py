@@ -42,6 +42,7 @@ def test_migration_creates_schema_on_empty_database(
             "entity_aliases",
             "facts",
             "relationships",
+            "extraction_checkpoints",
         } <= set(inspector.get_table_names())
         assert inspector.get_foreign_keys("chapters")[0]["options"]["ondelete"] == "CASCADE"
         assert inspector.get_foreign_keys("paragraphs")
@@ -52,9 +53,24 @@ def test_migration_creates_schema_on_empty_database(
             "entities",
         }
         assert len(inspector.get_foreign_keys("relationships")) == 3
+        assert {index["name"] for index in inspector.get_indexes("facts")} == {
+            "ix_facts_book_position",
+            "ix_facts_entity_position",
+        }
+        assert {index["name"] for index in inspector.get_indexes("jobs")} >= {
+            "uq_jobs_active_extraction_book"
+        }
         assert {
-            index["name"] for index in inspector.get_indexes("facts")
-        } == {"ix_facts_book_position", "ix_facts_entity_position"}
+            "error_code",
+            "last_completed_chapter_index",
+            "last_completed_block_index",
+            "input_tokens",
+            "output_tokens",
+            "lease_expires_at",
+        } <= {column["name"] for column in inspector.get_columns("jobs")}
+        assert {index["name"] for index in inspector.get_indexes("extraction_checkpoints")} == {
+            "ix_extraction_checkpoints_job_order"
+        }
     finally:
         engine.dispose()
 
@@ -165,15 +181,23 @@ def test_extraction_migration_can_be_downgraded_and_reapplied(
         assert not {"entities", "entity_aliases", "facts", "relationships"} & set(
             inspect(engine).get_table_names()
         )
+        assert "extraction_checkpoints" not in inspect(engine).get_table_names()
+        assert "error_code" not in {
+            column["name"] for column in inspect(engine).get_columns("jobs")
+        }
     finally:
         engine.dispose()
 
     command.upgrade(config, "head")
     engine = create_database_engine(database_url)
     try:
-        assert {"entities", "entity_aliases", "facts", "relationships"} <= set(
-            inspect(engine).get_table_names()
-        )
+        assert {
+            "entities",
+            "entity_aliases",
+            "facts",
+            "relationships",
+            "extraction_checkpoints",
+        } <= set(inspect(engine).get_table_names())
     finally:
         engine.dispose()
 

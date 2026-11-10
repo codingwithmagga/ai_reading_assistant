@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     ] = "gpt-4o-mini"
     openai_max_attempts: int = Field(default=3, ge=1, le=5)
     openai_timeout_seconds: float = Field(default=60, gt=0, le=300)
+    extraction_max_paragraphs_per_block: int = Field(default=25, ge=1, le=200)
+    extraction_max_block_characters: int = Field(default=20_000, ge=500, le=100_000)
     app_output_language: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=2, max_length=20)
     ] = "de"

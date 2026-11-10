@@ -35,6 +35,11 @@ im persistenten Docker-Volume `reading-data`. Datenbankmigrationen werden
 beim Start des Backend-Containers automatisch angewendet. Für eine lokale
 Backend-Installation: `cd backend && alembic upgrade head`.
 
+**Serverbetrieb:** Die aktuelle App hat noch keine Anmeldung. Der veröffentlichte
+Compose-Port ist daher nicht für eine direkte Freigabe ins Internet geeignet.
+Für den persönlichen Serverzugriff zuerst VPN und Host-Firewall verwenden;
+öffentlichen Zugriff erst mit TLS und einer vorgeschalteten Anmeldung einrichten.
+
 Die EPUB-Grenzwerte lassen sich in `.env` konfigurieren:
 
 | Variable | Standard | Zulässiger Bereich |
@@ -42,6 +47,8 @@ Die EPUB-Grenzwerte lassen sich in `.env` konfigurieren:
 | `EPUB_MAX_UPLOAD_MB` | 50 MB | 1–500 MB |
 | `EPUB_MAX_UNCOMPRESSED_MB` | 250 MB | 1–2000 MB |
 | `EPUB_MAX_ARCHIVE_ENTRIES` | 5000 | 1–50000 Einträge |
+| `EXTRACTION_MAX_PARAGRAPHS_PER_BLOCK` | 25 | 1–200 Absätze |
+| `EXTRACTION_MAX_BLOCK_CHARACTERS` | 20000 | 500–100000 Zeichen |
 | `UPLOAD_TEMP_DIR` | `/tmp/reading-assistant-uploads` | beschreibbares temporäres Verzeichnis |
 
 Das Uploadlimit wird gemeinsam für Backend und Nginx-Proxy verwendet. Uploads
@@ -105,7 +112,9 @@ docker compose down
 Lege lokale Einstellungen in `.env` an; `.env` wird nicht versioniert.
 `.env.example` enthält ausschließlich nicht geheime Beispielwerte. Bücher
 und daraus extrahierte Inhalte sind für private Nutzung mit einer eigenen
-Kopie vorgesehen und sollen nicht öffentlich bereitgestellt werden. Für die
+Kopie vorgesehen und sollen nicht öffentlich bereitgestellt werden. Der
+selbst gehostete MVP hat keine Benutzeranmeldung; siehe die Anforderungen zum
+Zugriff im [Projektkonzept](./docs/PROJECT_SPEC.md). Für die
 KI-Extraktion werden jeweils nur die an den Extraktor übergebenen Textabsätze
 und der dazu übergebene Entitätskontext an OpenAI gesendet; die EPUB-Datei
 selbst wird nicht übertragen. Ohne `OPENAI_API_KEY` kann die Anwendung

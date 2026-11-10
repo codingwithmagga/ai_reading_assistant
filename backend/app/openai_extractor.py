@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Protocol
 
 from openai import OpenAI
@@ -23,11 +24,33 @@ class ExtractionConfigurationError(RuntimeError):
 
 
 class InvalidExtractionOutputError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        input_tokens: int = 0,
+        output_tokens: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
+
+
+@dataclass(frozen=True)
+class ExtractionResponse:
+    extraction: ChapterExtraction
+    input_tokens: int
+    output_tokens: int
+
+
+class ResponseUsage(Protocol):
+    input_tokens: int
+    output_tokens: int
 
 
 class ResponseWithText(Protocol):
     output_text: str
+    usage: ResponseUsage | None
 
 
 class ResponsesAPI(Protocol):
@@ -71,6 +94,19 @@ class OpenAIChapterExtractor:
         paragraphs: list[ChapterParagraph],
         known_entities: list[KnownEntity],
     ) -> ChapterExtraction:
+        return self.extract_with_usage(
+            chapter_title=chapter_title,
+            paragraphs=paragraphs,
+            known_entities=known_entities,
+        ).extraction
+
+    def extract_with_usage(
+        self,
+        *,
+        chapter_title: str | None,
+        paragraphs: list[ChapterParagraph],
+        known_entities: list[KnownEntity],
+    ) -> ExtractionResponse:
         user_input = build_chapter_input(
             chapter_title=chapter_title,
             paragraphs=paragraphs,
@@ -91,6 +127,8 @@ class OpenAIChapterExtractor:
 
         validation_feedback: str | None = None
         last_error: ValidationError | ValueError | None = None
+        input_tokens = 0
+        output_tokens = 0
         for _ in range(self._settings.openai_max_attempts):
             response_input = list(base_input)
             if validation_feedback is not None:
@@ -110,9 +148,18 @@ class OpenAIChapterExtractor:
                 input=response_input,
                 text=text_format,
             )
+            usage = response.usage
+            if usage is not None:
+                input_tokens += usage.input_tokens
+                output_tokens += usage.output_tokens
             try:
                 result = ChapterExtraction.model_validate_json(response.output_text)
-                return validate_chapter_references(result, paragraphs)
+                result = validate_chapter_references(result, paragraphs)
+                return ExtractionResponse(
+                    extraction=result,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                )
             except ValidationError as error:
                 last_error = error
                 validation_feedback = _validation_feedback(error)
@@ -121,7 +168,9 @@ class OpenAIChapterExtractor:
                 validation_feedback = str(error)
 
         raise InvalidExtractionOutputError(
-            "OpenAI lieferte nach den erlaubten Versuchen keine gültige Kapitel-Extraktion."
+            "OpenAI lieferte nach den erlaubten Versuchen keine gültige Kapitel-Extraktion.",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
         ) from last_error
 
     def _get_client(self) -> ResponsesAPI:

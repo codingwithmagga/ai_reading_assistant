@@ -10,6 +10,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -137,6 +138,17 @@ class Job(Base):
             "status IN ('pending', 'running', 'completed', 'error')",
             name="ck_jobs_status",
         ),
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0",
+            name="ck_jobs_token_counts_nonnegative",
+        ),
+        Index(
+            "uq_jobs_active_extraction_book",
+            "book_id",
+            unique=True,
+            sqlite_where=text("type = 'extraction' AND status IN ('pending', 'running')"),
+            postgresql_where=text("type = 'extraction' AND status IN ('pending', 'running')"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
@@ -148,9 +160,66 @@ class Job(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(100))
+    last_completed_chapter_index: Mapped[int | None] = mapped_column(Integer)
+    last_completed_block_index: Mapped[int | None] = mapped_column(Integer)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
     book: Mapped[Book] = relationship(back_populates="jobs")
+    extraction_checkpoints: Mapped[list["ExtractionCheckpoint"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="(ExtractionCheckpoint.chapter_index, ExtractionCheckpoint.block_index)",
+    )
+
+
+class ExtractionCheckpoint(Base):
+    __tablename__ = "extraction_checkpoints"
+    __table_args__ = (
+        CheckConstraint("chapter_index >= 0", name="ck_extraction_checkpoints_chapter_nonnegative"),
+        CheckConstraint("block_index >= 0", name="ck_extraction_checkpoints_block_nonnegative"),
+        CheckConstraint(
+            "first_paragraph_position >= 0",
+            name="ck_extraction_checkpoints_position_nonnegative",
+        ),
+        CheckConstraint(
+            "paragraph_count > 0",
+            name="ck_extraction_checkpoints_paragraph_count_positive",
+        ),
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0",
+            name="ck_extraction_checkpoints_tokens_nonnegative",
+        ),
+        UniqueConstraint(
+            "job_id",
+            "chapter_index",
+            "block_index",
+            name="uq_extraction_checkpoints_job_chapter_block",
+        ),
+        Index(
+            "ix_extraction_checkpoints_job_order",
+            "job_id",
+            "chapter_index",
+            "block_index",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    job_id: Mapped[str] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False)
+    chapter_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    block_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    first_paragraph_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    paragraph_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    job: Mapped[Job] = relationship(back_populates="extraction_checkpoints")
 
 
 class Entity(Base):

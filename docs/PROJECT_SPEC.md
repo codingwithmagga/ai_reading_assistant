@@ -40,6 +40,18 @@ auf Seite 10 vorkam. Man schlägt sie kurz nach und liest weiter.
 - Hochladen oder Verbreiten urheberrechtlich geschützter Inhalte an Dritte
   (Nutzung nur privat mit eigener Kopie)
 
+### Zugriff im selbst gehosteten Betrieb
+
+- Der MVP besitzt noch keine Benutzeranmeldung oder API-Autorisierung. Die
+  Compose-Portfreigabe ist nicht für einen ungeschützten Internetbetrieb
+  geeignet.
+- Vor einem Serverbetrieb muss der Zugriff auf den Eigentümer beschränkt
+  werden. Bevorzugt wird ein privater VPN-Zugang mit Host-Firewall; bei
+  öffentlichem HTTPS-Zugriff ist mindestens eine vertrauenswürdige
+  Authentifizierung am Reverse Proxy und TLS erforderlich.
+- Eine spätere anwendungsinterne Anmeldung muss auch API-Endpunkte und
+  Buchdaten schützen, nicht nur den Frontend-Zugang.
+
 ## 3. Technologie-Stack
 
 | Bereich | Wahl |

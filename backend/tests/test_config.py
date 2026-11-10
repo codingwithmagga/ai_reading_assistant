@@ -32,6 +32,8 @@ def test_settings_parse_openai_configuration_from_environment(
     monkeypatch.setenv("OPENAI_MODEL", "gpt-test")
     monkeypatch.setenv("OPENAI_MAX_ATTEMPTS", "4")
     monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "45")
+    monkeypatch.setenv("EXTRACTION_MAX_PARAGRAPHS_PER_BLOCK", "10")
+    monkeypatch.setenv("EXTRACTION_MAX_BLOCK_CHARACTERS", "10000")
     monkeypatch.setenv("APP_OUTPUT_LANGUAGE", "en")
 
     settings = Settings(_env_file=None)
@@ -41,6 +43,8 @@ def test_settings_parse_openai_configuration_from_environment(
     assert settings.openai_model == "gpt-test"
     assert settings.openai_max_attempts == 4
     assert settings.openai_timeout_seconds == 45
+    assert settings.extraction_max_paragraphs_per_block == 10
+    assert settings.extraction_max_block_characters == 10000
     assert settings.app_output_language == "en"
 
 
@@ -54,6 +58,8 @@ def test_settings_parse_openai_configuration_from_environment(
         ("OPENAI_MAX_ATTEMPTS", "0"),
         ("OPENAI_MAX_ATTEMPTS", "6"),
         ("OPENAI_TIMEOUT_SECONDS", "0"),
+        ("EXTRACTION_MAX_PARAGRAPHS_PER_BLOCK", "0"),
+        ("EXTRACTION_MAX_BLOCK_CHARACTERS", "499"),
         ("APP_OUTPUT_LANGUAGE", " "),
         ("OPENAI_MODEL", " "),
     ],

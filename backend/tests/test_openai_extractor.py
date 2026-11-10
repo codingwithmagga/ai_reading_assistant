@@ -29,8 +29,15 @@ VALID_OUTPUT = json.dumps(
 
 
 class FakeResponse:
-    def __init__(self, output_text: str) -> None:
+    def __init__(self, output_text: str, *, input_tokens: int = 0, output_tokens: int = 0) -> None:
         self.output_text = output_text
+        self.usage = FakeUsage(input_tokens, output_tokens)
+
+
+class FakeUsage:
+    def __init__(self, input_tokens: int, output_tokens: int) -> None:
+        self.input_tokens = input_tokens
+        self.output_tokens = output_tokens
 
 
 class FakeResponses:
@@ -40,7 +47,7 @@ class FakeResponses:
 
     def create(self, **kwargs: object) -> FakeResponse:
         self.requests.append(kwargs)
-        return FakeResponse(next(self.outputs))
+        return FakeResponse(next(self.outputs), input_tokens=12, output_tokens=5)
 
 
 def _extractor(
@@ -121,6 +128,34 @@ def test_invalid_output_fails_after_configured_attempts() -> None:
         _extract(_extractor(responses, max_attempts=2))
 
     assert len(responses.requests) == 2
+
+
+def test_extraction_response_sums_usage_across_validation_retries() -> None:
+    invalid_output = json.dumps(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Marta",
+                    "entity_type": "person",
+                    "first_mention_ref": "p99",
+                }
+            ],
+            "aliases": [],
+            "facts": [],
+            "relationships": [],
+        }
+    )
+    responses = FakeResponses([invalid_output, VALID_OUTPUT])
+    extractor = _extractor(responses)
+
+    result = extractor.extract_with_usage(
+        chapter_title="Kapitel 1",
+        paragraphs=[ChapterParagraph(reference="p0", text="Marta kommt herein.")],
+        known_entities=[],
+    )
+
+    assert result.input_tokens == 24
+    assert result.output_tokens == 10
 
 
 def test_missing_api_key_is_an_explicit_configuration_error() -> None:
