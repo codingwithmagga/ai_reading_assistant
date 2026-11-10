@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.extraction_schemas import EntityType, FactKind
+
 
 class BookResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -59,3 +61,76 @@ class JobResponse(BaseModel):
     input_tokens: int
     output_tokens: int
     created_at: datetime
+
+
+class EntityAliasResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    alias: str
+    first_position: int
+
+
+class EntityListItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: EntityType
+    canonical_name: str
+    first_position: int
+    aliases: list[EntityAliasResponse]
+
+
+class LookupEntitySummaryResponse(BaseModel):
+    id: str
+    type: EntityType
+    canonical_name: str
+    first_position: int
+
+
+class LookupFactResponse(BaseModel):
+    id: str
+    text: str
+    kind: FactKind
+    position: int
+    chapter_id: str
+    chapter_index: int
+    chapter_title: str | None
+    source_excerpt: str
+
+
+class LookupRelationshipResponse(BaseModel):
+    id: str
+    entity_a: LookupEntitySummaryResponse
+    entity_b: LookupEntitySummaryResponse
+    label: str
+    position: int
+
+
+class EntityLookupMatchResponse(BaseModel):
+    entity: LookupEntitySummaryResponse
+    aliases: list[EntityAliasResponse]
+    facts: list[LookupFactResponse]
+    relationships: list[LookupRelationshipResponse]
+
+
+class EntityLookupResponse(BaseModel):
+    query: str
+    position: int
+    matches: list[EntityLookupMatchResponse]
+
+
+class RecapEventResponse(BaseModel):
+    id: str
+    text: str
+    position: int
+    chapter_id: str
+    chapter_index: int
+    chapter_title: str | None
+    source_excerpt: str
+    entity: LookupEntitySummaryResponse
+
+
+class RecapResponse(BaseModel):
+    position: int
+    events: list[RecapEventResponse]
+    characters: list[EntityListItemResponse]

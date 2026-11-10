@@ -91,7 +91,10 @@ def persist_block_extraction(
     resolver = _EntityResolver(session, book.id)
     for item in sorted(
         extraction.entities,
-        key=lambda entity: (positions[entity.first_mention_ref], _normalize(entity.canonical_name)),
+        key=lambda entity: (
+            positions[entity.first_mention_ref],
+            normalize_entity_name(entity.canonical_name),
+        ),
     ):
         position = positions[item.first_mention_ref]
         entity = resolver.find(item.canonical_name, position)
@@ -102,7 +105,7 @@ def persist_block_extraction(
                 )
             continue
 
-        normalized_name = _normalize(item.canonical_name)
+        normalized_name = normalize_entity_name(item.canonical_name)
         entity = Entity(
             id=str(
                 uuid5(
@@ -121,14 +124,14 @@ def persist_block_extraction(
 
     for item in sorted(
         extraction.aliases,
-        key=lambda alias: (positions[alias.paragraph_ref], _normalize(alias.alias)),
+        key=lambda alias: (positions[alias.paragraph_ref], normalize_entity_name(alias.alias)),
     ):
         position = positions[item.paragraph_ref]
         entity = resolver.require(item.entity_name, position)
         alias_owner = resolver.find(item.alias, position)
         if alias_owner is not None and alias_owner.id != entity.id:
             raise ValueError(f"Der Alias {item.alias!r} ist an dieser Stelle mehrdeutig.")
-        if _normalize(item.alias) == _normalize(entity.canonical_name):
+        if normalize_entity_name(item.alias) == normalize_entity_name(entity.canonical_name):
             continue
         existing_alias = resolver.find_alias(item.alias, position)
         if existing_alias is not None and existing_alias.entity_id != entity.id:
@@ -140,7 +143,7 @@ def persist_block_extraction(
                 for alias in session.scalars(
                     select(EntityAlias).where(EntityAlias.entity_id == entity.id)
                 )
-                if _normalize(alias.alias) == _normalize(item.alias)
+                if normalize_entity_name(alias.alias) == normalize_entity_name(item.alias)
             ),
             None,
         )
@@ -163,7 +166,11 @@ def persist_block_extraction(
     }
     for item in sorted(
         extraction.facts,
-        key=lambda fact: (positions[fact.paragraph_ref], _normalize(fact.entity_name), fact.kind),
+        key=lambda fact: (
+            positions[fact.paragraph_ref],
+            normalize_entity_name(fact.entity_name),
+            fact.kind,
+        ),
     ):
         position = positions[item.paragraph_ref]
         entity = resolver.require(item.entity_name, position)
@@ -189,7 +196,10 @@ def persist_block_extraction(
     }
     for item in sorted(
         extraction.relationships,
-        key=lambda relation: (positions[relation.paragraph_ref], _normalize(relation.label)),
+        key=lambda relation: (
+            positions[relation.paragraph_ref],
+            normalize_entity_name(relation.label),
+        ),
     ):
         position = positions[item.paragraph_ref]
         entity_a = resolver.require(item.entity_a_name, position)
@@ -231,17 +241,17 @@ class _EntityResolver:
             self.add_alias(entity, alias)
 
     def add_entity(self, entity: Entity) -> None:
-        candidates = self._canonical[_normalize(entity.canonical_name)]
+        candidates = self._canonical[normalize_entity_name(entity.canonical_name)]
         if all(candidate.id != entity.id for candidate in candidates):
             candidates.append(entity)
 
     def add_alias(self, entity: Entity, alias: EntityAlias) -> None:
-        candidates = self._aliases[_normalize(alias.alias)]
+        candidates = self._aliases[normalize_entity_name(alias.alias)]
         if all(candidate[0].id != alias.id for candidate in candidates):
             candidates.append((alias, entity))
 
     def find(self, name: str, position: int) -> Entity | None:
-        normalized = _normalize(name)
+        normalized = normalize_entity_name(name)
         candidates = {
             entity.id: entity
             for entity in self._canonical.get(normalized, [])
@@ -255,7 +265,7 @@ class _EntityResolver:
         return next(iter(candidates.values()), None)
 
     def find_alias(self, alias_text: str, position: int) -> EntityAlias | None:
-        normalized = _normalize(alias_text)
+        normalized = normalize_entity_name(alias_text)
         candidates = [
             alias
             for alias, entity in self._aliases.get(normalized, [])
@@ -280,5 +290,5 @@ class _EntityResolver:
         return entity
 
 
-def _normalize(value: str) -> str:
+def normalize_entity_name(value: str) -> str:
     return " ".join(value.split()).casefold()
