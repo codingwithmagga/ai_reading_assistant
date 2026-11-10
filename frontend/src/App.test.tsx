@@ -284,7 +284,7 @@ describe("App", () => {
         },
       ],
     });
-    vi.spyOn(api, "lookupBookEntity").mockResolvedValue({
+    const lookupResponse: api.EntityLookupResponse = {
       query: "Liora",
       position: 1,
       matches: [
@@ -311,7 +311,13 @@ describe("App", () => {
           relationships: [],
         },
       ],
-    });
+    };
+    let resolveLookup!: (response: api.EntityLookupResponse) => void;
+    vi.spyOn(api, "lookupBookEntity").mockReturnValue(
+      new Promise((resolve) => {
+        resolveLookup = resolve;
+      }),
+    );
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
@@ -325,8 +331,15 @@ describe("App", () => {
       target: { value: "Liora" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Suchen" }));
+    fireEvent.submit(
+      screen.getByLabelText("Figur, Ort oder Begriff").closest("form")!,
+    );
+    expect(api.lookupBookEntity).toHaveBeenCalledTimes(1);
+    resolveLookup(lookupResponse);
 
-    expect(await screen.findByRole("heading", { name: "Liora" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Liora" }),
+    ).toBeInTheDocument();
     expect(api.lookupBookEntity).toHaveBeenCalledWith(book.id, "Liora", 1);
     expect(screen.getByText("<script>not executable</script>")).toBeInTheDocument();
     expect(
@@ -553,5 +566,58 @@ describe("App", () => {
     expect(await screen.findByText("Figuren werden geladen …")).toBeInTheDocument();
     expect(screen.queryByText("Liora", { selector: "strong" })).toBeNull();
     expect(screen.queryByText("Liora finds a key.")).toBeNull();
+  });
+
+  it("keeps the reader usable and retries when a notes request fails", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 0,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 0,
+      paragraphs: [
+        {
+          id: "paragraph-0",
+          chapter_id: "chapter-1",
+          position: 0,
+          text: "The reader remains available.",
+        },
+      ],
+    });
+    vi.mocked(api.getBookEntities)
+      .mockRejectedValueOnce(new Error("network down"))
+      .mockResolvedValue([]);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+
+    expect(await screen.findByText("The reader remains available.")).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Notizen konnten nicht geladen/),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    expect(
+      await screen.findByText(/Bis zu dieser Position sind keine Figuren bekannt/),
+    ).toBeInTheDocument();
+    expect(api.getBookEntities).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("The reader remains available.")).toBeInTheDocument();
   });
 });

@@ -467,6 +467,18 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   const latestPosition = useRef<number | null>(null);
   const lookupRequestId = useRef(0);
   const notesRequestId = useRef(0);
+  const lookupInFlight = useRef(new Map<string, Promise<EntityLookupResponse>>());
+  const notesInFlight = useRef(
+    new Map<
+      string,
+      Promise<
+        [
+          PromiseSettledResult<EntityListItem[]>,
+          PromiseSettledResult<RecapResponse>,
+        ]
+      >
+    >(),
+  );
   const activeLookupPositionRef = useRef<number | null>(null);
   const lookupTermRef = useRef("");
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
@@ -489,7 +501,7 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     setLookupResponse(null);
     setLookupError(null);
     setLookupLoading(false);
-  }, [activeNotesPosition, selectedTextPosition]);
+  }, [activeNotesPosition, selectedTextPosition, copy]);
 
   useEffect(() => {
     setSelectedTextPosition(null);
@@ -513,6 +525,7 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     }
 
     const position = activeNotesPosition;
+    const key = `${book.id}:${position}`;
     setCharacters([]);
     setCharactersPosition(null);
     setRecap(null);
@@ -522,35 +535,49 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     setCharactersError(null);
     setRecapError(null);
 
-    void Promise.allSettled([
-      getBookEntities(book.id, position, "person"),
-      getBookRecap(book.id, position),
-    ]).then(([charactersResult, recapResult]) => {
-      if (!active || requestId !== notesRequestId.current) {
-        return;
+    const timer = window.setTimeout(() => {
+      let request = notesInFlight.current.get(key);
+      if (!request) {
+        request = Promise.allSettled([
+          getBookEntities(book.id, position, "person"),
+          getBookRecap(book.id, position),
+        ]);
+        notesInFlight.current.set(key, request);
+        void request.then(() => {
+          if (notesInFlight.current.get(key) === request) {
+            notesInFlight.current.delete(key);
+          }
+        });
       }
-      if (charactersResult.status === "fulfilled") {
-        setCharacters(charactersResult.value);
-        setCharactersPosition(position);
-      } else {
-        setCharactersError(
-          getErrorMessage(charactersResult.reason, copyRef.current),
-        );
-      }
-      if (recapResult.status === "fulfilled") {
-        setRecap(recapResult.value);
-        setRecapPosition(position);
-      } else {
-        setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
-      }
-      setCharactersLoading(false);
-      setRecapLoading(false);
-    });
+
+      void request.then(([charactersResult, recapResult]) => {
+        if (!active || requestId !== notesRequestId.current) {
+          return;
+        }
+        if (charactersResult.status === "fulfilled") {
+          setCharacters(charactersResult.value);
+          setCharactersPosition(position);
+        } else {
+          setCharactersError(
+            getErrorMessage(charactersResult.reason, copyRef.current),
+          );
+        }
+        if (recapResult.status === "fulfilled") {
+          setRecap(recapResult.value);
+          setRecapPosition(position);
+        } else {
+          setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
+        }
+        setCharactersLoading(false);
+        setRecapLoading(false);
+      });
+    }, 250);
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
-  }, [activeNotesPosition, book.id, retryNotes]);
+  }, [activeNotesPosition, book.id, copy, retryNotes]);
 
   useEffect(() => {
     let active = true;
@@ -778,22 +805,32 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   async function performLookup(query: string, position: number | null) {
     const normalizedQuery = query.trim();
     if (!normalizedQuery) {
-      setLookupError(copy.emptySearchQuery);
+      lookupRequestId.current += 1;
+      setLookupLoading(false);
       setLookupResponse(null);
+      setLookupError(copy.emptySearchQuery);
       return;
     }
     if (position === null) {
-      setLookupError(copy.noLookupPosition);
+      lookupRequestId.current += 1;
+      setLookupLoading(false);
       setLookupResponse(null);
+      setLookupError(copy.noLookupPosition);
       return;
     }
 
     const requestId = ++lookupRequestId.current;
+    const key = `${book.id}:${position}:${normalizedQuery}`;
     setLookupLoading(true);
     setLookupError(null);
     setLookupResponse(null);
     try {
-      const response = await lookupBookEntity(book.id, normalizedQuery, position);
+      let request = lookupInFlight.current.get(key);
+      if (!request) {
+        request = lookupBookEntity(book.id, normalizedQuery, position);
+        lookupInFlight.current.set(key, request);
+      }
+      const response = await request;
       if (
         requestId === lookupRequestId.current &&
         activeLookupPositionRef.current === position &&
@@ -810,6 +847,9 @@ function Reader({ book, copy, onBack }: ReaderProps) {
         setLookupError(getErrorMessage(error, copyRef.current));
       }
     } finally {
+      if (lookupInFlight.current.get(key)) {
+        lookupInFlight.current.delete(key);
+      }
       if (requestId === lookupRequestId.current) {
         setLookupLoading(false);
       }
@@ -1242,7 +1282,12 @@ function Reader({ book, copy, onBack }: ReaderProps) {
                 ))}
               </div>
             )}
-            <section className="notes-data" aria-labelledby="characters-heading">
+            <section
+              className="notes-data"
+              aria-labelledby="characters-heading"
+              aria-live="polite"
+              aria-busy={charactersLoading}
+            >
               <h3 id="characters-heading">{copy.knownCharacters}</h3>
               {charactersLoading ? (
                 <p role="status">{copy.loadingCharacters}</p>
@@ -1278,7 +1323,12 @@ function Reader({ book, copy, onBack }: ReaderProps) {
                 </ul>
               )}
             </section>
-            <section className="notes-data" aria-labelledby="recap-heading">
+            <section
+              className="notes-data"
+              aria-labelledby="recap-heading"
+              aria-live="polite"
+              aria-busy={recapLoading}
+            >
               <h3 id="recap-heading">{copy.recapTitle}</h3>
               {recapLoading ? (
                 <p role="status">{copy.loadingRecap}</p>

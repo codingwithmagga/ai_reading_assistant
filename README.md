@@ -115,6 +115,21 @@ curl -X PUT http://localhost:8080/api/books/BOOK_ID/progress \
   -d '{"position":42}'
 ```
 
+The reader also includes an optional notes panel for spoiler-safe lookup and a
+manual position selector when the user is reading the book outside the in-app
+reader. The notes panel uses the current reader position by default; if the user
+chooses a manual chapter or percentage value, that position is used only for
+notes and recap queries, not for the saved in-app progress. Search requests use
+normalized exact names or aliases and send the active position with every call.
+Selected text from the reader is prefilled into the lookup field and the lookup
+uses the selection's paragraph position, never the selected passage text itself.
+
+```bash
+curl "http://localhost:8080/api/books/BOOK_ID/entities?position=42&type=person"
+curl "http://localhost:8080/api/books/BOOK_ID/lookup?q=Marta&position=42"
+curl "http://localhost:8080/api/books/BOOK_ID/recap?position=42"
+```
+
 Unknown books return HTTP 404 (`book_not_found`). Invalid positions, including
 positions for books with no readable paragraphs, return HTTP 422
 (`invalid_reading_position`). An empty lookup query returns HTTP 422
