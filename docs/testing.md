@@ -37,6 +37,35 @@ and parametrized tests for equivalent cases. Cover edge cases, expected
 failures, and API error responses. For query/API changes, verify the spoiler
 boundary at positions before, at, and after the relevant facts or aliases.
 
+### Integration tests
+
+Add integration tests when they verify important behavior across component
+boundaries that isolated unit tests cannot establish on their own. Keep them
+focused on a user- or API-visible workflow, use the migrated temporary SQLite
+database for persistence, and replace external or expensive services with
+fakes.
+
+Useful integration-test coverage in this project includes:
+
+- EPUB upload through the API and persisted books, chapters, paragraphs, and
+  parsing jobs (`test_books_api.py`).
+- Extraction job processing, persistence, and resume behavior using a fake
+  extractor; test the API-to-database flow where these boundaries need to be
+  verified together (`test_extraction_jobs.py` and
+  `test_workflow_integration.py`).
+- Entity, alias, fact, relationship, lookup, and recap endpoints with real
+  database data and spoiler-boundary positions (`test_lookup_api.py`).
+- Frontend user workflows across components; the existing App tests are
+  UI-level integration tests and mock the API client.
+
+Keep unit tests for isolated logic and specialized edge cases. A unit test may
+be removed only when integration tests fully preserve its behavior and all
+relevant edge-case coverage; integration coverage is not a reason by itself to
+delete tests or reduce meaningful coverage.
+
+E2E tests are intentionally deferred. Do not add an E2E framework or tests
+unless the project explicitly takes up that work.
+
 ## Frontend
 
 The frontend uses Vitest, React Testing Library, ESLint, and TypeScript. Node
