@@ -33,6 +33,7 @@ from app.lookup import (
     get_entity_facts,
     get_entity_relationships,
     list_entities_at_position,
+    list_recap_events,
     validate_reading_position,
 )
 from app.models import Book, Chapter, Entity, Job, Paragraph
@@ -48,6 +49,8 @@ from app.schemas import (
     LookupEntitySummaryResponse,
     LookupFactResponse,
     LookupRelationshipResponse,
+    RecapEventResponse,
+    RecapResponse,
     UploadResponse,
 )
 
@@ -323,6 +326,68 @@ def lookup_book_entity(
             )
         )
     return EntityLookupResponse(query=q, position=position, matches=matches)
+
+
+@router.get(
+    "/{book_id}/recap",
+    response_model=RecapResponse,
+)
+def get_book_recap(
+    book_id: str,
+    position: int = Query(),
+    session: Session = Depends(get_session),
+) -> RecapResponse:
+    _require_book(session, book_id)
+    try:
+        validate_reading_position(session, book_id, position)
+    except LookupPositionError as error:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_reading_position",
+                "message": str(error),
+            },
+        ) from error
+
+    events = [
+        RecapEventResponse(
+            id=fact.id,
+            text=fact.text,
+            position=fact.position,
+            chapter_id=chapter.id,
+            chapter_index=chapter.index,
+            chapter_title=chapter.title,
+            source_excerpt=fact.source_excerpt,
+            entity=_lookup_entity_summary(entity),
+        )
+        for fact, chapter, entity in list_recap_events(
+            session,
+            book_id=book_id,
+            position=position,
+        )
+    ]
+    characters = [
+        EntityListItemResponse(
+            id=entity.id,
+            type=EntityType(entity.type),
+            canonical_name=entity.canonical_name,
+            first_position=entity.first_position,
+            aliases=[
+                EntityAliasResponse(
+                    alias=alias.alias,
+                    first_position=alias.first_position,
+                )
+                for alias in aliases
+            ],
+        )
+        for entity, aliases in list_entities_at_position(
+            session,
+            book_id=book_id,
+            position=position,
+            entity_type=EntityType.PERSON.value,
+        )
+    ]
+    return RecapResponse(position=position, events=events, characters=characters)
 
 
 @router.get("/{book_id}/chapters", response_model=list[ChapterResponse])

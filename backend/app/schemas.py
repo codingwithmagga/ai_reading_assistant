@@ -117,3 +117,20 @@ class EntityLookupResponse(BaseModel):
     query: str
     position: int
     matches: list[EntityLookupMatchResponse]
+
+
+class RecapEventResponse(BaseModel):
+    id: str
+    text: str
+    position: int
+    chapter_id: str
+    chapter_index: int
+    chapter_title: str | None
+    source_excerpt: str
+    entity: LookupEntitySummaryResponse
+
+
+class RecapResponse(BaseModel):
+    position: int
+    events: list[RecapEventResponse]
+    characters: list[EntityListItemResponse]

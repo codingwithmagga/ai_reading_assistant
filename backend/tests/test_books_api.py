@@ -701,3 +701,59 @@ def test_lookup_reports_unknown_books_and_empty_extraction_as_empty_results(
     assert entities.json() == []
     assert lookup.status_code == 200
     assert lookup.json()["matches"] == []
+
+
+def test_recap_returns_only_position_filtered_events_and_characters(client: TestClient) -> None:
+    book_id = _create_lookup_book(client)
+    expected_events = [
+        ["Marta erscheint."],
+        ["Marta erscheint."],
+        ["Marta erscheint."],
+        ["Marta erscheint."],
+        ["Marta erscheint."],
+        ["Marta erscheint.", "Marta kennt den geheimen Plan."],
+    ]
+
+    for position, event_texts in enumerate(expected_events):
+        response = client.get(
+            f"/books/{book_id}/recap",
+            params={"position": position},
+        )
+
+        assert response.status_code == 200
+        recap = response.json()
+        assert recap["position"] == position
+        assert [event["text"] for event in recap["events"]] == event_texts
+        assert all(event["position"] <= position for event in recap["events"])
+        assert all(event["entity"]["first_position"] <= position for event in recap["events"])
+        assert all(event["chapter_id"] and event["source_excerpt"] for event in recap["events"])
+        assert [character["canonical_name"] for character in recap["characters"]] == (
+            ["Marta"] if position < 2 else ["Marta", "Lea"]
+        )
+        for character in recap["characters"]:
+            assert character["first_position"] <= position
+            assert all(alias["first_position"] <= position for alias in character["aliases"])
+
+
+def test_recap_reports_position_errors_unknown_books_and_empty_extraction(
+    client: TestClient,
+) -> None:
+    book_id = _create_lookup_book(client)
+    invalid_position = client.get(
+        f"/books/{book_id}/recap",
+        params={"position": 6},
+    )
+    assert invalid_position.status_code == 422
+    assert invalid_position.json()["detail"]["code"] == "invalid_reading_position"
+
+    missing_book = client.get("/books/missing/recap", params={"position": 0})
+    assert missing_book.status_code == 404
+
+    empty_book_id = _create_lookup_book(client, with_extraction=False)
+    empty_recap = client.get(
+        f"/books/{empty_book_id}/recap",
+        params={"position": 0},
+    )
+    assert empty_recap.status_code == 200
+    assert empty_recap.json()["events"] == []
+    assert empty_recap.json()["characters"] == []

@@ -163,8 +163,10 @@ Deutsch).
   Kapitelverweis und Quellauszug.
 - Optional: Kurzfassung der gefilterten Fakten per Modell. Das Modell erhält
   ausschließlich die bereits gefilterten Fakten.
-- Zusätzlich: "Bisher passiert" (Recap) aus Kapitelzusammenfassungen bis zur
-  Position, plus Personenliste "bisher aufgetreten".
+- Zusätzlich: "Bisher passiert" als chronologische Liste der belegten
+  `event`-Fakten bis zur Position, jeweils mit Kapitel und Quellauszug, plus
+  spoilergefilterte Personenliste "bisher aufgetreten". Das MVP verwendet dafür
+  kein zusätzliches Modell und sendet keinen weiteren Buchtext an OpenAI.
 
 ## 8. API-Übersicht (FastAPI)
 
@@ -177,7 +179,8 @@ Deutsch).
 - `GET/PUT /books/{id}/progress`
 - `GET /books/{id}/entities?position=` (gefilterte Liste, Filter nach Typ)
 - `GET /books/{id}/lookup?q=&position=`
-- `GET /books/{id}/recap?position=`
+- `GET /books/{id}/recap?position=` (chronologische Ereignisfakten und bisher
+  aufgetretene Figuren, strikt positionsgefiltert)
 - Fehlerformat einheitlich, OpenAPI-Doku automatisch
 
 ## 9. Frontend

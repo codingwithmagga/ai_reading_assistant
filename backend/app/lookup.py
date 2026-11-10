@@ -169,3 +169,25 @@ def get_entity_relationships(
             .order_by(Relationship.position, Relationship.label, Relationship.id)
         )
     )
+
+
+def list_recap_events(
+    session: Session,
+    *,
+    book_id: str,
+    position: int,
+) -> list[tuple[Fact, Chapter, Entity]]:
+    return list(
+        session.execute(
+            select(Fact, Chapter, Entity)
+            .join(Chapter, Chapter.id == Fact.chapter_id)
+            .join(Entity, Entity.id == Fact.entity_id)
+            .where(
+                Fact.book_id == book_id,
+                Fact.kind == "event",
+                Fact.position <= position,
+                Entity.first_position <= position,
+            )
+            .order_by(Fact.position, Entity.canonical_name, Entity.id, Fact.id)
+        )
+    )

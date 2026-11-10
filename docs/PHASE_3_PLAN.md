@@ -67,15 +67,12 @@ betrieben werden.
 5. **Recap und bisher aufgetretene Figuren**
    - `GET /books/{id}/recap?position=...` darf ausschließlich bereits
      spoilergefilterte Informationen nutzen.
-   - Da keine Kapitelzusammenfassungen gespeichert werden, zunächst keinen
-     unbeschränkten Originaltext oder vollständige EPUB-Inhalte an ein Modell
-     senden.
-   - Vor der Implementierung festlegen, ob Phase 3 ein deterministisches,
-     chronologisches Ereignis-Recap aus `event`-Fakten liefert oder ob ein
-     optionaler OpenAI-Recap aus den bereits gefilterten Fakten gewünscht ist.
-     Bei OpenAI-Recap sind Datenübertragung und Kosten transparent zu machen.
-   - Bisher aufgetretene Figuren müssen denselben Alias- und
-     Positionsfilter wie die Entitätenliste verwenden.
+   - Das Recap ist eine deterministische, chronologische Liste der
+     `event`-Fakten mit `position <= position`, inklusive Kapitel und
+     Quellauszug. Es verwendet kein Modell und überträgt keinen zusätzlichen
+     Buchtext.
+   - Die Antwort enthält außerdem bisher aufgetretene Figuren aus derselben
+     spoilergefilterten Entitäten-/Aliasabfrage wie `/entities?type=person`.
 
 6. **Dokumentation und Abnahme**
    - OpenAPI-Schemas, Fehlerantworten, Sortierung und Positionssemantik
@@ -98,11 +95,6 @@ betrieben werden.
   liefern definierte Fehlerantworten.
 - Recap erhält ausschließlich vorgefilterte Fakten; kein Test benötigt
   Netzwerkzugriff oder einen echten OpenAI-Key.
-
-## Noch vor Implementierung zu entscheiden
-
-- Recap-Ausgabe in Phase 3: deterministische Liste belegter Ereignisse oder
-  optionale OpenAI-Zusammenfassung ausschließlich aus gefilterten Fakten.
 
 ## Bewusst zurückgestellt
 
