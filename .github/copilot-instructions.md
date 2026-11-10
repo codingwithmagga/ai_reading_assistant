@@ -21,6 +21,11 @@
 - Keep internal documentation and code comments in English. Keep the UI and
   generated notes German by default; preserve the UI language selector and
   `APP_OUTPUT_LANGUAGE` setting for choosing another language.
+- Start phase work on a feature branch based on freshly fetched `origin/main`.
+  Push it to its matching `origin` feature branch and prepare a pull request
+  description when the work is ready. Never merge feature branches locally or
+  push commits directly to `main`; the repository owner merges pull requests
+  through the GitHub UI after checks pass.
 - Before completing a phase, verify its acceptance criteria with tests.
   Preserve existing tests and behavior.
 - EPUB content is intended for private use with a personally owned copy.

@@ -29,6 +29,8 @@ from app.schemas import (
     ChapterContentResponse,
     ChapterResponse,
     JobResponse,
+    ReadingProgressResponse,
+    ReadingProgressUpdate,
     UploadResponse,
 )
 
@@ -209,6 +211,49 @@ def get_chapter_content(
         start_position=chapter.start_position,
         end_position=chapter.end_position,
         paragraphs=list(paragraphs),
+    )
+
+
+@router.get("/{book_id}/progress", response_model=ReadingProgressResponse)
+def get_reading_progress(
+    book_id: str,
+    session: Session = Depends(get_session),
+) -> ReadingProgressResponse:
+    book = _require_book(session, book_id)
+    return ReadingProgressResponse(
+        book_id=book.id,
+        current_position=book.current_position,
+    )
+
+
+@router.put("/{book_id}/progress", response_model=ReadingProgressResponse)
+def update_reading_progress(
+    book_id: str,
+    progress: ReadingProgressUpdate,
+    session: Session = Depends(get_session),
+) -> ReadingProgressResponse:
+    book = _require_book(session, book_id)
+    paragraph_exists = session.scalar(
+        select(Paragraph.id).where(
+            Paragraph.book_id == book_id,
+            Paragraph.position == progress.position,
+        )
+    )
+    if paragraph_exists is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "invalid_reading_position",
+                "message": "Die Leseposition liegt außerhalb des Buchinhalts.",
+            },
+        )
+
+    book.current_position = progress.position
+    session.commit()
+    session.refresh(book)
+    return ReadingProgressResponse(
+        book_id=book.id,
+        current_position=book.current_position,
     )
 
 

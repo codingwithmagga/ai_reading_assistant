@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.extraction_schemas import EntityType, FactKind
 
@@ -44,6 +44,15 @@ class ParagraphResponse(BaseModel):
 
 class ChapterContentResponse(ChapterResponse):
     paragraphs: list[ParagraphResponse]
+
+
+class ReadingProgressResponse(BaseModel):
+    book_id: str
+    current_position: int | None
+
+
+class ReadingProgressUpdate(BaseModel):
+    position: int = Field(strict=True)
 
 
 class JobResponse(BaseModel):

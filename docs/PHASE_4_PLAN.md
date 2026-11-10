@@ -101,6 +101,19 @@ private or behind trusted access controls.
   persists across reloads.
 - Backend tests and Ruff pass; frontend tests, lint, and build pass.
 
+## Acceptance status
+
+- Implemented the reading-progress migration and `GET/PUT /books/{id}/progress`.
+  Updates are limited to existing paragraph positions and persist across
+  database sessions.
+- Implemented the responsive library, EPUB upload flow, chapter navigation,
+  safe paragraph rendering, saved-position restoration, and debounced
+  position updates with retry feedback.
+- German remains the default interface language; English selection persists
+  across reloads.
+- Verified with 78 backend tests and Ruff, plus 2 frontend tests, ESLint, and
+  the production build.
+
 ## Explicitly deferred
 
 - Search, entity details, facts, recaps, and selected-text lookup (Phase 5).
