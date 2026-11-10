@@ -55,6 +55,20 @@ const translations = {
     selectChapter: "Kapitel auswählen",
     readingPosition: "Leseposition",
     positionOf: "von",
+    notesPosition: "Position für Notizen",
+    readerPositionActive: "Folgt der aktuellen Leseposition im Reader.",
+    manualPositionActive: "Manuelle Position aktiv; der Reader-Fortschritt bleibt unverändert.",
+    manualPosition: "Position manuell festlegen",
+    positionMethod: "Eingabemethode",
+    byChapter: "Kapitel und Absatz",
+    byPercentage: "Prozent im Buch",
+    positionChapter: "Kapitel für Notizen",
+    paragraphInChapter: "Absatz im Kapitel",
+    percentage: "Fortschritt in Prozent",
+    applyPosition: "Position übernehmen",
+    followReader: "Reader-Position verwenden",
+    positionRangeError: "Wert muss zwischen {min} und {max} liegen.",
+    invalidPositionValue: "Bitte gib eine gültige Zahl im erlaubten Bereich ein.",
     savePending: "Leseposition wird gespeichert …",
     saveFailed: "Leseposition konnte nicht gespeichert werden.",
     apiError: "Die Anfrage ist fehlgeschlagen.",
@@ -99,6 +113,20 @@ const translations = {
     selectChapter: "Select chapter",
     readingPosition: "Reading position",
     positionOf: "of",
+    notesPosition: "Notes position",
+    readerPositionActive: "Following the current position in the reader.",
+    manualPositionActive: "Manual position active; saved reader progress is unchanged.",
+    manualPosition: "Set position manually",
+    positionMethod: "Input method",
+    byChapter: "Chapter and paragraph",
+    byPercentage: "Book percentage",
+    positionChapter: "Chapter for notes",
+    paragraphInChapter: "Paragraph in chapter",
+    percentage: "Book progress in percent",
+    applyPosition: "Apply position",
+    followReader: "Use reader position",
+    positionRangeError: "Value must be between {min} and {max}.",
+    invalidPositionValue: "Enter a valid number within the allowed range.",
     savePending: "Saving reading position …",
     saveFailed: "Could not save reading position.",
     apiError: "The request failed.",
@@ -331,6 +359,16 @@ function Reader({ book, copy, onBack }: ReaderProps) {
   const [restorePosition, setRestorePosition] = useState<number | null>(null);
   const [retrySave, setRetrySave] = useState(0);
   const [retryReader, setRetryReader] = useState(0);
+  const [manualPosition, setManualPosition] = useState<number | null>(null);
+  const [manualChapterId, setManualChapterId] = useState("");
+  const [paragraphInChapter, setParagraphInChapter] = useState("1");
+  const [percentage, setPercentage] = useState("0");
+  const [positionMethod, setPositionMethod] = useState<"chapter" | "percentage">(
+    "chapter",
+  );
+  const [manualPositionError, setManualPositionError] = useState<string | null>(
+    null,
+  );
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -375,6 +413,10 @@ function Reader({ book, copy, onBack }: ReaderProps) {
         }
         const initialPosition = savedPosition ?? initialChapter.start_position;
         setSelectedChapterId(initialChapter.id);
+        setManualChapterId(initialChapter.id);
+        setParagraphInChapter(
+          String(initialPosition - initialChapter.start_position + 1),
+        );
         latestPosition.current = initialPosition;
         setCurrentPosition(initialPosition);
         setRestorePosition(initialPosition);
@@ -505,9 +547,60 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     setCurrentPosition(chapter.start_position);
     setRestorePosition(chapter.start_position);
     setSelectedChapterId(chapter.id);
+    setManualChapterId(chapter.id);
+    setParagraphInChapter("1");
     setReadyToTrack(false);
     setReaderError(null);
   }
+
+  function applyManualPosition(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setManualPositionError(null);
+    if (positionMethod === "chapter") {
+      const chapter = chapters.find((item) => item.id === manualChapterId);
+      const localPosition = Number(paragraphInChapter);
+      const paragraphCount = chapter
+        ? chapter.end_position - chapter.start_position + 1
+        : 0;
+      if (
+        !chapter ||
+        !Number.isInteger(localPosition) ||
+        localPosition < 1 ||
+        localPosition > paragraphCount
+      ) {
+        setManualPositionError(
+          copy.positionRangeError
+            .replace("{min}", "1")
+            .replace("{max}", String(paragraphCount)),
+        );
+        return;
+      }
+      setManualPosition(chapter.start_position + localPosition - 1);
+      return;
+    }
+
+    const percent = Number(percentage);
+    if (
+      percentage.trim() === "" ||
+      !Number.isFinite(percent) ||
+      percent < 0 ||
+      percent > 100
+    ) {
+      setManualPositionError(
+        copy.positionRangeError.replace("{min}", "0").replace("{max}", "100"),
+      );
+      return;
+    }
+    const firstPosition = chapters[0].start_position;
+    setManualPosition(
+      firstPosition +
+        Math.round((percent / 100) * (totalPositions - firstPosition)),
+    );
+  }
+
+  const activeNotesPosition = manualPosition ?? currentPosition;
+  const manualPositionDisplay =
+    activeNotesPosition === null ? "—" : activeNotesPosition + 1;
 
   if (readerLoading) {
     return <p role="status">{copy.loadingReader}</p>;
@@ -548,6 +641,12 @@ function Reader({ book, copy, onBack }: ReaderProps) {
     (chapter) => chapter.id === selectedChapterId,
   );
   const totalPositions = chapters[chapters.length - 1]?.end_position ?? 0;
+  const manualChapter = chapters.find(
+    (chapter) => chapter.id === manualChapterId,
+  );
+  const manualParagraphCount = manualChapter
+    ? manualChapter.end_position - manualChapter.start_position + 1
+    : 0;
 
   return (
     <section className="reader" aria-labelledby="reader-heading">
@@ -585,6 +684,119 @@ function Reader({ book, copy, onBack }: ReaderProps) {
           {totalPositions + 1}
         </p>
       </div>
+      <section
+        className="notes-position"
+        aria-labelledby="notes-position-heading"
+      >
+        <div className="notes-position-status">
+          <h3 id="notes-position-heading">{copy.notesPosition}</h3>
+          <p role="status">
+            {manualPosition === null
+              ? copy.readerPositionActive
+              : copy.manualPositionActive}
+          </p>
+          <p>
+            {manualPositionDisplay} {copy.positionOf} {totalPositions + 1}
+          </p>
+          {manualPosition !== null && (
+            <button
+              type="button"
+              onClick={() => {
+                setManualPosition(null);
+                setManualPositionError(null);
+              }}
+            >
+              {copy.followReader}
+            </button>
+          )}
+        </div>
+        <form
+          className="manual-position-form"
+          noValidate
+          onSubmit={applyManualPosition}
+        >
+          <h4>{copy.manualPosition}</h4>
+          <label>
+            <span>{copy.positionMethod}</span>
+            <select
+              value={positionMethod}
+              onChange={(event) => {
+                if (
+                  event.currentTarget.value === "chapter" ||
+                  event.currentTarget.value === "percentage"
+                ) {
+                  setPositionMethod(event.currentTarget.value);
+                  setManualPositionError(null);
+                }
+              }}
+            >
+              <option value="chapter">{copy.byChapter}</option>
+              <option value="percentage">{copy.byPercentage}</option>
+            </select>
+          </label>
+          {positionMethod === "chapter" ? (
+            <div className="manual-position-fields">
+              <label>
+                <span>{copy.positionChapter}</span>
+                <select
+                  value={manualChapterId}
+                  onChange={(event) => {
+                    const chapter = chapters.find(
+                      (item) => item.id === event.currentTarget.value,
+                    );
+                    if (chapter) {
+                      setManualChapterId(chapter.id);
+                      setParagraphInChapter("1");
+                    }
+                    setManualPositionError(null);
+                  }}
+                >
+                  {chapters.map((chapter) => (
+                    <option key={chapter.id} value={chapter.id}>
+                      {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>{copy.paragraphInChapter}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={manualParagraphCount}
+                  step={1}
+                  value={paragraphInChapter}
+                  onChange={(event) => {
+                    setParagraphInChapter(event.currentTarget.value);
+                    setManualPositionError(null);
+                  }}
+                />
+              </label>
+            </div>
+          ) : (
+            <label>
+              <span>{copy.percentage}</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="any"
+                value={percentage}
+                onChange={(event) => {
+                  setPercentage(event.currentTarget.value);
+                  setManualPositionError(null);
+                }}
+              />
+            </label>
+          )}
+          {manualPositionError && (
+            <p className="message error" role="alert">
+              {manualPositionError}
+            </p>
+          )}
+          <button type="submit">{copy.applyPosition}</button>
+        </form>
+      </section>
       {progressError && (
         <div className="message error" role="alert">
           <p>

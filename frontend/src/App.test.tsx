@@ -179,6 +179,49 @@ describe("App", () => {
     expect(screen.getByText(/Leseposition:/)).toHaveTextContent("4 von 4");
     expect(api.getChapterContent).toHaveBeenCalledWith(book.id, "chapter-2");
 
+    await waitFor(() => {
+      expect(api.saveReadingProgress).toHaveBeenCalledWith(book.id, 3);
+    });
+    vi.mocked(api.saveReadingProgress).mockClear();
+
+    fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
+      target: { value: "chapter-1" },
+    });
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Manuelle Position aktiv",
+    );
+    expect(screen.getByText("2 von 4")).toBeInTheDocument();
+    expect(screen.getByText(/Leseposition:/)).toHaveTextContent("4 von 4");
+    await new Promise((resolve) => window.setTimeout(resolve, 600));
+    expect(api.saveReadingProgress).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Eingabemethode"), {
+      target: { value: "percentage" },
+    });
+    fireEvent.change(screen.getByLabelText("Fortschritt in Prozent"), {
+      target: { value: "101" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("zwischen 0 und 100");
+
+    fireEvent.change(screen.getByLabelText("Fortschritt in Prozent"), {
+      target: { value: "50" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+    expect(screen.getByText("3 von 4")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reader-Position verwenden" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Folgt der aktuellen Leseposition",
+    );
+    expect(screen.getByText("4 von 4")).toBeInTheDocument();
+
     const readerScroll = document.querySelector(".reader-scroll");
     const firstParagraph = screen.getByText("A paragraph.");
     expect(readerScroll).not.toBeNull();
