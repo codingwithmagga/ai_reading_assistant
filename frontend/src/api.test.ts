@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   getBookEntities,
+  getBookJobs,
   getBookNotesExport,
   getBookRecap,
   getBooks,
@@ -9,6 +10,7 @@ import {
   getChapters,
   getReadingProgress,
   lookupBookEntity,
+  startExtractionJob,
   uploadBook,
 } from "./api";
 
@@ -17,6 +19,107 @@ afterEach(() => {
 });
 
 describe("notes API client", () => {
+  it("starts extraction with the optional chapter limit", async () => {
+    const job = {
+      id: "job-id",
+      book_id: "book/one",
+      type: "extraction",
+      status: "pending",
+      progress: 0,
+      max_chapter_index: 2,
+      last_completed_chapter_index: null,
+      last_completed_block_index: null,
+      error_code: null,
+      error: null,
+      input_tokens: 0,
+      output_tokens: 0,
+      created_at: "2026-11-11T00:00:00Z",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(job), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(startExtractionJob("book/one", 2)).resolves.toEqual(job);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/books/book%2Fone/extraction-jobs",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ max_chapter_index: 2 }),
+      },
+    );
+  });
+
+  it("validates job-list responses and rejects invalid chapter limits", async () => {
+    const job = {
+      id: "job-id",
+      book_id: "book-id",
+      type: "extraction",
+      status: "running",
+      progress: 35,
+      max_chapter_index: null,
+      last_completed_chapter_index: 0,
+      last_completed_block_index: 1,
+      error_code: null,
+      error: null,
+      input_tokens: 10,
+      output_tokens: 3,
+      created_at: "2026-11-11T00:00:00Z",
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([job]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getBookJobs("book-id")).resolves.toEqual([job]);
+    expect(fetchMock).toHaveBeenCalledWith("/api/books/book-id/jobs", undefined);
+
+    expect(() => startExtractionJob("book-id", -1)).toThrow(RangeError);
+  });
+
+  it("rejects malformed extraction job responses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify([
+            {
+              id: "job-id",
+              book_id: "book-id",
+              type: "extraction",
+              status: "running",
+              progress: 101,
+              max_chapter_index: null,
+              last_completed_chapter_index: null,
+              last_completed_block_index: null,
+              error_code: null,
+              error: null,
+              input_tokens: 0,
+              output_tokens: 0,
+              created_at: "2026-11-11T00:00:00Z",
+            },
+          ]),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(getBookJobs("book-id")).rejects.toMatchObject({
+      message: "The server returned an invalid response.",
+    });
+  });
+
   it("requests entities with a required position and optional type", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response("[]", {
