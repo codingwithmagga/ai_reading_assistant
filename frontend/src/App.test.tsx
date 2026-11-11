@@ -132,6 +132,73 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("shows a first-load error without showing an empty-library state, then recovers", async () => {
+    vi.mocked(api.getBooks)
+      .mockReset()
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Anfrage ist fehlgeschlagen.",
+    );
+    expect(screen.queryByText(/Noch keine Bücher/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    expect(await screen.findByText(/Noch keine Bücher/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(api.getBooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an upload retryable after a server error", async () => {
+    vi.mocked(api.uploadBook).mockRejectedValueOnce(
+      new Error("server unavailable"),
+    );
+
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    const file = new File(["epub"], "retry.epub", {
+      type: "application/epub+zip",
+    });
+    fireEvent.change(screen.getByLabelText("EPUB-Datei auswählen"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Buch konnte nicht hochgeladen werden.",
+    );
+    expect(screen.getByLabelText("EPUB-Datei auswählen")).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Buch wurde hochgeladen.",
+    );
+  });
+
+  it("offers a retry when the reader cannot load chapters", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters)
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([]);
+
+    render(<App />);
+    await screen.findByRole("heading", { name: "Test Book" });
+    fireEvent.click(screen.getByRole("button", { name: "Lesen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Anfrage ist fehlgeschlagen.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    expect(await screen.findByText(/keine lesbaren Kapitel/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(api.getChapters).toHaveBeenCalledTimes(2);
+  });
+
   it("follows the system theme until a user choice is saved", () => {
     const { unmount } = render(<App />);
     const themePicker = screen.getByRole("combobox", { name: "Darstellung" });
@@ -172,6 +239,9 @@ describe("App", () => {
   });
 
   it("explains that library data requires a server connection while offline", () => {
+    vi.mocked(api.getBooks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([book]);
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,
       value: false,
@@ -189,9 +259,40 @@ describe("App", () => {
     });
     act(() => window.dispatchEvent(new Event("online")));
 
-    expect(
-      screen.queryByText(/Du bist offline/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Du bist offline/)).not.toBeInTheDocument();
+    return waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+      expect(api.getBooks).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("keeps the existing library visible when a refresh fails and retries", async () => {
+    vi.mocked(api.getBooks)
+      .mockReset()
+      .mockResolvedValueOnce([book])
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([book]);
+
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Test Book" })).toBeVisible();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), {
+      target: { value: "en" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The request failed.",
+    );
+    expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+    expect(screen.queryByText(/No books yet/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+    expect(api.getBooks).toHaveBeenCalledTimes(3);
   });
 
   it("waits for the reader to accept a service-worker update", () => {

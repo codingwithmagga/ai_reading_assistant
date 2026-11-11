@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { Book, getBooks, uploadBook } from "./api";
 import { Reader } from "./Reader";
 import {
@@ -34,6 +34,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     useState<ThemePreference>(getThemePreference);
   const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
   const [books, setBooks] = useState<Book[]>([]);
+  const booksRequestId = useRef(0);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [booksLoading, setBooksLoading] = useState(true);
   const [booksError, setBooksError] = useState<string | null>(null);
@@ -74,8 +75,34 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     return () => colorScheme.removeEventListener("change", updateSystemTheme);
   }, []);
 
+  const refreshBooks = useCallback(async () => {
+    const requestId = ++booksRequestId.current;
+    setBooksLoading(true);
+    setBooksError(null);
+    try {
+      const currentBooks = await getBooks();
+      if (requestId === booksRequestId.current) {
+        setBooks(currentBooks);
+      }
+    } catch (error) {
+      if (requestId === booksRequestId.current) {
+        setBooksError(getErrorMessage(error, translations[language]));
+      }
+    } finally {
+      if (requestId === booksRequestId.current) {
+        setBooksLoading(false);
+      }
+    }
+  }, [language]);
+
   useEffect(() => {
-    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    const updateOnlineStatus = () => {
+      const online = navigator.onLine;
+      setIsOnline(online);
+      if (online) {
+        void refreshBooks();
+      }
+    };
     const showUpdateAvailable = () => setUpdateAvailable(true);
 
     window.addEventListener("online", updateOnlineStatus);
@@ -86,19 +113,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
       window.removeEventListener("offline", updateOnlineStatus);
       window.removeEventListener("pwa-update-available", showUpdateAvailable);
     };
-  }, []);
-
-  const refreshBooks = useCallback(async () => {
-    setBooksLoading(true);
-    setBooksError(null);
-    try {
-      setBooks(await getBooks());
-    } catch (error) {
-      setBooksError(getErrorMessage(error, translations[language]));
-    } finally {
-      setBooksLoading(false);
-    }
-  }, [language]);
+  }, [refreshBooks]);
 
   useEffect(() => {
     void refreshBooks();
@@ -228,19 +243,27 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               {uploadMessage}
             </p>
           )}
-          {booksLoading ? (
-            <p role="status">{copy.loadingBooks}</p>
-          ) : booksError ? (
+          {booksLoading && (
+            <p role="status" aria-live="polite">
+              {books.length > 0 ? copy.refreshingBooks : copy.loadingBooks}
+            </p>
+          )}
+          {booksError && (
             <div className="message error" role="alert">
               <p>{booksError}</p>
-              <button type="button" onClick={() => void refreshBooks()}>
+              <button
+                type="button"
+                onClick={() => void refreshBooks()}
+                disabled={booksLoading}
+              >
                 {copy.retry}
               </button>
             </div>
-          ) : books.length === 0 ? (
+          )}
+          {!booksLoading && !booksError && books.length === 0 ? (
             <p className="empty-state">{copy.emptyLibrary}</p>
-          ) : (
-            <ul className="book-list">
+          ) : books.length > 0 ? (
+            <ul className="book-list" aria-busy={booksLoading}>
               {books.map((book) => (
                 <li className="book-card" key={book.id}>
                   <div className="book-card-copy">
@@ -264,7 +287,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </section>
       )}
     </main>

@@ -154,3 +154,15 @@ authentication, multi-user support, and public deployment are out of scope.
   default and persists explicit light/dark choices. Shared theme tokens cover
   the library, reader, notes panel, controls, focus indicators, and status
   messages.
+
+## Step 3 status
+
+- Library refreshes now keep previously loaded books visible during loading
+  and after an API error. Empty-library messaging is shown only after a
+  successful empty response.
+- Retry controls are disabled during an active library request, stale
+  overlapping responses are ignored, and connectivity restoration triggers a
+  fresh library request.
+- Added UI regression coverage for initial load failures, retry recovery,
+  upload retry, reader retry, library preservation on refresh failure, offline
+  recovery, and notes failures that leave the reader usable.
