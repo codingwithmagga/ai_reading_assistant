@@ -27,6 +27,9 @@ The AI output language defaults to German and can be changed with
 `APP_OUTPUT_LANGUAGE` (for example, `APP_OUTPUT_LANGUAGE=en`). The interface
 also defaults to German; use its language selector to switch to English. Its
 translation map is designed to accommodate additional languages.
+The appearance follows the operating-system light/dark setting by default.
+Choose System, Light, or Dark in the appearance selector; an explicit choice
+is saved in the browser.
 
 The web app provides a library, EPUB upload, and an in-app reader. Reading
 progress is stored per book and restored when the book is reopened. The reader

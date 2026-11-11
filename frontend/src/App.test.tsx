@@ -19,12 +19,39 @@ const book: api.Book = {
   status: "parsed",
 };
 
+let systemThemeListener: ((event: MediaQueryListEvent) => void) | undefined;
+
 beforeEach(() => {
   window.localStorage.clear();
+  systemThemeListener = undefined;
+  const themeColor = document.createElement("meta");
+  themeColor.name = "theme-color";
+  document.head.append(themeColor);
   Object.defineProperty(window.navigator, "onLine", {
     configurable: true,
     value: true,
   });
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => {
+      const mediaQuery = {
+        matches: false,
+        media: "(prefers-color-scheme: dark)",
+        onchange: null,
+        addEventListener: (
+          _type: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
+          systemThemeListener = listener;
+        },
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      };
+      return mediaQuery as unknown as MediaQueryList;
+    }),
+  );
   vi.spyOn(api, "getBooks").mockResolvedValue([]);
   vi.spyOn(api, "uploadBook").mockResolvedValue({
     ...book,
@@ -60,6 +87,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document
+    .querySelectorAll('meta[name="theme-color"]')
+    .forEach((meta) => meta.remove());
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -102,6 +132,45 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("follows the system theme until a user choice is saved", () => {
+    const { unmount } = render(<App />);
+    const themePicker = screen.getByRole("combobox", { name: "Darstellung" });
+
+    expect(themePicker).toHaveValue("system");
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    act(() => systemThemeListener?.({ matches: true } as MediaQueryListEvent));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(
+      document.querySelector('meta[name="theme-color"]'),
+    ).toHaveAttribute("content", "#171915");
+
+    fireEvent.change(themePicker, { target: { value: "light" } });
+    expect(window.localStorage.getItem("ui-theme")).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    act(() => systemThemeListener?.({ matches: true } as MediaQueryListEvent));
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    unmount();
+    render(<App />);
+    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
+      "light",
+    );
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("uses a saved dark theme on startup", () => {
+    window.localStorage.setItem("ui-theme", "dark");
+
+    render(<App />);
+
+    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
+      "dark",
+    );
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
   it("explains that library data requires a server connection while offline", () => {
     Object.defineProperty(window.navigator, "onLine", {
       configurable: true,

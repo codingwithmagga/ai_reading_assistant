@@ -10,12 +10,29 @@ import {
   translations,
 } from "./i18n";
 
+type Theme = "light" | "dark";
+type ThemePreference = "system" | Theme;
+
 interface AppProps {
   updateServiceWorker?: () => Promise<void>;
 }
 
+function getThemePreference(): ThemePreference {
+  const savedTheme = window.localStorage.getItem("ui-theme");
+  return savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system";
+}
+
+function getSystemTheme(): Theme {
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+}
+
 export function App({ updateServiceWorker }: AppProps = {}) {
   const [language, setLanguage] = useState<Language>(getSavedLanguage);
+  const [themePreference, setThemePreference] =
+    useState<ThemePreference>(getThemePreference);
+  const [systemTheme, setSystemTheme] = useState<Theme>(getSystemTheme);
   const [books, setBooks] = useState<Book[]>([]);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [booksLoading, setBooksLoading] = useState(true);
@@ -27,12 +44,35 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const copy = translations[language];
+  const theme = themePreference === "system" ? systemTheme : themePreference;
 
   useEffect(() => {
     window.localStorage.setItem("ui-language", language);
     document.documentElement.lang = language;
     document.title = translations[language].heading;
   }, [language]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    document
+      .querySelector('meta[name="theme-color"]')
+      ?.setAttribute("content", theme === "dark" ? "#171915" : "#f5f2eb");
+  }, [theme]);
+
+  useEffect(() => {
+    if (!window.matchMedia) {
+      return;
+    }
+
+    const colorScheme = window.matchMedia("(prefers-color-scheme: dark)");
+    const updateSystemTheme = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
+    };
+
+    colorScheme.addEventListener("change", updateSystemTheme);
+    return () => colorScheme.removeEventListener("change", updateSystemTheme);
+  }, []);
 
   useEffect(() => {
     const updateOnlineStatus = () => setIsOnline(navigator.onLine);
@@ -95,21 +135,44 @@ export function App({ updateServiceWorker }: AppProps = {}) {
           <h1>{copy.heading}</h1>
           <p>{copy.description}</p>
         </div>
-        <label className="language-picker">
-          <span>{copy.language}</span>
-          <select
-            value={language}
-            onChange={(event) => {
-              const nextLanguage = event.currentTarget.value;
-              if (isLanguage(nextLanguage)) {
-                setLanguage(nextLanguage);
-              }
-            }}
-          >
-            <option value="de">Deutsch</option>
-            <option value="en">English</option>
-          </select>
-        </label>
+        <div className="header-controls">
+          <label className="language-picker">
+            <span>{copy.language}</span>
+            <select
+              value={language}
+              onChange={(event) => {
+                const nextLanguage = event.currentTarget.value;
+                if (isLanguage(nextLanguage)) {
+                  setLanguage(nextLanguage);
+                }
+              }}
+            >
+              <option value="de">Deutsch</option>
+              <option value="en">English</option>
+            </select>
+          </label>
+          <label className="theme-picker">
+            <span>{copy.theme}</span>
+            <select
+              value={themePreference}
+              onChange={(event) => {
+                const nextTheme = event.currentTarget.value;
+                if (
+                  nextTheme === "system" ||
+                  nextTheme === "light" ||
+                  nextTheme === "dark"
+                ) {
+                  window.localStorage.setItem("ui-theme", nextTheme);
+                  setThemePreference(nextTheme);
+                }
+              }}
+            >
+              <option value="system">{copy.themeSystem}</option>
+              <option value="light">{copy.themeLight}</option>
+              <option value="dark">{copy.themeDark}</option>
+            </select>
+          </label>
+        </div>
       </header>
 
       {!isOnline && (

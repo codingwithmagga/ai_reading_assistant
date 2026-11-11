@@ -10,7 +10,8 @@ to help contributors navigate the code.
 - **Backend:** Python 3.12+, FastAPI, Pydantic, SQLAlchemy, and SQLite. Alembic
   manages schema migrations.
 - **Frontend:** React and TypeScript, built with Vite. `App.tsx` owns the
-  library and upload experience; `Reader.tsx` owns reading and notes workflows.
+  library, upload, language, and theme preferences; `Reader.tsx` owns reading
+  and notes workflows.
 - **PWA shell:** Vite PWA builds and registers a service worker that precaches
   only static frontend assets and falls back to the app shell for offline
   navigation. API requests and book data are not cached.

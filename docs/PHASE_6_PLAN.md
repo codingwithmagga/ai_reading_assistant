@@ -147,3 +147,10 @@ authentication, multi-user support, and public deployment are out of scope.
   the reader to accept them.
 - Documented HTTPS/localhost installation and the app-shell-only offline
   boundary in the README and architecture overview.
+
+## Step 2 status
+
+- Added a bilingual appearance selector that follows the system setting by
+  default and persists explicit light/dark choices. Shared theme tokens cover
+  the library, reader, notes panel, controls, focus indicators, and status
+  messages.
