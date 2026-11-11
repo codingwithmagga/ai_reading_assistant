@@ -422,7 +422,9 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
     !isActive &&
     !extractionComplete &&
     Boolean(chapters?.length) &&
-    (book.status === "parsed" || job?.status === "error");
+    (book.status === "parsed" ||
+      job?.status === "error" ||
+      job?.status === "completed");
   const submitLabel = starting
     ? copy.extractionCheck
     : job?.status === "error"
