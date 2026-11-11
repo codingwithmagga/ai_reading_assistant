@@ -55,6 +55,10 @@ class ReadingProgressUpdate(BaseModel):
     position: int = Field(strict=True)
 
 
+class ExtractionJobStartRequest(BaseModel):
+    max_chapter_index: int | None = Field(default=None, strict=True, ge=0)
+
+
 class JobResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,6 +67,7 @@ class JobResponse(BaseModel):
     type: str
     status: str
     progress: int
+    max_chapter_index: int | None
     last_completed_chapter_index: int | None
     last_completed_block_index: int | None
     error_code: str | None

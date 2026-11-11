@@ -49,12 +49,26 @@ class ChapterExtractor(Protocol):
     ) -> ExtractionResponse: ...
 
 
-def create_extraction_job(session: Session, book_id: str) -> Job:
+def create_extraction_job(
+    session: Session,
+    book_id: str,
+    *,
+    max_chapter_index: int | None = None,
+) -> Job:
     book = session.get(Book, book_id)
     if book is None:
         raise ExtractionBookNotReadyError("Buch nicht gefunden.")
-    if session.scalar(select(Chapter.id).where(Chapter.book_id == book_id).limit(1)) is None:
+    chapters = list(
+        session.scalars(
+            select(Chapter).where(Chapter.book_id == book_id).order_by(Chapter.index, Chapter.id)
+        )
+    )
+    if not chapters:
         raise ExtractionBookNotReadyError("Das Buch enthält keine verarbeiteten Kapitel.")
+    if max_chapter_index is not None and max_chapter_index not in {
+        chapter.index for chapter in chapters
+    }:
+        raise ExtractionBookNotReadyError("Das ausgewählte Kapitel gehört nicht zu diesem Buch.")
 
     active_job = session.scalar(
         select(Job).where(
@@ -65,6 +79,10 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
     )
     if active_job is not None:
         if active_job.status == "pending":
+            if active_job.max_chapter_index != max_chapter_index:
+                raise ExtractionJobAlreadyActiveError(
+                    "Für dieses Buch ist bereits ein anderer Extraktionsjob vorgemerkt."
+                )
             return active_job
         if active_job.status == "running":
             lease_expires_at = _as_utc(active_job.lease_expires_at)
@@ -72,6 +90,11 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
                 raise ExtractionJobAlreadyActiveError(
                     "Für dieses Buch läuft bereits ein Extraktionsjob."
                 )
+            if not _is_expanded_limit(active_job.max_chapter_index, max_chapter_index):
+                raise ExtractionBookNotReadyError(
+                    "Der Extraktionsumfang kann bei einer Wiederaufnahme nicht verkleinert werden."
+                )
+            active_job.max_chapter_index = max_chapter_index
             active_job.status = "pending"
             active_job.lease_expires_at = None
             active_job.error = None
@@ -84,18 +107,20 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
     if book.status not in {"parsed", "error"}:
         raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
 
+    latest_job = session.scalar(
+        select(Job)
+        .where(Job.book_id == book_id, Job.type == "extraction")
+        .order_by(Job.created_at.desc(), Job.id.desc())
+    )
     if book.status == "error":
-        failed_job = session.scalar(
-            select(Job)
-            .where(
-                Job.book_id == book_id,
-                Job.type == "extraction",
-                Job.status == "error",
-            )
-            .order_by(Job.created_at.desc(), Job.id.desc())
-        )
+        failed_job = latest_job if latest_job is not None and latest_job.status == "error" else None
         if failed_job is None:
             raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
+        if not _is_expanded_limit(failed_job.max_chapter_index, max_chapter_index):
+            raise ExtractionBookNotReadyError(
+                "Der Extraktionsumfang kann bei einem erneuten Versuch nicht verkleinert werden."
+            )
+        failed_job.max_chapter_index = max_chapter_index
         failed_job.status = "pending"
         failed_job.error = None
         failed_job.error_code = None
@@ -104,7 +129,27 @@ def create_extraction_job(session: Session, book_id: str) -> Job:
         session.refresh(failed_job)
         return failed_job
 
-    job = Job(book_id=book_id, type="extraction", status="pending", progress=0)
+    if latest_job is not None and latest_job.status == "completed":
+        if not _is_expanded_limit(latest_job.max_chapter_index, max_chapter_index):
+            raise ExtractionBookNotReadyError(
+                "Die Extraktion ist für den ausgewählten Umfang bereits abgeschlossen."
+            )
+        latest_job.max_chapter_index = max_chapter_index
+        latest_job.status = "pending"
+        latest_job.progress = 0
+        latest_job.error = None
+        latest_job.error_code = None
+        session.commit()
+        session.refresh(latest_job)
+        return latest_job
+
+    job = Job(
+        book_id=book_id,
+        type="extraction",
+        status="pending",
+        progress=0,
+        max_chapter_index=max_chapter_index,
+    )
     session.add(job)
     try:
         session.commit()
@@ -159,6 +204,13 @@ def process_extraction_job(
     )
     if not chapters:
         raise ExtractionBookNotReadyError("Das Buch enthält keine verarbeiteten Kapitel.")
+    last_chapter_index = chapters[-1].index
+    if job.max_chapter_index is not None:
+        chapters = [chapter for chapter in chapters if chapter.index <= job.max_chapter_index]
+        if not chapters or chapters[-1].index != job.max_chapter_index:
+            raise ExtractionBookNotReadyError(
+                "Das ausgewählte Kapitel gehört nicht zu diesem Buch."
+            )
 
     lease_expires_at = now + timedelta(
         seconds=max(
@@ -204,7 +256,11 @@ def process_extraction_job(
         job.status = "completed"
         job.progress = 100
         job.lease_expires_at = None
-        book.status = "ready"
+        book.status = (
+            "ready"
+            if job.max_chapter_index is None or job.max_chapter_index >= last_chapter_index
+            else "parsed"
+        )
         session.commit()
     except Exception as error:
         session.rollback()
@@ -327,10 +383,7 @@ def _process_chapters(
                 job.input_tokens += response.input_tokens
                 job.output_tokens += response.output_tokens
                 completed_blocks += 1
-                job.progress = max(
-                    job.progress,
-                    floor(completed_blocks * 100 / total_blocks),
-                )
+                job.progress = floor(completed_blocks * 100 / total_blocks)
                 job.lease_expires_at = datetime.now(UTC) + timedelta(
                     seconds=max(
                         120,
@@ -386,3 +439,9 @@ def _safe_error_message(error: Exception) -> str:
     if isinstance(error, InvalidExtractionOutputError):
         return str(error)
     return f"Extraktionsjob fehlgeschlagen ({type(error).__name__})."
+
+
+def _is_expanded_limit(previous: int | None, requested: int | None) -> bool:
+    return (previous is None and requested is None) or (
+        previous is not None and (requested is None or requested >= previous)
+    )
