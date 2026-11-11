@@ -368,7 +368,12 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
       try {
         const jobs = await getBookJobs(book.id);
         if (active) {
-          setJob(jobs.find((item) => item.type === "extraction") ?? null);
+          const extractionJob =
+            jobs.find((item) => item.type === "extraction") ?? null;
+          setJob(extractionJob);
+          if (extractionJob?.status === "completed") {
+            setChapterLimit("all");
+          }
           setError(null);
         }
       } catch {
