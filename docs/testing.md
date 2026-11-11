@@ -53,8 +53,9 @@ Useful integration-test coverage in this project includes:
   extractor; test the API-to-database flow where these boundaries need to be
   verified together (`test_extraction_jobs.py` and
   `test_workflow_integration.py`).
-- Entity, alias, fact, relationship, lookup, and recap endpoints with real
-  database data and spoiler-boundary positions (`test_lookup_api.py`).
+- Entity, alias, fact, relationship, lookup, recap, and notes-export endpoints
+  with real database data and spoiler-boundary positions
+  (`test_lookup_api.py`).
 - Frontend user workflows across components; the existing App tests are
   UI-level integration tests and mock the API client.
 

@@ -186,6 +186,10 @@ export function PositionControls({
 
 interface NotesPanelProps {
   copy: Copy;
+  activeNotesPosition: number | null;
+  exportLoading: boolean;
+  exportError: string | null;
+  onExport: (format: "json" | "markdown") => void;
   lookupTerm: string;
   selectedTextPosition: number | null;
   lookupResponse: EntityLookupResponse | null;
@@ -207,6 +211,10 @@ interface NotesPanelProps {
 
 export function NotesPanel({
   copy,
+  activeNotesPosition,
+  exportLoading,
+  exportError,
+  onExport,
   lookupTerm,
   selectedTextPosition,
   lookupResponse,
@@ -229,6 +237,36 @@ export function NotesPanel({
     <aside className="notes-panel" aria-label={copy.notesPanel}>
       <details open>
         <summary>{copy.notesPanel}</summary>
+        <section className="notes-data" aria-labelledby="export-notes-heading">
+          <h3 id="export-notes-heading">{copy.exportNotes}</h3>
+          <p>
+            {copy.exportPosition}:{" "}
+            {activeNotesPosition === null ? "—" : activeNotesPosition + 1}
+          </p>
+          <div className="export-actions">
+            <button
+              type="button"
+              onClick={() => onExport("json")}
+              disabled={activeNotesPosition === null || exportLoading}
+            >
+              {copy.exportJson}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => onExport("markdown")}
+              disabled={activeNotesPosition === null || exportLoading}
+            >
+              {copy.exportMarkdown}
+            </button>
+          </div>
+          {exportLoading && <p role="status">{copy.exportingNotes}</p>}
+          {exportError && (
+            <p className="message error" role="alert">
+              {copy.exportFailed} {exportError}
+            </p>
+          )}
+        </section>
         <form className="lookup-form" onSubmit={onLookupSubmit}>
           <label htmlFor="entity-lookup">{copy.searchEntity}</label>
           <p id="lookup-help" className="help-text">

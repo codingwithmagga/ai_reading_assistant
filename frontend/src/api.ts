@@ -110,6 +110,22 @@ export interface RecapResponse {
   characters: EntityListItem[];
 }
 
+export interface NotesExportEntity extends LookupEntitySummary {
+  aliases: EntityAlias[];
+  facts: LookupFact[];
+}
+
+export interface NotesExportResponse {
+  book_id: string;
+  title: string;
+  author: string | null;
+  language: string | null;
+  position: number;
+  entities: NotesExportEntity[];
+  relationships: LookupRelationship[];
+  events: RecapEvent[];
+}
+
 interface ApiErrorDetail {
   code?: string;
   message?: string;
@@ -323,6 +339,33 @@ function isRecapResponse(value: unknown): value is RecapResponse {
   );
 }
 
+function isNotesExportEntity(value: unknown): value is NotesExportEntity {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const aliases = value.aliases;
+  const facts = value.facts;
+  return (
+    isLookupEntitySummary(value) &&
+    isArrayOf(aliases, isEntityAlias) &&
+    isArrayOf(facts, isLookupFact)
+  );
+}
+
+function isNotesExportResponse(value: unknown): value is NotesExportResponse {
+  return (
+    isRecord(value) &&
+    isString(value.book_id) &&
+    isString(value.title) &&
+    isNullableString(value.author) &&
+    isNullableString(value.language) &&
+    isNonNegativeInteger(value.position) &&
+    isArrayOf(value.entities, isNotesExportEntity) &&
+    isArrayOf(value.relationships, isLookupRelationship) &&
+    isArrayOf(value.events, isRecapEvent)
+  );
+}
+
 export class ApiError extends Error {
   readonly code: string | undefined;
 
@@ -476,5 +519,17 @@ export function getBookRecap(
   return requestJson(
     `/books/${encodeURIComponent(bookId)}/recap?${params.toString()}`,
     isRecapResponse,
+  );
+}
+
+export function getBookNotesExport(
+  bookId: string,
+  position: number,
+): Promise<NotesExportResponse> {
+  validateReadingPosition(position);
+  const params = new URLSearchParams({ position: String(position) });
+  return requestJson(
+    `/books/${encodeURIComponent(bookId)}/export?${params.toString()}`,
+    isNotesExportResponse,
   );
 }

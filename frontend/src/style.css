@@ -276,6 +276,12 @@ select {
   margin-bottom: 0.5rem;
 }
 
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .manual-position-form,
 .manual-position-form label {
   display: grid;

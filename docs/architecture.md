@@ -27,7 +27,8 @@ to help contributors navigate the code.
   routers.
 - `app/books.py` provides book, chapter, upload, job, and reading-progress
   endpoints.
-- `app/book_queries.py` provides entity, lookup, and recap endpoints.
+- `app/book_queries.py` provides entity, lookup, recap, and position-bounded
+  notes-export endpoints.
 - `app/epub_parser.py` parses EPUB input into ordered chapters and paragraphs.
 - `app/extraction_jobs.py`, `app/openai_extractor.py`,
   `app/extraction_schemas.py`, and `app/extraction_prompt.py` implement
@@ -47,6 +48,8 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 - `src/Reader.tsx` handles chapter display, saved/manual reading positions,
   lookup, characters, and recap.
 - `src/api.ts` defines typed backend requests and responses.
+- `src/notesExport.ts` formats validated export data as JSON or Markdown and
+  triggers local downloads.
 - `src/i18n.ts` contains UI translations and localized error helpers.
 
 Keep HTTP details in the API client where practical, and present book text as

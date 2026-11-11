@@ -98,10 +98,17 @@ recap returns supported event facts and characters introduced through position
 curl "http://localhost:8080/api/books/BOOK_ID/recap?position=42"
 curl "http://localhost:8080/api/books/BOOK_ID/entities?position=42&type=person"
 curl "http://localhost:8080/api/books/BOOK_ID/lookup?q=Marta&position=42"
+curl "http://localhost:8080/api/books/BOOK_ID/export?position=42"
 ```
 
 The recap is a deterministic chronological list of already extracted `event`
 facts. It does not use a model or transmit additional book text.
+The export endpoint returns spoiler-filtered metadata, entities, aliases,
+facts, relationships, and recap events through the inclusive position. It
+never includes chapter or paragraph text. In the reader, JSON and Markdown
+downloads use the active notes position; changing that position does not alter
+saved reader progress. Markdown output escapes book/model-provided text and
+download filenames are sanitized.
 
 Reading positions are inclusive and must fall within the book's stored
 paragraph positions. `entities` supports `person`, `place`, `group`, `object`,
@@ -146,7 +153,8 @@ positions for books with no readable paragraphs, return HTTP 422
 (`invalid_reading_position`). An empty lookup query returns HTTP 422
 (`empty_lookup_query`). Missing or invalid query parameters use FastAPI's
 standard HTTP 422 validation response. No matches and books without extracted
-data return successful responses with empty lists. Response schemas are
+data return successful responses with empty lists. Export responses include
+empty arrays for books without extracted notes. Response schemas are
 documented in the automatically generated OpenAPI documentation at `/api/docs`.
 
 Start and stop the containers in the background:

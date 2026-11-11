@@ -166,3 +166,13 @@ authentication, multi-user support, and public deployment are out of scope.
 - Added UI regression coverage for initial load failures, retry recovery,
   upload retry, reader retry, library preservation on refresh failure, offline
   recovery, and notes failures that leave the reader usable.
+
+## Step 4 status
+
+- Added `GET /books/{id}/export?position=` with server-side inclusive spoiler
+  filtering for entities, aliases, facts, relationships, and recap events.
+- Added JSON and Markdown downloads that use the active notes position without
+  changing saved reader progress. Markdown values are escaped and filenames
+  are sanitized.
+- Added backend boundary/error integration tests and frontend API/UI tests;
+  verified backend tests/Ruff and frontend tests, build, and lint.

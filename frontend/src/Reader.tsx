@@ -3,6 +3,7 @@ import {
   Book,
   Chapter,
   ChapterContent,
+  getBookNotesExport,
   getChapterContent,
   getChapters,
   getReadingProgress,
@@ -14,6 +15,7 @@ import {
   ReaderContent,
 } from "./ReaderComponents";
 import { Copy, getErrorMessage } from "./i18n";
+import { downloadNotesExport } from "./notesExport";
 import { useReaderNotes } from "./useReaderNotes";
 
 export interface ReaderProps {
@@ -44,6 +46,8 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     "chapter",
   );
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -277,6 +281,22 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     );
   }
 
+  async function exportNotes(format: "json" | "markdown") {
+    if (activeNotesPosition === null || exportLoading) {
+      return;
+    }
+    setExportLoading(true);
+    setExportError(null);
+    try {
+      const data = await getBookNotesExport(book.id, activeNotesPosition);
+      downloadNotesExport(data, format, copy);
+    } catch (error) {
+      setExportError(getErrorMessage(error, copy));
+    } finally {
+      setExportLoading(false);
+    }
+  }
+
   if (readerLoading) {
     return <p role="status">{copy.loadingReader}</p>;
   }
@@ -439,6 +459,10 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
 
         <NotesPanel
           copy={copy}
+          activeNotesPosition={activeNotesPosition}
+          exportLoading={exportLoading}
+          exportError={exportError}
+          onExport={(format) => void exportNotes(format)}
           lookupTerm={notes.lookupTerm}
           selectedTextPosition={notes.selectedTextPosition}
           lookupResponse={notes.lookupResponse}

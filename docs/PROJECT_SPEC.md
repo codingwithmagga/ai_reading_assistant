@@ -169,6 +169,13 @@ evidence-based. Output language is configurable (default: German).
   additional model and sends no extra book text to OpenAI. Events are ordered
   by position, entity name, and ID; the character list follows entity-list
   ordering.
+- `GET /books/{id}/export?position=1234`: returns book metadata and the
+  position-filtered entities, aliases, facts, relationships, and recap events
+  for JSON/Markdown downloads. The position is inclusive. Do not include
+  chapter or paragraph text, future-derived counts, or data whose introduction
+  position exceeds the requested position. Relationships require both
+  endpoints to be known. Invalid positions and unknown books use the standard
+  `invalid_reading_position` and `book_not_found` error details.
 - Position is inclusive and must fall within the book's stored paragraph
   positions. An out-of-range position or a book with no readable paragraphs
   returns HTTP 422 with `invalid_reading_position`; an unknown book returns
@@ -193,6 +200,8 @@ evidence-based. Output language is configurable (default: German).
 - `GET /books/{id}/lookup?q=&position=`
 - `GET /books/{id}/recap?position=` (chronological event facts and
   characters seen so far, strictly filtered by position)
+- `GET /books/{id}/export?position=` (spoiler-filtered notes export; no
+  chapter/paragraph text)
 - Error details for book/position/search errors contain `code` and `message`;
   parameter errors use FastAPI's validation format.
 - OpenAPI schemas and interactive API documentation are generated

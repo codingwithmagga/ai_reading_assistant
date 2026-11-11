@@ -70,6 +70,16 @@ beforeEach(() => {
     events: [],
     characters: [],
   });
+  vi.spyOn(api, "getBookNotesExport").mockResolvedValue({
+    book_id: book.id,
+    title: book.title,
+    author: book.author,
+    language: book.language,
+    position: 0,
+    entities: [],
+    relationships: [],
+    events: [],
+  });
   vi.spyOn(api, "getChapterContent").mockResolvedValue({
     id: "chapter-1",
     book_id: book.id,
@@ -566,6 +576,108 @@ describe("App", () => {
       screen.getByText("<img src=x onerror=alert(1)>"),
     ).toBeInTheDocument();
     expect(document.querySelector("script, img")).toBeNull();
+  });
+
+  it("exports notes at the active notes position in JSON and Markdown", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 1,
+      paragraphs: [],
+    });
+    vi.mocked(api.getBookNotesExport).mockResolvedValue({
+      book_id: book.id,
+      title: "<Test Book>",
+      author: "Test Author",
+      language: "en",
+      position: 1,
+      entities: [
+        {
+          id: "entity-1",
+          type: "person",
+          canonical_name: "<Liora>",
+          first_position: 0,
+          aliases: [{ alias: "*Traveler*", first_position: 1 }],
+          facts: [
+            {
+              id: "fact-1",
+              text: "Finds a key.",
+              kind: "event",
+              position: 1,
+              chapter_id: "chapter-1",
+              chapter_index: 0,
+              chapter_title: "First chapter",
+              source_excerpt: "<img src=x onerror=alert(1)>",
+            },
+          ],
+        },
+      ],
+      relationships: [],
+      events: [],
+    });
+    const downloads: string[] = [];
+    const createdBlobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        createdBlobs.push(blob);
+        return "blob:test";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloads.push(this.download);
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    await screen.findByText("Folgt der aktuellen Leseposition im Reader.");
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "JSON herunterladen" }));
+    await waitFor(() => {
+      expect(api.getBookNotesExport).toHaveBeenCalledWith(book.id, 1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Markdown herunterladen" }));
+    await waitFor(() => {
+      expect(api.getBookNotesExport).toHaveBeenCalledTimes(2);
+    });
+
+    expect(downloads).toEqual(["test-book-notes.json", "test-book-notes.md"]);
+    expect(createdBlobs).toHaveLength(2);
+    expect(createdBlobs[0].type).toBe("application/json;charset=utf-8");
+    expect(createdBlobs[1].type).toBe("text/markdown;charset=utf-8");
+    const markdown = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(createdBlobs[1]);
+    });
+    expect(markdown).toContain("# &lt;Test Book&gt;");
+    expect(markdown).toContain("### &lt;Liora&gt;");
+    expect(markdown).toContain("\\*Traveler\\*");
+    expect(markdown).toContain("&lt;img src=x onerror=alert\\(1\\)&gt;");
   });
 
   it("prefills selected text and searches using the selected paragraph position", async () => {

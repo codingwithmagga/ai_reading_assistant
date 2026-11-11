@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
   getBookEntities,
+  getBookNotesExport,
   getBookRecap,
   getBooks,
   getChapterContent,
@@ -72,6 +73,71 @@ describe("notes API client", () => {
       "/api/books/book-id/recap?position=0",
       undefined,
     );
+  });
+
+  it("requests a notes export at the explicit reading position", async () => {
+    const exportResponse = {
+      book_id: "book-id",
+      title: "Book",
+      author: null,
+      language: "en",
+      position: 3,
+      entities: [],
+      relationships: [],
+      events: [],
+    };
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(exportResponse), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getBookNotesExport("book/one", 3)).resolves.toEqual(
+      exportResponse,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/books/book%2Fone/export?position=3",
+      undefined,
+    );
+  });
+
+  it("rejects malformed nested export data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            book_id: "book-id",
+            title: "Book",
+            author: null,
+            language: null,
+            position: 3,
+            entities: [
+              {
+                id: "entity-id",
+                type: "person",
+                canonical_name: "Marta",
+                first_position: 0,
+                aliases: [{ alias: "Marta", first_position: "early" }],
+                facts: [],
+              },
+            ],
+            relationships: [],
+            events: [],
+          }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+      ),
+    );
+
+    await expect(getBookNotesExport("book-id", 3)).rejects.toMatchObject({
+      message: "The server returned an invalid response.",
+    });
   });
 
   it("rejects invalid positions before issuing a request", async () => {

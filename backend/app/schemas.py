@@ -143,3 +143,19 @@ class RecapResponse(BaseModel):
     position: int
     events: list[RecapEventResponse]
     characters: list[EntityListItemResponse]
+
+
+class NotesExportEntityResponse(LookupEntitySummaryResponse):
+    aliases: list[EntityAliasResponse]
+    facts: list[LookupFactResponse]
+
+
+class NotesExportResponse(BaseModel):
+    book_id: str
+    title: str
+    author: str | None
+    language: str | None
+    position: int
+    entities: list[NotesExportEntityResponse]
+    relationships: list[LookupRelationshipResponse]
+    events: list[RecapEventResponse]
