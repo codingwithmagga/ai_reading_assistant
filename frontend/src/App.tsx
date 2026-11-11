@@ -10,7 +10,11 @@ import {
   translations,
 } from "./i18n";
 
-export function App() {
+interface AppProps {
+  updateServiceWorker?: () => Promise<void>;
+}
+
+export function App({ updateServiceWorker }: AppProps = {}) {
   const [language, setLanguage] = useState<Language>(getSavedLanguage);
   const [books, setBooks] = useState<Book[]>([]);
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
@@ -20,6 +24,8 @@ export function App() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const copy = translations[language];
 
   useEffect(() => {
@@ -27,6 +33,20 @@ export function App() {
     document.documentElement.lang = language;
     document.title = translations[language].heading;
   }, [language]);
+
+  useEffect(() => {
+    const updateOnlineStatus = () => setIsOnline(navigator.onLine);
+    const showUpdateAvailable = () => setUpdateAvailable(true);
+
+    window.addEventListener("online", updateOnlineStatus);
+    window.addEventListener("offline", updateOnlineStatus);
+    window.addEventListener("pwa-update-available", showUpdateAvailable);
+    return () => {
+      window.removeEventListener("online", updateOnlineStatus);
+      window.removeEventListener("offline", updateOnlineStatus);
+      window.removeEventListener("pwa-update-available", showUpdateAvailable);
+    };
+  }, []);
 
   const refreshBooks = useCallback(async () => {
     setBooksLoading(true);
@@ -91,6 +111,20 @@ export function App() {
           </select>
         </label>
       </header>
+
+      {!isOnline && (
+        <p className="message offline-notice" role="status" aria-live="polite">
+          {copy.offlineNotice}
+        </p>
+      )}
+      {updateAvailable && updateServiceWorker && (
+        <p className="message update-notice" role="status" aria-live="polite">
+          {copy.updateAvailable}{" "}
+          <button type="button" onClick={() => void updateServiceWorker()}>
+            {copy.updateNow}
+          </button>
+        </p>
+      )}
 
       {selectedBook ? (
         <Reader

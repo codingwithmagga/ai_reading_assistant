@@ -31,6 +31,11 @@ translation map is designed to accommodate additional languages.
 The web app provides a library, EPUB upload, and an in-app reader. Reading
 progress is stored per book and restored when the book is reopened. The reader
 renders extracted paragraph text as text, not as executable HTML.
+The app can be installed from a supported browser over HTTPS (or on
+`localhost`). Its offline support is limited to the application shell:
+libraries, book text, and notes still require a connection to the server.
+The service worker caches static app assets only and never caches API
+responses or book data.
 
 ```bash
 docker compose up --build

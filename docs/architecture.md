@@ -11,6 +11,9 @@ to help contributors navigate the code.
   manages schema migrations.
 - **Frontend:** React and TypeScript, built with Vite. `App.tsx` owns the
   library and upload experience; `Reader.tsx` owns reading and notes workflows.
+- **PWA shell:** Vite PWA builds and registers a service worker that precaches
+  only static frontend assets and falls back to the app shell for offline
+  navigation. API requests and book data are not cached.
 - **Persistence:** Books, chapters, paragraphs, extracted entities and facts,
   jobs, and reading progress are stored in SQLite.
 - **External AI:** The OpenAI client is used for extraction only. The source

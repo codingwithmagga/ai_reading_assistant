@@ -5,6 +5,10 @@ export const translations = {
     heading: "Spoilerfreier Lesebegleiter",
     description:
       "Deine Notizen bleiben auf dem Stand deiner aktuellen Leseposition.",
+    offlineNotice:
+      "Du bist offline. Die App-Oberfläche ist verfügbar; Bibliothek und Buchdaten benötigen eine Verbindung zum Server.",
+    updateAvailable: "Ein App-Update ist verfügbar.",
+    updateNow: "Jetzt aktualisieren",
     language: "Sprache",
     readerContent: "Buchtext",
     library: "Bibliothek",
@@ -95,6 +99,10 @@ export const translations = {
     heading: "Spoiler-Free Reading Assistant",
     description:
       "Your notes stay up to date with your current reading position.",
+    offlineNotice:
+      "You are offline. The app shell is available; your library and book data require a connection to the server.",
+    updateAvailable: "An app update is available.",
+    updateNow: "Update now",
     language: "Language",
     readerContent: "Book text",
     library: "Library",

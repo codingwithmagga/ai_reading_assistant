@@ -21,6 +21,10 @@ const book: api.Book = {
 
 beforeEach(() => {
   window.localStorage.clear();
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    value: true,
+  });
   vi.spyOn(api, "getBooks").mockResolvedValue([]);
   vi.spyOn(api, "uploadBook").mockResolvedValue({
     ...book,
@@ -98,6 +102,41 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("explains that library data requires a server connection while offline", () => {
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: false,
+    });
+
+    render(<App />);
+
+    expect(
+      screen.getByText(/Du bist offline/),
+    ).toBeInTheDocument();
+
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+    act(() => window.dispatchEvent(new Event("online")));
+
+    expect(
+      screen.queryByText(/Du bist offline/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("waits for the reader to accept a service-worker update", () => {
+    const updateServiceWorker = vi.fn().mockResolvedValue(undefined);
+    render(<App updateServiceWorker={updateServiceWorker} />);
+
+    act(() => window.dispatchEvent(new Event("pwa-update-available")));
+    expect(screen.getByText("Ein App-Update ist verfügbar.")).toBeInTheDocument();
+    expect(updateServiceWorker).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt aktualisieren" }));
+    expect(updateServiceWorker).toHaveBeenCalledOnce();
+  });
+
   it("defaults to German and persists the selected interface language", () => {
     const { unmount } = render(<App />);
 

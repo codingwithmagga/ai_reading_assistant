@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#53634d" />
+  <path
+    d="M92 124c64-18 119-8 164 30v238c-45-38-100-48-164-30V124Z"
+    fill="#fffefa"
+  />
+  <path
+    d="M420 124c-64-18-119-8-164 30v238c45-38 100-48 164-30V124Z"
+    fill="#e9e4d8"
+  />
+  <path d="M256 154v238" fill="none" stroke="#bd7d35" stroke-width="12" />
+  <path
+    d="M124 184c38-7 72-1 102 17M124 224c38-7 72-1 102 17M124 264c38-7 72-1 102 17"
+    fill="none"
+    stroke="#908a7d"
+    stroke-linecap="round"
+    stroke-width="10"
+  />
+  <path
+    d="M388 184c-38-7-72-1-102 17M388 224c-38-7-72-1-102 17M388 264c-38-7-72-1-102 17"
+    fill="none"
+    stroke="#908a7d"
+    stroke-linecap="round"
+    stroke-width="10"
+  />
+</svg>
