@@ -334,7 +334,8 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
         setChapters(bookChapters);
         setJob(extractionJob);
         setChapterLimit(
-          extractionJob?.status === "error" &&
+          extractionJob !== null &&
+            extractionJob.status !== "completed" &&
             extractionJob.max_chapter_index !== null
             ? String(extractionJob.max_chapter_index)
             : "all",
