@@ -278,8 +278,19 @@ to `en`) to request another output language independently of the UI language.
 
 - Installable app, offline shell, error states, loading indicators, dark mode,
   data export (JSON/Markdown notes up to position X).
-- Acceptance: phone installation works and the app is usable on a small
-  display.
+- The service worker may cache only static application-shell assets. It must
+  not cache API responses, book text, notes, uploads, or other user data.
+  Library and reader data still require a connection to the backend.
+- Theme behavior follows the operating-system preference until the user
+  selects a light or dark theme; an explicit choice is persisted.
+- JSON and Markdown exports use an explicitly displayed inclusive reading
+  position. The backend filters exported data, and exporting must not change
+  saved reader progress or include chapter/paragraph text.
+- Acceptance: the production build emits the installable app shell and
+  referenced icons; automated tests cover offline messaging, theme
+  persistence, recoverable error states, and export spoiler boundaries.
+  Installability and responsive behavior must also be manually verified in a
+  supported mobile browser over HTTPS (or localhost).
 
 ### Phase 7: Quality and evaluation
 

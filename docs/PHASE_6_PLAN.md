@@ -176,3 +176,15 @@ authentication, multi-user support, and public deployment are out of scope.
   are sanitized.
 - Added backend boundary/error integration tests and frontend API/UI tests;
   verified backend tests/Ruff and frontend tests, build, and lint.
+
+## Step 5 status
+
+- Updated the README, project specification, architecture overview, and
+  testing guide to describe the implemented PWA, offline/cache boundary,
+  themes, spoiler-bounded exports, and cross-stack validation.
+- Clarified automated acceptance criteria for app-shell assets, offline
+  messaging, theme persistence, recoverable errors, and export spoiler
+  boundaries.
+- Installability and responsive behavior still require manual verification
+  in a supported mobile browser over HTTPS or localhost; they are not claimed
+  as verified by the automated checks.
