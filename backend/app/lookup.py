@@ -142,6 +142,32 @@ def get_entity_facts(
     )
 
 
+def get_facts_for_entities(
+    session: Session,
+    *,
+    book_id: str,
+    entity_ids: list[str],
+    position: int,
+) -> dict[str, list[tuple[Fact, Chapter]]]:
+    facts_by_entity = {entity_id: [] for entity_id in entity_ids}
+    if not entity_ids:
+        return facts_by_entity
+
+    facts = session.execute(
+        select(Fact, Chapter)
+        .join(Chapter, Chapter.id == Fact.chapter_id)
+        .where(
+            Fact.book_id == book_id,
+            Fact.entity_id.in_(entity_ids),
+            Fact.position <= position,
+        )
+        .order_by(Fact.position, Fact.kind, Fact.id)
+    )
+    for fact, chapter in facts:
+        facts_by_entity[fact.entity_id].append((fact, chapter))
+    return facts_by_entity
+
+
 def get_entity_relationships(
     session: Session,
     *,
@@ -162,6 +188,38 @@ def get_entity_relationships(
                 or_(
                     Relationship.entity_a_id == entity_id,
                     Relationship.entity_b_id == entity_id,
+                ),
+                entity_a.first_position <= position,
+                entity_b.first_position <= position,
+            )
+            .order_by(Relationship.position, Relationship.label, Relationship.id)
+        )
+    )
+
+
+def get_relationships_for_entities(
+    session: Session,
+    *,
+    book_id: str,
+    entity_ids: list[str],
+    position: int,
+) -> list[tuple[Relationship, Entity, Entity]]:
+    if not entity_ids:
+        return []
+
+    entity_a = aliased(Entity)
+    entity_b = aliased(Entity)
+    return list(
+        session.execute(
+            select(Relationship, entity_a, entity_b)
+            .join(entity_a, entity_a.id == Relationship.entity_a_id)
+            .join(entity_b, entity_b.id == Relationship.entity_b_id)
+            .where(
+                Relationship.book_id == book_id,
+                Relationship.position <= position,
+                or_(
+                    Relationship.entity_a_id.in_(entity_ids),
+                    Relationship.entity_b_id.in_(entity_ids),
                 ),
                 entity_a.first_position <= position,
                 entity_b.first_position <= position,
