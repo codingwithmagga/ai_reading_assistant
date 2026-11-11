@@ -10,6 +10,8 @@ from app.lookup import (
     get_entity_aliases,
     get_entity_facts,
     get_entity_relationships,
+    get_facts_for_entities,
+    get_relationships_for_entities,
     list_entities_at_position,
     list_recap_events,
     validate_reading_position,
@@ -194,29 +196,31 @@ def export_book_notes(
         book_id=book_id,
         position=position,
     )
+    entity_ids = [entity.id for entity, _ in entities]
+    facts_by_entity = get_facts_for_entities(
+        session,
+        book_id=book_id,
+        entity_ids=entity_ids,
+        position=position,
+    )
+    relationships = [
+        LookupRelationshipResponse(
+            id=relationship.id,
+            entity_a=_entity_summary(entity_a),
+            entity_b=_entity_summary(entity_b),
+            label=relationship.label,
+            position=relationship.position,
+        )
+        for relationship, entity_a, entity_b in get_relationships_for_entities(
+            session,
+            book_id=book_id,
+            entity_ids=entity_ids,
+            position=position,
+        )
+    ]
+
     export_entities: list[NotesExportEntityResponse] = []
-    relationships_by_id: dict[str, LookupRelationshipResponse] = {}
     for entity, aliases in entities:
-        facts = get_entity_facts(
-            session,
-            book_id=book_id,
-            entity_id=entity.id,
-            position=position,
-        )
-        relationships = get_entity_relationships(
-            session,
-            book_id=book_id,
-            entity_id=entity.id,
-            position=position,
-        )
-        for relationship, entity_a, entity_b in relationships:
-            relationships_by_id[relationship.id] = LookupRelationshipResponse(
-                id=relationship.id,
-                entity_a=_entity_summary(entity_a),
-                entity_b=_entity_summary(entity_b),
-                label=relationship.label,
-                position=relationship.position,
-            )
         export_entities.append(
             NotesExportEntityResponse(
                 **_entity_summary(entity).model_dump(),
@@ -238,7 +242,7 @@ def export_book_notes(
                         chapter_title=chapter.title,
                         source_excerpt=fact.source_excerpt,
                     )
-                    for fact, chapter in facts
+                    for fact, chapter in facts_by_entity[entity.id]
                 ],
             )
         )
@@ -269,7 +273,7 @@ def export_book_notes(
         position=position,
         entities=export_entities,
         relationships=sorted(
-            relationships_by_id.values(),
+            relationships,
             key=lambda relationship: (
                 relationship.position,
                 relationship.label,

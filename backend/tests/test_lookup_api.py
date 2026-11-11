@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from sqlalchemy import event
 
 from tests.api_helpers import create_lookup_book
 
@@ -258,6 +259,108 @@ def test_notes_export_contains_only_data_known_at_each_inclusive_position(
     client: TestClient,
 ) -> None:
     book_id = create_lookup_book(client)
+    marta_appears = (
+        0,
+        "Marta erscheint.",
+        "event",
+        0,
+        "Anfang",
+        "Marta trat ein.",
+    )
+    village_description = (
+        1,
+        "Das Dorf liegt am Fluss.",
+        "description",
+        0,
+        "Anfang",
+        "Das Dorf lag am Fluss.",
+    )
+    marta_description = (
+        2,
+        "Marta führt den Laden.",
+        "description",
+        0,
+        "Anfang",
+        "Sie führte den Laden.",
+    )
+    marta_knows_plan = (
+        5,
+        "Marta kennt den geheimen Plan.",
+        "event",
+        1,
+        "Später",
+        "Sie kannte den geheimen Plan.",
+    )
+    expected_entities = [
+        [("Marta", [])],
+        [("Marta", ["die Wirtin"]), ("Dorf", [])],
+        [("Marta", ["die Wirtin"]), ("Dorf", []), ("Lea", [])],
+        [
+            ("Marta", ["die Wirtin", "die Fremde"]),
+            ("Dorf", []),
+            ("Lea", ["die Fremde"]),
+        ],
+        [
+            ("Marta", ["die Wirtin", "die Fremde", "Frau Keller"]),
+            ("Dorf", []),
+            ("Lea", ["die Fremde"]),
+            ("Geheimnis", []),
+        ],
+        [
+            ("Marta", ["die Wirtin", "die Fremde", "Frau Keller"]),
+            ("Dorf", []),
+            ("Lea", ["die Fremde"]),
+            ("Geheimnis", []),
+        ],
+    ]
+    expected_facts = [
+        {"Marta": [marta_appears]},
+        {"Marta": [marta_appears], "Dorf": [village_description]},
+        {
+            "Marta": [marta_appears, marta_description],
+            "Dorf": [village_description],
+            "Lea": [],
+        },
+        {
+            "Marta": [marta_appears, marta_description],
+            "Dorf": [village_description],
+            "Lea": [],
+        },
+        {
+            "Marta": [marta_appears, marta_description],
+            "Dorf": [village_description],
+            "Lea": [],
+            "Geheimnis": [],
+        },
+        {
+            "Marta": [marta_appears, marta_description, marta_knows_plan],
+            "Dorf": [village_description],
+            "Lea": [],
+            "Geheimnis": [],
+        },
+    ]
+    expected_relationships = [
+        [],
+        [],
+        [(2, "lebt in", "Marta", "Dorf")],
+        [(2, "lebt in", "Marta", "Dorf")],
+        [
+            (2, "lebt in", "Marta", "Dorf"),
+            (3, "kennt", "Marta", "Geheimnis"),
+        ],
+        [
+            (2, "lebt in", "Marta", "Dorf"),
+            (3, "kennt", "Marta", "Geheimnis"),
+        ],
+    ]
+    expected_events = [
+        [marta_appears],
+        [marta_appears],
+        [marta_appears],
+        [marta_appears],
+        [marta_appears],
+        [marta_appears, marta_knows_plan],
+    ]
 
     for position in range(6):
         response = client.get(
@@ -271,32 +374,89 @@ def test_notes_export_contains_only_data_known_at_each_inclusive_position(
         assert export["position"] == position
         assert export["title"] == "Synthetischer Roman"
         assert "Absatz " not in response.text
-        assert "Geheimnis" not in response.text or position >= 4
-        assert "Frau Keller" not in response.text or position >= 4
-        assert "Marta kennt den geheimen Plan." not in response.text or position >= 5
-
+        assert [
+            (
+                entity["canonical_name"],
+                [alias["alias"] for alias in entity["aliases"]],
+            )
+            for entity in export["entities"]
+        ] == expected_entities[position]
         for entity in export["entities"]:
             assert entity["first_position"] <= position
             assert all(alias["first_position"] <= position for alias in entity["aliases"])
-            assert all(fact["position"] <= position for fact in entity["facts"])
+            actual_facts = []
+            for fact in entity["facts"]:
+                assert fact["chapter_id"]
+                actual_facts.append(
+                    (
+                        fact["position"],
+                        fact["text"],
+                        fact["kind"],
+                        fact["chapter_index"],
+                        fact["chapter_title"],
+                        fact["source_excerpt"],
+                    )
+                )
+            assert actual_facts == expected_facts[position][entity["canonical_name"]]
+        assert [
+            (
+                relationship["position"],
+                relationship["label"],
+                relationship["entity_a"]["canonical_name"],
+                relationship["entity_b"]["canonical_name"],
+            )
+            for relationship in export["relationships"]
+        ] == expected_relationships[position]
         for relationship in export["relationships"]:
             assert relationship["position"] <= position
             assert relationship["entity_a"]["first_position"] <= position
             assert relationship["entity_b"]["first_position"] <= position
-        assert all(event["position"] <= position for event in export["events"])
+        actual_events = []
+        for recap_event in export["events"]:
+            assert recap_event["chapter_id"]
+            actual_events.append(
+                (
+                    recap_event["position"],
+                    recap_event["text"],
+                    "event",
+                    recap_event["chapter_index"],
+                    recap_event["chapter_title"],
+                    recap_event["source_excerpt"],
+                )
+            )
+        assert actual_events == expected_events[position]
 
-    before_introduction = client.get(
-        f"/books/{book_id}/export",
-        params={"position": 3},
-    ).json()
-    assert [entity["canonical_name"] for entity in before_introduction["entities"]] == [
-        "Marta",
-        "Dorf",
-        "Lea",
-    ]
-    assert [relationship["label"] for relationship in before_introduction["relationships"]] == [
-        "lebt in"
-    ]
+
+def test_notes_export_fetches_facts_and_relationships_in_bulk(
+    client: TestClient,
+) -> None:
+    book_id = create_lookup_book(client)
+    statements: list[str] = []
+
+    def record_select_statement(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        if statement.lstrip().lower().startswith("select"):
+            statements.append(statement.lower())
+
+    engine = client.app.state.test_engine
+    event.listen(engine, "before_cursor_execute", record_select_statement)
+    try:
+        response = client.get(
+            f"/books/{book_id}/export",
+            params={"position": 5},
+        )
+    finally:
+        event.remove(engine, "before_cursor_execute", record_select_statement)
+
+    assert response.status_code == 200
+    assert sum("from facts" in statement for statement in statements) == 2
+    assert sum("from relationships" in statement for statement in statements) == 1
 
 
 def test_notes_export_validates_book_and_position_and_allows_empty_extraction(
