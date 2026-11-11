@@ -19,8 +19,39 @@ const book: api.Book = {
   status: "parsed",
 };
 
+let systemThemeListener: ((event: MediaQueryListEvent) => void) | undefined;
+
 beforeEach(() => {
   window.localStorage.clear();
+  systemThemeListener = undefined;
+  const themeColor = document.createElement("meta");
+  themeColor.name = "theme-color";
+  document.head.append(themeColor);
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    value: true,
+  });
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn(() => {
+      const mediaQuery = {
+        matches: false,
+        media: "(prefers-color-scheme: dark)",
+        onchange: null,
+        addEventListener: (
+          _type: string,
+          listener: (event: MediaQueryListEvent) => void,
+        ) => {
+          systemThemeListener = listener;
+        },
+        removeEventListener: vi.fn(),
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      };
+      return mediaQuery as unknown as MediaQueryList;
+    }),
+  );
   vi.spyOn(api, "getBooks").mockResolvedValue([]);
   vi.spyOn(api, "uploadBook").mockResolvedValue({
     ...book,
@@ -39,6 +70,16 @@ beforeEach(() => {
     events: [],
     characters: [],
   });
+  vi.spyOn(api, "getBookNotesExport").mockResolvedValue({
+    book_id: book.id,
+    title: book.title,
+    author: book.author,
+    language: book.language,
+    position: 0,
+    entities: [],
+    relationships: [],
+    events: [],
+  });
   vi.spyOn(api, "getChapterContent").mockResolvedValue({
     id: "chapter-1",
     book_id: book.id,
@@ -56,6 +97,9 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  document
+    .querySelectorAll('meta[name="theme-color"]')
+    .forEach((meta) => meta.remove());
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -98,6 +142,181 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("shows a first-load error without showing an empty-library state, then recovers", async () => {
+    vi.mocked(api.getBooks)
+      .mockReset()
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Anfrage ist fehlgeschlagen.",
+    );
+    expect(screen.queryByText(/Noch keine Bücher/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    expect(await screen.findByText(/Noch keine Bücher/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(api.getBooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps an upload retryable after a server error", async () => {
+    vi.mocked(api.uploadBook).mockRejectedValueOnce(
+      new Error("server unavailable"),
+    );
+
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    const file = new File(["epub"], "retry.epub", {
+      type: "application/epub+zip",
+    });
+    fireEvent.change(screen.getByLabelText("EPUB-Datei auswählen"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Buch konnte nicht hochgeladen werden.",
+    );
+    expect(screen.getByLabelText("EPUB-Datei auswählen")).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Buch wurde hochgeladen.",
+    );
+  });
+
+  it("offers a retry when the reader cannot load chapters", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters)
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([]);
+
+    render(<App />);
+    await screen.findByRole("heading", { name: "Test Book" });
+    fireEvent.click(screen.getByRole("button", { name: "Lesen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die Anfrage ist fehlgeschlagen.",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+
+    expect(await screen.findByText(/keine lesbaren Kapitel/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(api.getChapters).toHaveBeenCalledTimes(2);
+  });
+
+  it("follows the system theme until a user choice is saved", () => {
+    const { unmount } = render(<App />);
+    const themePicker = screen.getByRole("combobox", { name: "Darstellung" });
+
+    expect(themePicker).toHaveValue("system");
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    act(() => systemThemeListener?.({ matches: true } as MediaQueryListEvent));
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(
+      document.querySelector('meta[name="theme-color"]'),
+    ).toHaveAttribute("content", "#171915");
+
+    fireEvent.change(themePicker, { target: { value: "light" } });
+    expect(window.localStorage.getItem("ui-theme")).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    act(() => systemThemeListener?.({ matches: true } as MediaQueryListEvent));
+    expect(document.documentElement.dataset.theme).toBe("light");
+
+    unmount();
+    render(<App />);
+    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
+      "light",
+    );
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
+  it("uses a saved dark theme on startup", () => {
+    window.localStorage.setItem("ui-theme", "dark");
+
+    render(<App />);
+
+    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
+      "dark",
+    );
+    expect(document.documentElement.dataset.theme).toBe("dark");
+  });
+
+  it("explains that library data requires a server connection while offline", () => {
+    vi.mocked(api.getBooks)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([book]);
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: false,
+    });
+
+    render(<App />);
+
+    expect(
+      screen.getByText(/Du bist offline/),
+    ).toBeInTheDocument();
+
+    Object.defineProperty(window.navigator, "onLine", {
+      configurable: true,
+      value: true,
+    });
+    act(() => window.dispatchEvent(new Event("online")));
+
+    expect(screen.queryByText(/Du bist offline/)).not.toBeInTheDocument();
+    return waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+      expect(api.getBooks).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("keeps the existing library visible when a refresh fails and retries", async () => {
+    vi.mocked(api.getBooks)
+      .mockReset()
+      .mockResolvedValueOnce([book])
+      .mockRejectedValueOnce(new Error("server unavailable"))
+      .mockResolvedValueOnce([book]);
+
+    render(<App />);
+    expect(await screen.findByRole("heading", { name: "Test Book" })).toBeVisible();
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), {
+      target: { value: "en" },
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The request failed.",
+    );
+    expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+    expect(screen.queryByText(/No books yet/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole("heading", { name: "Test Book" })).toBeVisible();
+    expect(api.getBooks).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits for the reader to accept a service-worker update", () => {
+    const updateServiceWorker = vi.fn().mockResolvedValue(undefined);
+    render(<App updateServiceWorker={updateServiceWorker} />);
+
+    act(() => window.dispatchEvent(new Event("pwa-update-available")));
+    expect(screen.getByText("Ein App-Update ist verfügbar.")).toBeInTheDocument();
+    expect(updateServiceWorker).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Jetzt aktualisieren" }));
+    expect(updateServiceWorker).toHaveBeenCalledOnce();
+  });
+
   it("defaults to German and persists the selected interface language", () => {
     const { unmount } = render(<App />);
 
@@ -357,6 +576,108 @@ describe("App", () => {
       screen.getByText("<img src=x onerror=alert(1)>"),
     ).toBeInTheDocument();
     expect(document.querySelector("script, img")).toBeNull();
+  });
+
+  it("exports notes at the active notes position in JSON and Markdown", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 0,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 1,
+      paragraphs: [],
+    });
+    vi.mocked(api.getBookNotesExport).mockResolvedValue({
+      book_id: book.id,
+      title: "<Test Book>",
+      author: "Test Author",
+      language: "en",
+      position: 1,
+      entities: [
+        {
+          id: "entity-1",
+          type: "person",
+          canonical_name: "<Liora>",
+          first_position: 0,
+          aliases: [{ alias: "*Traveler*", first_position: 1 }],
+          facts: [
+            {
+              id: "fact-1",
+              text: "Finds a key.",
+              kind: "event",
+              position: 1,
+              chapter_id: "chapter-1",
+              chapter_index: 0,
+              chapter_title: "First chapter",
+              source_excerpt: "<img src=x onerror=alert(1)>",
+            },
+          ],
+        },
+      ],
+      relationships: [],
+      events: [],
+    });
+    const downloads: string[] = [];
+    const createdBlobs: Blob[] = [];
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn((blob: Blob) => {
+        createdBlobs.push(blob);
+        return "blob:test";
+      }),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      downloads.push(this.download);
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    await screen.findByText("Folgt der aktuellen Leseposition im Reader.");
+    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
+
+    fireEvent.click(screen.getByRole("button", { name: "JSON herunterladen" }));
+    await waitFor(() => {
+      expect(api.getBookNotesExport).toHaveBeenCalledWith(book.id, 1);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Markdown herunterladen" }));
+    await waitFor(() => {
+      expect(api.getBookNotesExport).toHaveBeenCalledTimes(2);
+    });
+
+    expect(downloads).toEqual(["test-book-notes.json", "test-book-notes.md"]);
+    expect(createdBlobs).toHaveLength(2);
+    expect(createdBlobs[0].type).toBe("application/json;charset=utf-8");
+    expect(createdBlobs[1].type).toBe("text/markdown;charset=utf-8");
+    const markdown = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsText(createdBlobs[1]);
+    });
+    expect(markdown).toContain("# &lt;Test Book&gt;");
+    expect(markdown).toContain("### &lt;Liora&gt;");
+    expect(markdown).toContain("\\*Traveler\\*");
+    expect(markdown).toContain("&lt;img src=x onerror=alert\\(1\\)&gt;");
   });
 
   it("prefills selected text and searches using the selected paragraph position", async () => {

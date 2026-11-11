@@ -10,7 +10,11 @@ to help contributors navigate the code.
 - **Backend:** Python 3.12+, FastAPI, Pydantic, SQLAlchemy, and SQLite. Alembic
   manages schema migrations.
 - **Frontend:** React and TypeScript, built with Vite. `App.tsx` owns the
-  library and upload experience; `Reader.tsx` owns reading and notes workflows.
+  library, upload, language, and theme preferences; `Reader.tsx` owns reading
+  and notes workflows.
+- **PWA shell:** Vite PWA builds and registers a service worker that precaches
+  only static frontend assets and falls back to the app shell for offline
+  navigation. API requests and book data are not cached.
 - **Persistence:** Books, chapters, paragraphs, extracted entities and facts,
   jobs, and reading progress are stored in SQLite.
 - **External AI:** The OpenAI client is used for extraction only. The source
@@ -23,7 +27,8 @@ to help contributors navigate the code.
   routers.
 - `app/books.py` provides book, chapter, upload, job, and reading-progress
   endpoints.
-- `app/book_queries.py` provides entity, lookup, and recap endpoints.
+- `app/book_queries.py` provides entity, lookup, recap, and position-bounded
+  notes-export endpoints.
 - `app/epub_parser.py` parses EPUB input into ordered chapters and paragraphs.
 - `app/extraction_jobs.py`, `app/openai_extractor.py`,
   `app/extraction_schemas.py`, and `app/extraction_prompt.py` implement
@@ -43,6 +48,8 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 - `src/Reader.tsx` handles chapter display, saved/manual reading positions,
   lookup, characters, and recap.
 - `src/api.ts` defines typed backend requests and responses.
+- `src/notesExport.ts` formats validated export data as JSON or Markdown and
+  triggers local downloads.
 - `src/i18n.ts` contains UI translations and localized error helpers.
 
 Keep HTTP details in the API client where practical, and present book text as

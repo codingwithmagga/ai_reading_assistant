@@ -23,6 +23,8 @@ from app.schemas import (
     LookupEntitySummaryResponse,
     LookupFactResponse,
     LookupRelationshipResponse,
+    NotesExportEntityResponse,
+    NotesExportResponse,
     RecapEventResponse,
     RecapResponse,
 )
@@ -173,6 +175,109 @@ def get_book_recap(
         )
     ]
     return RecapResponse(position=position, events=events, characters=characters)
+
+
+@router.get(
+    "/{book_id}/export",
+    response_model=NotesExportResponse,
+)
+def export_book_notes(
+    book_id: str,
+    position: int = Query(),
+    session: Session = Depends(get_session),
+) -> NotesExportResponse:
+    book = _require_book(session, book_id)
+    _validate_reading_position(session, book_id, position)
+
+    entities = list_entities_at_position(
+        session,
+        book_id=book_id,
+        position=position,
+    )
+    export_entities: list[NotesExportEntityResponse] = []
+    relationships_by_id: dict[str, LookupRelationshipResponse] = {}
+    for entity, aliases in entities:
+        facts = get_entity_facts(
+            session,
+            book_id=book_id,
+            entity_id=entity.id,
+            position=position,
+        )
+        relationships = get_entity_relationships(
+            session,
+            book_id=book_id,
+            entity_id=entity.id,
+            position=position,
+        )
+        for relationship, entity_a, entity_b in relationships:
+            relationships_by_id[relationship.id] = LookupRelationshipResponse(
+                id=relationship.id,
+                entity_a=_entity_summary(entity_a),
+                entity_b=_entity_summary(entity_b),
+                label=relationship.label,
+                position=relationship.position,
+            )
+        export_entities.append(
+            NotesExportEntityResponse(
+                **_entity_summary(entity).model_dump(),
+                aliases=[
+                    EntityAliasResponse(
+                        alias=alias.alias,
+                        first_position=alias.first_position,
+                    )
+                    for alias in aliases
+                ],
+                facts=[
+                    LookupFactResponse(
+                        id=fact.id,
+                        text=fact.text,
+                        kind=fact.kind,
+                        position=fact.position,
+                        chapter_id=chapter.id,
+                        chapter_index=chapter.index,
+                        chapter_title=chapter.title,
+                        source_excerpt=fact.source_excerpt,
+                    )
+                    for fact, chapter in facts
+                ],
+            )
+        )
+
+    events = [
+        RecapEventResponse(
+            id=fact.id,
+            text=fact.text,
+            position=fact.position,
+            chapter_id=chapter.id,
+            chapter_index=chapter.index,
+            chapter_title=chapter.title,
+            source_excerpt=fact.source_excerpt,
+            entity=_entity_summary(entity),
+        )
+        for fact, chapter, entity in list_recap_events(
+            session,
+            book_id=book_id,
+            position=position,
+        )
+    ]
+
+    return NotesExportResponse(
+        book_id=book.id,
+        title=book.title,
+        author=book.author,
+        language=book.language,
+        position=position,
+        entities=export_entities,
+        relationships=sorted(
+            relationships_by_id.values(),
+            key=lambda relationship: (
+                relationship.position,
+                relationship.label,
+                relationship.id,
+            ),
+        ),
+        events=events,
+    )
 
 
 def _validate_reading_position(session: Session, book_id: str, position: int) -> None:

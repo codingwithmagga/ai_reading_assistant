@@ -169,6 +169,13 @@ evidence-based. Output language is configurable (default: German).
   additional model and sends no extra book text to OpenAI. Events are ordered
   by position, entity name, and ID; the character list follows entity-list
   ordering.
+- `GET /books/{id}/export?position=1234`: returns book metadata and the
+  position-filtered entities, aliases, facts, relationships, and recap events
+  for JSON/Markdown downloads. The position is inclusive. Do not include
+  chapter or paragraph text, future-derived counts, or data whose introduction
+  position exceeds the requested position. Relationships require both
+  endpoints to be known. Invalid positions and unknown books use the standard
+  `invalid_reading_position` and `book_not_found` error details.
 - Position is inclusive and must fall within the book's stored paragraph
   positions. An out-of-range position or a book with no readable paragraphs
   returns HTTP 422 with `invalid_reading_position`; an unknown book returns
@@ -193,6 +200,8 @@ evidence-based. Output language is configurable (default: German).
 - `GET /books/{id}/lookup?q=&position=`
 - `GET /books/{id}/recap?position=` (chronological event facts and
   characters seen so far, strictly filtered by position)
+- `GET /books/{id}/export?position=` (spoiler-filtered notes export; no
+  chapter/paragraph text)
 - Error details for book/position/search errors contain `code` and `message`;
   parameter errors use FastAPI's validation format.
 - OpenAPI schemas and interactive API documentation are generated
@@ -269,8 +278,19 @@ to `en`) to request another output language independently of the UI language.
 
 - Installable app, offline shell, error states, loading indicators, dark mode,
   data export (JSON/Markdown notes up to position X).
-- Acceptance: phone installation works and the app is usable on a small
-  display.
+- The service worker may cache only static application-shell assets. It must
+  not cache API responses, book text, notes, uploads, or other user data.
+  Library and reader data still require a connection to the backend.
+- Theme behavior follows the operating-system preference until the user
+  selects a light or dark theme; an explicit choice is persisted.
+- JSON and Markdown exports use an explicitly displayed inclusive reading
+  position. The backend filters exported data, and exporting must not change
+  saved reader progress or include chapter/paragraph text.
+- Acceptance: the production build emits the installable app shell and
+  referenced icons; automated tests cover offline messaging, theme
+  persistence, recoverable error states, and export spoiler boundaries.
+  Installability and responsive behavior must also be manually verified in a
+  supported mobile browser over HTTPS (or localhost).
 
 ### Phase 7: Quality and evaluation
 

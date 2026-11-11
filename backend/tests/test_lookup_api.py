@@ -252,3 +252,74 @@ def test_recap_reports_position_errors_unknown_books_and_empty_extraction(
     assert empty_recap.status_code == 200
     assert empty_recap.json()["events"] == []
     assert empty_recap.json()["characters"] == []
+
+
+def test_notes_export_contains_only_data_known_at_each_inclusive_position(
+    client: TestClient,
+) -> None:
+    book_id = create_lookup_book(client)
+
+    for position in range(6):
+        response = client.get(
+            f"/books/{book_id}/export",
+            params={"position": position},
+        )
+
+        assert response.status_code == 200
+        export = response.json()
+        assert export["book_id"] == book_id
+        assert export["position"] == position
+        assert export["title"] == "Synthetischer Roman"
+        assert "Absatz " not in response.text
+        assert "Geheimnis" not in response.text or position >= 4
+        assert "Frau Keller" not in response.text or position >= 4
+        assert "Marta kennt den geheimen Plan." not in response.text or position >= 5
+
+        for entity in export["entities"]:
+            assert entity["first_position"] <= position
+            assert all(alias["first_position"] <= position for alias in entity["aliases"])
+            assert all(fact["position"] <= position for fact in entity["facts"])
+        for relationship in export["relationships"]:
+            assert relationship["position"] <= position
+            assert relationship["entity_a"]["first_position"] <= position
+            assert relationship["entity_b"]["first_position"] <= position
+        assert all(event["position"] <= position for event in export["events"])
+
+    before_introduction = client.get(
+        f"/books/{book_id}/export",
+        params={"position": 3},
+    ).json()
+    assert [entity["canonical_name"] for entity in before_introduction["entities"]] == [
+        "Marta",
+        "Dorf",
+        "Lea",
+    ]
+    assert [relationship["label"] for relationship in before_introduction["relationships"]] == [
+        "lebt in"
+    ]
+
+
+def test_notes_export_validates_book_and_position_and_allows_empty_extraction(
+    client: TestClient,
+) -> None:
+    missing = client.get("/books/missing/export", params={"position": 0})
+    assert missing.status_code == 404
+    assert missing.json()["detail"]["code"] == "book_not_found"
+
+    book_id = create_lookup_book(client)
+    invalid_position = client.get(
+        f"/books/{book_id}/export",
+        params={"position": 6},
+    )
+    assert invalid_position.status_code == 422
+    assert invalid_position.json()["detail"]["code"] == "invalid_reading_position"
+
+    empty_book_id = create_lookup_book(client, with_extraction=False)
+    empty_export = client.get(
+        f"/books/{empty_book_id}/export",
+        params={"position": 0},
+    )
+    assert empty_export.status_code == 200
+    assert empty_export.json()["entities"] == []
+    assert empty_export.json()["relationships"] == []
+    assert empty_export.json()["events"] == []
