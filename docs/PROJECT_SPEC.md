@@ -206,6 +206,27 @@ evidence-based. Output language is configurable (default: German).
   characters seen so far, strictly filtered by position)
 - `GET /books/{id}/export?position=` (spoiler-filtered notes export; no
   chapter/paragraph text)
+- `GET /backup` downloads a version-1 JSON library backup; `POST /backup`
+  restores a multipart `file` and returns `{"restored": <book count>}`. Backup
+  is unfiltered and may contain spoilers. It includes notes, evidence excerpts,
+  reading progress, and extraction jobs/checkpoints, but not EPUB files or
+  stored paragraph text. Empty failed-parsing records are omitted; other
+  unrestorable records cause an error. Keep it private and restore only
+  trusted backups.
+- Restore requires each backed-up EPUB to have been uploaded already, with
+  the same SHA-256 and chapter/paragraph position layout. Restore atomically
+  replaces the metadata, progress, notes, and jobs of matching books; books not
+  in the backup are untouched. The client must confirm replacement before
+  submitting. Invalid data/version is rejected with HTTP 422, missing or
+  mismatched books and active jobs with HTTP 409, and oversized backups with
+  HTTP 413. No partial restore is performed.
+- Download and upload share a JSON size limit of `EPUB_MAX_UPLOAD_MB` minus
+  64 KiB, reserving room for normal multipart framing under the proxy's
+  request limit. Oversized multipart headers may still exceed the proxy limit.
+- Export validates persisted data for safe restoration. Export and restore reject
+  resumable checkpoints incompatible with current extraction block settings;
+  completed jobs remain portable across such setting changes. Inconsistent
+  stored data or incompatible checkpoints return HTTP 409.
 - Error details for book/position/search errors contain `code` and `message`;
   parameter errors use FastAPI's validation format.
 - OpenAPI schemas and interactive API documentation are generated

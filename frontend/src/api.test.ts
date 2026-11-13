@@ -10,6 +10,8 @@ import {
   getChapters,
   getReadingProgress,
   lookupBookEntity,
+  restoreBackup,
+  getBackup,
   startExtractionJob,
   uploadBook,
 } from "./api";
@@ -19,6 +21,34 @@ afterEach(() => {
 });
 
 describe("notes API client", () => {
+  it("downloads a backup without interpreting its contents", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"version":1}'));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await (await getBackup()).text()).toBe('{"version":1}');
+    expect(fetchMock).toHaveBeenCalledWith("/api/backup");
+  });
+
+  it("preserves structured backup download errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ detail: { code: "backup_jobs_active", message: "Wait" } }),
+      { status: 409 },
+    )));
+    await expect(getBackup()).rejects.toMatchObject({ code: "backup_jobs_active" });
+  });
+
+  it("uploads a backup and validates the restore response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"restored":2}'));
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["{}"], "backup.json", { type: "application/json" });
+    expect(await restoreBackup(file)).toEqual({ restored: 2 });
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe("/api/backup");
+    expect(options.method).toBe("POST");
+    expect(options.body.get("file")).toBe(file);
+    fetchMock.mockResolvedValueOnce(new Response('{"restored":"2"}'));
+    await expect(restoreBackup(file)).rejects.toThrow("invalid response");
+  });
+
   it("starts extraction with the optional chapter limit", async () => {
     const job = {
       id: "job-id",

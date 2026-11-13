@@ -3,9 +3,11 @@ import {
   Book,
   Chapter,
   ExtractionJob,
+  getBackup,
   getBookJobs,
   getBooks,
   getChapters,
+  restoreBackup,
   startExtractionJob,
   uploadBook,
 } from "./api";
@@ -52,6 +54,10 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [backupFile, setBackupFile] = useState<File | null>(null);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupError, setBackupError] = useState<string | null>(null);
+  const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const copy = translations[language];
@@ -153,6 +159,47 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     }
   }
 
+  async function downloadBackup() {
+    setBackupBusy(true);
+    setBackupError(null);
+    setBackupMessage(null);
+    try {
+      const blob = await getBackup();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "reading-assistant-backup.json";
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setBackupError(`${copy.backupDownloadFailed} ${getErrorMessage(error, copy)}`);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function submitBackup(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!backupFile || backupBusy || !window.confirm(copy.backupConfirm)) {
+      return;
+    }
+    const form = event.currentTarget;
+    setBackupBusy(true);
+    setBackupError(null);
+    setBackupMessage(null);
+    try {
+      await restoreBackup(backupFile);
+      setBackupFile(null);
+      form.reset();
+      setBackupMessage(copy.backupSuccess);
+      await refreshBooks();
+    } catch (error) {
+      setBackupError(`${copy.backupRestoreFailed} ${getErrorMessage(error, copy)}`);
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
   return (
     <main className="app-shell" lang={language}>
       <header className="app-header">
@@ -224,6 +271,36 @@ export function App({ updateServiceWorker }: AppProps = {}) {
       ) : (
         <section aria-labelledby="library-heading" className="library">
           <h2 id="library-heading">{copy.library}</h2>
+          <section aria-labelledby="backup-heading">
+            <h3 id="backup-heading">{copy.backupTitle}</h3>
+            <p>{copy.backupHelp}</p>
+            <button
+              type="button"
+              onClick={() => void downloadBackup()}
+              disabled={backupBusy || uploading}
+            >
+              {backupBusy ? copy.backupWorking : copy.backupDownload}
+            </button>
+            <form className="upload-form" onSubmit={submitBackup}>
+              <label htmlFor="backup-file">{copy.backupFile}</label>
+              <input
+                id="backup-file"
+                type="file"
+                accept=".json,application/json"
+                onChange={(event) => setBackupFile(event.currentTarget.files?.[0] ?? null)}
+                disabled={backupBusy || uploading}
+              />
+              <button type="submit" disabled={!backupFile || backupBusy || uploading}>
+                {copy.backupRestore}
+              </button>
+            </form>
+            {backupError && (
+              <p className="message error" role="alert">{backupError}</p>
+            )}
+            {backupMessage && (
+              <p className="message success" role="status">{backupMessage}</p>
+            )}
+          </section>
           <form className="upload-form" onSubmit={submitUpload}>
             <label htmlFor="book-file">{copy.chooseFile}</label>
             <input
@@ -233,9 +310,9 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               onChange={(event) =>
                 setSelectedFile(event.currentTarget.files?.[0] ?? null)
               }
-              disabled={uploading}
+              disabled={uploading || backupBusy}
             />
-            <button type="submit" disabled={!selectedFile || uploading}>
+            <button type="submit" disabled={!selectedFile || uploading || backupBusy}>
               {uploading ? copy.uploading : copy.upload}
             </button>
             <span className="file-name">
@@ -293,7 +370,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
                   <button
                     type="button"
                     onClick={() => setSelectedBook(book)}
-                    disabled={book.status === "error"}
+                    disabled={book.status === "error" || backupBusy}
                   >
                     {copy.openBook}
                   </button>
