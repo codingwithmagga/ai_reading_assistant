@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.backup import _lock_library
 from app.config import get_settings
 from app.database import SessionLocal, get_session
 from app.epub_parser import EpubParsingError, parse_epub
@@ -267,6 +268,8 @@ def start_extraction_job(
     background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
 ) -> Job:
+    if session.get_bind().dialect.name == "sqlite":
+        _lock_library(session)
     _require_book(session, book_id)
     try:
         job = create_extraction_job(session, book_id)

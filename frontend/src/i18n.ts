@@ -16,6 +16,25 @@ export const translations = {
     language: "Sprache",
     readerContent: "Buchtext",
     library: "Bibliothek",
+    backupTitle: "Bibliothek sichern und wiederherstellen",
+    backupHelp: "Das Backup enthält alle Notizen und kurze Textbelege, auch spätere Spoiler, aber keine EPUB-Dateien oder vollständigen Buchtexte. Bewahre es privat auf und importiere nur vertrauenswürdige Backups. Lade vor der Wiederherstellung alle ursprünglichen EPUB-Dateien erneut hoch.",
+    backupDownload: "Backup herunterladen",
+    backupFile: "Backup-Datei auswählen",
+    backupRestore: "Backup wiederherstellen",
+    backupWorking: "Backup wird verarbeitet …",
+    backupConfirm: "Vorhandene Notizen, Extraktionen und Lesepositionen der Bücher im Backup werden ersetzt. Fortfahren?",
+    backupSuccess: "Backup wurde wiederhergestellt.",
+    backupDownloadFailed: "Backup konnte nicht erstellt werden.",
+    backupRestoreFailed: "Backup konnte nicht wiederhergestellt werden.",
+    backupJobsActive: "Warte, bis alle laufenden Verarbeitungen abgeschlossen sind.",
+    backupBookMissing: "Lade zuerst für alle Bücher im Backup dieselben EPUB-Dateien hoch.",
+    backupLayoutMismatch: "Die Absatzstruktur des hochgeladenen EPUBs stimmt nicht mit dem Backup überein.",
+    backupInvalid: "Die Backup-Datei ist ungültig oder wird nicht unterstützt.",
+    backupTooLarge: "Das Backup überschreitet die erlaubte Größe.",
+    backupUnsupported: "Backups werden mit dieser Datenbank nicht unterstützt.",
+    backupCheckpointIncompatible: "Die Extraktionseinstellungen passen nicht zum gespeicherten Fortschritt.",
+    backupInconsistent: "Eines der Bücher im Backup hat Extraktionen oder Lesepositionen, aber keinen vollständig verarbeiteten Text. Lade das EPUB erneut hoch oder entferne das Buch über den Server.",
+    backupUnrestorable: "Ein Buch ohne lesbaren Inhalt kann nicht gesichert oder wiederhergestellt werden.",
     upload: "EPUB hochladen",
     chooseFile: "EPUB-Datei auswählen",
     noFile: "Keine Datei ausgewählt",
@@ -124,6 +143,25 @@ export const translations = {
     language: "Language",
     readerContent: "Book text",
     library: "Library",
+    backupTitle: "Back up and restore library",
+    backupHelp: "The backup contains all notes and short source excerpts, including future spoilers, but no EPUB files or complete book text. Keep it private and only restore trusted backups. Upload all original EPUB files again before restoring.",
+    backupDownload: "Download backup",
+    backupFile: "Choose a backup file",
+    backupRestore: "Restore backup",
+    backupWorking: "Processing backup …",
+    backupConfirm: "Existing notes, extractions and reading positions for books in the backup will be replaced. Continue?",
+    backupSuccess: "Backup restored.",
+    backupDownloadFailed: "Could not create backup.",
+    backupRestoreFailed: "Could not restore backup.",
+    backupJobsActive: "Wait until all active processing jobs have finished.",
+    backupBookMissing: "First upload the same EPUB files for all books in the backup.",
+    backupLayoutMismatch: "The uploaded EPUB's paragraph structure does not match the backup.",
+    backupInvalid: "The backup file is invalid or unsupported.",
+    backupTooLarge: "The backup exceeds the allowed size.",
+    backupUnsupported: "Backups are not supported with this database.",
+    backupCheckpointIncompatible: "The extraction settings do not match the saved progress.",
+    backupInconsistent: "One of the books in the backup has notes or reading progress but no fully parsed text. Re-upload the EPUB or remove the book via the server.",
+    backupUnrestorable: "A book without readable content cannot be backed up or restored.",
     upload: "Upload EPUB",
     chooseFile: "Choose an EPUB file",
     noFile: "No file selected",
@@ -237,6 +275,24 @@ export function getErrorMessage(error: unknown, copy: Copy): string {
         return copy.invalidEpub;
       case "book_not_found":
         return copy.serverBookNotFound;
+      case "backup_jobs_active":
+        return copy.backupJobsActive;
+      case "backup_book_missing":
+        return copy.backupBookMissing;
+      case "backup_layout_mismatch":
+        return copy.backupLayoutMismatch;
+      case "invalid_backup":
+        return copy.backupInvalid;
+      case "backup_too_large":
+        return copy.backupTooLarge;
+      case "backup_unsupported_database":
+        return copy.backupUnsupported;
+      case "backup_checkpoint_incompatible":
+        return copy.backupCheckpointIncompatible;
+      case "backup_inconsistent_data":
+        return copy.backupInconsistent;
+      case "backup_unrestorable_book":
+        return copy.backupUnrestorable;
       default:
         return error.code ? error.message || copy.apiError : copy.apiError;
     }

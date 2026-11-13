@@ -142,6 +142,75 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("downloads a backup without opening or rendering its contents", async () => {
+    const blob = new Blob(["backup"], { type: "application/json" });
+    vi.spyOn(api, "getBackup").mockResolvedValue(blob);
+    const createUrl = vi.fn().mockReturnValue("blob:backup");
+    const revokeUrl = vi.fn();
+    vi.stubGlobal("URL", Object.assign(URL, {
+      createObjectURL: createUrl,
+      revokeObjectURL: revokeUrl,
+    }));
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    fireEvent.click(screen.getByRole("button", { name: "Backup herunterladen" }));
+    await waitFor(() => expect(click).toHaveBeenCalledOnce());
+    expect(createUrl).toHaveBeenCalledWith(blob);
+    expect(revokeUrl).toHaveBeenCalledWith("blob:backup");
+    expect(screen.queryByText("backup")).not.toBeInTheDocument();
+  });
+
+  it("restores a selected backup only after confirmation and refreshes the library", async () => {
+    const restore = vi.spyOn(api, "restoreBackup").mockResolvedValue({ restored: 1 });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    const file = new File(["{}"], "backup.json", { type: "application/json" });
+    fireEvent.change(screen.getByLabelText("Backup-Datei auswählen"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Backup wiederherstellen" }));
+    expect(restore).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Backup wiederherstellen" }));
+    expect(await screen.findByText("Backup wurde wiederhergestellt.")).toBeInTheDocument();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(restore).toHaveBeenCalledWith(file);
+    expect(api.getBooks).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports backup restore errors without losing the selected file", async () => {
+    const restore = vi.spyOn(api, "restoreBackup").mockRejectedValue(new Error("failure"));
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    fireEvent.change(screen.getByLabelText("Backup-Datei auswählen"), {
+      target: { files: [new File(["bad"], "backup.json")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Backup wiederherstellen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Backup konnte nicht wiederhergestellt werden.");
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Backup wiederherstellen" })).toBeEnabled();
+  });
+
+  it("prevents opening books while a restore is running", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    let finishRestore!: (value: { restored: number }) => void;
+    vi.spyOn(api, "restoreBackup").mockReturnValue(
+      new Promise((resolve) => { finishRestore = resolve; }),
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<App />);
+    const open = await screen.findByRole("button", { name: "Lesen" });
+    fireEvent.change(screen.getByLabelText("Backup-Datei auswählen"), {
+      target: { files: [new File(["{}"], "backup.json")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Backup wiederherstellen" }));
+    expect(open).toBeDisabled();
+    await act(async () => finishRestore({ restored: 1 }));
+    expect(open).toBeEnabled();
+  });
+
   it("shows a first-load error without showing an empty-library state, then recovers", async () => {
     vi.mocked(api.getBooks)
       .mockReset()

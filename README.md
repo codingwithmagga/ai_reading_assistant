@@ -110,6 +110,29 @@ downloads use the active notes position; changing that position does not alter
 saved reader progress. Markdown output escapes book/model-provided text and
 download filenames are sanitized.
 
+### Backup and migration
+
+The library can download a versioned JSON backup of notes, short source
+excerpts, reading progress, and extraction jobs and checkpoints for all books.
+Unlike the notes export, it includes **all positions and spoilers**. Keep it
+private and restore only trusted backups: validation cannot prove imported
+notes are spoiler-free. The backup contains neither EPUBs nor complete book
+text. Empty records from failed EPUB parsing are omitted.
+
+On the new server, upload the exact same EPUB files, then select and confirm
+the backup in the library. Matching uses the EPUB SHA-256 and chapter and
+paragraph positions. Restore atomically replaces matching books' metadata,
+notes, jobs and progress; other books are untouched. All EPUBs in the backup
+must be present. Wait for active jobs to finish before backup or restore.
+Interrupted extraction checkpoints must match the configured extraction block
+settings. A restored failed extraction remains in the error state and can be
+resumed through the extraction API; the library has no resume control.
+
+The API uses `GET /api/backup` and multipart `POST /api/backup` with a `file`
+field. Backups currently require SQLite. The JSON size limit is
+`EPUB_MAX_UPLOAD_MB` minus 64 KiB for normal multipart framing. The existing
+position-filtered JSON and Markdown exports cannot be restored as backups.
+
 Reading positions are inclusive and must fall within the book's stored
 paragraph positions. `entities` supports `person`, `place`, `group`, `object`,
 and `concept`; entities and aliases are sorted deterministically and shown

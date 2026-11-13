@@ -382,6 +382,20 @@ function validateReadingPosition(position: number): void {
   }
 }
 
+function responseError(payload: unknown, status: number): ApiError {
+  const rawDetail = isRecord(payload) ? payload.detail : undefined;
+  const detail: ApiErrorDetail | undefined = isRecord(rawDetail)
+    ? {
+        code: typeof rawDetail.code === "string" ? rawDetail.code : undefined,
+        message: typeof rawDetail.message === "string" ? rawDetail.message : undefined,
+      }
+    : undefined;
+  return new ApiError(
+    detail?.message ?? `The request failed with status ${status}.`,
+    detail?.code,
+  );
+}
+
 async function requestJson<T>(
   path: string,
   isResponse: (value: unknown) => value is T,
@@ -404,18 +418,7 @@ async function requestJson<T>(
   }
 
   if (!response.ok) {
-    const rawDetail = isRecord(payload) ? payload.detail : undefined;
-    const detail: ApiErrorDetail | undefined = isRecord(rawDetail)
-      ? {
-          code: typeof rawDetail.code === "string" ? rawDetail.code : undefined,
-          message:
-            typeof rawDetail.message === "string" ? rawDetail.message : undefined,
-        }
-      : undefined;
-    throw new ApiError(
-      detail?.message ?? `The request failed with status ${response.status}.`,
-      detail?.code,
-    );
+    throw responseError(payload, response.status);
   }
 
   if (payload === undefined) {
@@ -437,6 +440,31 @@ export function uploadBook(file: File): Promise<UploadedBook> {
   const body = new FormData();
   body.append("file", file);
   return requestJson("/books", isUploadedBook, { method: "POST", body });
+}
+
+export async function getBackup(): Promise<Blob> {
+  const response = await fetch("/api/backup");
+  if (!response.ok) {
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw responseError(undefined, response.status);
+    }
+    throw responseError(payload, response.status);
+  }
+  return response.blob();
+}
+
+export function restoreBackup(file: File): Promise<{ restored: number }> {
+  const body = new FormData();
+  body.append("file", file);
+  return requestJson(
+    "/backup",
+    (value): value is { restored: number } =>
+      isRecord(value) && isNonNegativeInteger(value.restored),
+    { method: "POST", body },
+  );
 }
 
 export function getChapters(bookId: string): Promise<Chapter[]> {

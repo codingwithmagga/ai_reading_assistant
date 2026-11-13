@@ -29,6 +29,9 @@ to help contributors navigate the code.
   endpoints.
 - `app/book_queries.py` provides entity, lookup, recap, and position-bounded
   notes-export endpoints.
+- `app/backup.py` provides the explicitly unfiltered, private full-library
+  backup and atomic restore, validating book hashes, layouts, and references;
+  its schemas are in `app/backup_schemas.py`.
 - `app/epub_parser.py` parses EPUB input into ordered chapters and paragraphs.
 - `app/extraction_jobs.py`, `app/openai_extractor.py`,
   `app/extraction_schemas.py`, and `app/extraction_prompt.py` implement
@@ -50,6 +53,8 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 - `src/api.ts` defines typed backend requests and responses.
 - `src/notesExport.ts` formats validated export data as JSON or Markdown and
   triggers local downloads.
+- The library provides backup download and confirmed restore, distinct from
+  the reader's spoiler-filtered notes export.
 - `src/i18n.ts` contains UI translations and localized error helpers.
 
 Keep HTTP details in the API client where practical, and present book text as
