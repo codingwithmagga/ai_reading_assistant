@@ -136,7 +136,8 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
      accept positions invented by the model. Reject invalid references or
      assign them to the chapter position.
 3. **Progress and resumption:** Save job status per chapter so interrupted
-   runs can resume.
+   runs can resume. A job may stop at a selected chapter; a completed partial
+   run remains parsed and can be extended from its saved checkpoints.
 4. **Quality checks:** Schema validation, retry invalid JSON, and track token
    costs per book.
 
@@ -186,10 +187,13 @@ evidence-based. Output language is configurable (default: German).
 
 ## 8. API overview (FastAPI)
 
-- `POST /books` (EPUB upload) → starts parsing and extraction as a background
-  job.
+- `POST /books` (EPUB upload) → parses the EPUB and stores chapters and
+  paragraphs.
 - `GET /books`, `GET /books/{id}`, `DELETE /books/{id}`
 - `GET /books/{id}/jobs` (processing progress)
+- `POST /books/{id}/extraction-jobs` (start or resume AI extraction; optional
+  `max_chapter_index` bounds work through that chapter, inclusive; omit or pass
+  `null` to extract the whole book)
 - `GET /books/{id}/chapters`
 - `GET /books/{id}/content/{chapter_id}` (chapter metadata and ordered
   paragraphs; clients render book content as text, not executable HTML)

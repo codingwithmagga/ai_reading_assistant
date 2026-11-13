@@ -119,6 +119,30 @@ def test_extraction_job_api_reports_missing_and_unready_books(client: TestClient
     assert start_response.json()["detail"]["code"] == "book_not_ready_for_extraction"
 
 
+def test_extraction_job_api_accepts_a_chapter_limit(client: TestClient) -> None:
+    response = client.post(
+        "/books",
+        files={"file": ("sample.epub", build_test_epub(), "application/epub+zip")},
+    )
+    book_id = response.json()["id"]
+    chapters = client.get(f"/books/{book_id}/chapters").json()
+
+    start_response = client.post(
+        f"/books/{book_id}/extraction-jobs",
+        json={"max_chapter_index": chapters[0]["index"]},
+    )
+
+    assert start_response.status_code == 202
+    assert start_response.json()["max_chapter_index"] == chapters[0]["index"]
+
+    invalid_limit = client.post(
+        f"/books/{book_id}/extraction-jobs",
+        json={"max_chapter_index": len(chapters) + 10},
+    )
+    assert invalid_limit.status_code == 409
+    assert invalid_limit.json()["detail"]["code"] == "book_not_ready_for_extraction"
+
+
 def test_extraction_job_api_recovers_expired_worker_lease(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

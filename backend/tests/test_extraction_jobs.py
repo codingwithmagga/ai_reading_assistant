@@ -172,6 +172,36 @@ def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: 
     assert aliases[0].first_position == 0
 
 
+def test_job_can_stop_at_a_chapter_and_continue_without_reprocessing(
+    session: Session,
+) -> None:
+    book = _create_parsed_book(session)
+    job = create_extraction_job(session, book.id, max_chapter_index=0)
+    first_worker = FakeExtractor()
+
+    partial = _run(session, job, first_worker)
+
+    assert partial.status == "completed"
+    assert partial.progress == 100
+    assert partial.max_chapter_index == 0
+    assert partial.last_completed_chapter_index == 0
+    assert book.status == "parsed"
+    assert len(first_worker.calls) == 2
+
+    continued = create_extraction_job(session, book.id, max_chapter_index=1)
+    assert continued.id == job.id
+    assert continued.status == "pending"
+    second_worker = FakeExtractor()
+
+    completed = _run(session, continued, second_worker)
+
+    assert completed.status == "completed"
+    assert completed.max_chapter_index == 1
+    assert completed.last_completed_chapter_index == 1
+    assert book.status == "ready"
+    assert len(second_worker.calls) == 1
+
+
 def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
     session: Session,
 ) -> None:
