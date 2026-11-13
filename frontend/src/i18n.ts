@@ -1,4 +1,4 @@
-import { ApiError } from "./api";
+import { ApiError, ExtractionJobStatus } from "./api";
 
 export const translations = {
   de: {
@@ -86,6 +86,24 @@ export const translations = {
     uploadTooLarge: "Die EPUB-Datei überschreitet die erlaubte Größe.",
     invalidEpub: "Die Datei ist kein gültiges, lesbares EPUB.",
     serverBookNotFound: "Das Buch wurde nicht gefunden.",
+    extractionCheck: "Extraktionsstatus wird geprüft …",
+    extractionThrough: "Extraktion bis",
+    allChapters: "Alle Kapitel",
+    startExtraction: "Extraktion starten",
+    retryExtraction: "Extraktion erneut versuchen",
+    continueExtraction: "Extraktion fortsetzen",
+    extractionStatus: "KI-Extraktion",
+    extractionProgress: "Extraktionsfortschritt",
+    extractionFailed:
+      "Die KI-Extraktion ist fehlgeschlagen. Du kannst sie erneut versuchen; bereits abgeschlossene Kapitel werden fortgesetzt.",
+    extractionRequestFailed: "Die KI-Extraktion konnte nicht gestartet werden.",
+    extractionStatusFailed: "Der Extraktionsstatus konnte nicht geladen werden.",
+    extractionStatuses: {
+      pending: "Wartet",
+      running: "Läuft",
+      completed: "Abgeschlossen",
+      error: "Fehler",
+    },
     notesPanel: "Notizen und Nachschlagen",
     exportNotes: "Notizen exportieren",
     exportingNotes: "Export wird erstellt …",
@@ -213,6 +231,24 @@ export const translations = {
     uploadTooLarge: "The EPUB file exceeds the allowed size.",
     invalidEpub: "The file is not a valid, readable EPUB.",
     serverBookNotFound: "The book could not be found.",
+    extractionCheck: "Checking extraction status …",
+    extractionThrough: "Extract through",
+    allChapters: "All chapters",
+    startExtraction: "Start extraction",
+    retryExtraction: "Retry extraction",
+    continueExtraction: "Continue extraction",
+    extractionStatus: "AI extraction",
+    extractionProgress: "Extraction progress",
+    extractionFailed:
+      "AI extraction failed. You can retry; already completed chapters will be resumed.",
+    extractionRequestFailed: "AI extraction could not be started.",
+    extractionStatusFailed: "Extraction status could not be loaded.",
+    extractionStatuses: {
+      pending: "Waiting",
+      running: "Running",
+      completed: "Completed",
+      error: "Error",
+    },
     notesPanel: "Notes and lookup",
     exportNotes: "Export notes",
     exportingNotes: "Preparing export …",
@@ -259,6 +295,7 @@ export const translations = {
 
 export type Language = keyof typeof translations;
 export type Copy = (typeof translations)[Language];
+export type ExtractionStatusCopy = Record<ExtractionJobStatus, string>;
 
 export function isLanguage(value: string): value is Language {
   return Object.prototype.hasOwnProperty.call(translations, value);

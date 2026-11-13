@@ -87,7 +87,10 @@ text are stored. The API also provides `GET /api/books`, `GET /api/books/{id}`,
 `GET /api/books/{id}/content/{chapter_id}`. Start extraction with
 `POST /api/books/{id}/extraction-jobs` (HTTP 202); status, safe error details,
 and token counts are available from `GET /api/books/{id}/jobs`. Starting a
-second active job returns HTTP 409. OpenAPI schemas and interactive
+second active job returns HTTP 409. The extraction request may include
+`{"max_chapter_index": 2}` to stop after that zero-based chapter; omit the body
+or pass `null` to extract the whole book. Partial jobs can be extended later
+without reprocessing completed chapter blocks. OpenAPI schemas and interactive
 documentation are available at <http://localhost:8080/api/docs>.
 
 Query endpoints enforce the reading position on the server. For example, the

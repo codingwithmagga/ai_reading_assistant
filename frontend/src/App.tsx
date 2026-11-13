@@ -1,7 +1,19 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Book, getBackup, getBooks, restoreBackup, uploadBook } from "./api";
+import {
+  Book,
+  Chapter,
+  ExtractionJob,
+  getBackup,
+  getBookJobs,
+  getBooks,
+  getChapters,
+  restoreBackup,
+  startExtractionJob,
+  uploadBook,
+} from "./api";
 import { Reader } from "./Reader";
 import {
+  Copy,
   Language,
   getErrorMessage,
   getSavedLanguage,
@@ -352,6 +364,9 @@ export function App({ updateServiceWorker }: AppProps = {}) {
                       {copy.status}: {getStatusLabel(book.status, copy)}
                     </p>
                   </div>
+                  {["parsed", "extracting", "error", "ready"].includes(
+                    book.status,
+                  ) && <ExtractionControls book={book} copy={copy} />}
                   <button
                     type="button"
                     onClick={() => setSelectedBook(book)}
@@ -366,5 +381,203 @@ export function App({ updateServiceWorker }: AppProps = {}) {
         </section>
       )}
     </main>
+  );
+}
+
+interface ExtractionControlsProps {
+  book: Book;
+  copy: Copy;
+}
+
+function ExtractionControls({ book, copy }: ExtractionControlsProps) {
+  const [chapters, setChapters] = useState<Chapter[] | null>(null);
+  const [job, setJob] = useState<ExtractionJob | null>(null);
+  const [chapterLimit, setChapterLimit] = useState("all");
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const startingRef = useRef(false);
+  const isActive = job?.status === "pending" || job?.status === "running";
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    Promise.all([getChapters(book.id), getBookJobs(book.id)])
+      .then(([bookChapters, jobs]) => {
+        if (!active) {
+          return;
+        }
+        const extractionJob = jobs.find((item) => item.type === "extraction") ?? null;
+        setChapters(bookChapters);
+        setJob(extractionJob);
+        setChapterLimit(
+          extractionJob !== null &&
+            extractionJob.status !== "completed" &&
+            extractionJob.max_chapter_index !== null
+            ? String(extractionJob.max_chapter_index)
+            : "all",
+        );
+        setError(null);
+      })
+      .catch(() => {
+        if (active) {
+          setError(copy.extractionStatusFailed);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [book.id, copy]);
+
+  useEffect(() => {
+    if (!isActive) {
+      return;
+    }
+
+    let active = true;
+    const poll = async () => {
+      try {
+        const jobs = await getBookJobs(book.id);
+        if (active) {
+          const extractionJob =
+            jobs.find((item) => item.type === "extraction") ?? null;
+          setJob(extractionJob);
+          if (extractionJob?.status === "completed") {
+            setChapterLimit("all");
+          }
+          setError(null);
+        }
+      } catch {
+        if (active) {
+          setError(copy.extractionStatusFailed);
+        }
+      }
+    };
+    const interval = window.setInterval(() => void poll(), 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [book.id, copy, isActive]);
+
+  async function submitExtraction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (startingRef.current || !chapters?.length) {
+      return;
+    }
+
+    startingRef.current = true;
+    setStarting(true);
+    setError(null);
+    const maxChapterIndex =
+      chapterLimit === "all" ? null : Number(chapterLimit);
+    try {
+      setJob(await startExtractionJob(book.id, maxChapterIndex));
+    } catch (requestError) {
+      setError(
+        `${copy.extractionRequestFailed} ${getErrorMessage(requestError, copy)}`,
+      );
+    } finally {
+      startingRef.current = false;
+      setStarting(false);
+    }
+  }
+
+  const lastChapter = chapters?.[chapters.length - 1];
+  const extractionComplete =
+    job?.status === "completed" &&
+    (job.max_chapter_index === null ||
+      (lastChapter !== undefined && job.max_chapter_index >= lastChapter.index));
+  const canStart =
+    !loading &&
+    !isActive &&
+    !extractionComplete &&
+    Boolean(chapters?.length) &&
+    (book.status === "parsed" ||
+      job?.status === "error" ||
+      job?.status === "completed");
+  const submitLabel = starting
+    ? copy.extractionCheck
+    : job?.status === "error"
+      ? copy.retryExtraction
+      : job?.status === "completed"
+        ? copy.continueExtraction
+        : copy.startExtraction;
+
+  return (
+    <div className="extraction-controls">
+      {loading && (
+        <p role="status" aria-live="polite">
+          {copy.extractionCheck}
+        </p>
+      )}
+      {error && (
+        <p className="message error" role="alert">
+          {error}
+        </p>
+      )}
+      {job && (
+        <div className="extraction-status" aria-live="polite">
+          <p>
+            {copy.extractionStatus}: {copy.extractionStatuses[job.status]}
+          </p>
+          <div className="extraction-progress">
+            <progress
+              max={100}
+              value={job.progress}
+              aria-label={copy.extractionProgress}
+            />
+            <span>{job.progress}%</span>
+          </div>
+          {job.status === "error" && (
+            <p className="message error" role="alert">
+              {copy.extractionFailed}
+            </p>
+          )}
+        </div>
+      )}
+      {canStart && chapters && (
+        <form className="extraction-form" onSubmit={submitExtraction}>
+          <label htmlFor={`extraction-limit-${book.id}`}>
+            {copy.extractionThrough}
+          </label>
+          <select
+            id={`extraction-limit-${book.id}`}
+            value={chapterLimit}
+            onChange={(event) => setChapterLimit(event.currentTarget.value)}
+            disabled={starting}
+          >
+            <option value="all">{copy.allChapters}</option>
+            {chapters
+              .filter((chapter) => {
+                if (job?.status === "error") {
+                  return (
+                    job.max_chapter_index !== null &&
+                    chapter.index >= job.max_chapter_index
+                  );
+                }
+                if (job?.status === "completed" && job.max_chapter_index !== null) {
+                  return chapter.index > job.max_chapter_index;
+                }
+                return true;
+              })
+              .map((chapter) => (
+                <option key={chapter.id} value={chapter.index}>
+                  {chapter.title ?? `${copy.chapter} ${chapter.index + 1}`}
+                </option>
+              ))}
+          </select>
+          <button type="submit" disabled={starting}>
+            {submitLabel}
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 from alembic.config import Config
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -207,6 +207,81 @@ def test_extraction_migration_can_be_downgraded_and_reapplied(
         assert "current_position" in {
             column["name"] for column in inspect(engine).get_columns("books")
         }
+    finally:
+        engine.dispose()
+
+
+@pytest.mark.parametrize("direction", ["upgrade", "downgrade"])
+@pytest.mark.parametrize("fail_restore", [False, True])
+def test_chapter_limit_migration_preserves_checkpoints(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    direction: str,
+    fail_restore: bool,
+) -> None:
+    database_url = f"sqlite:///{(tmp_path / 'checkpoints.db').as_posix()}"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+    get_settings.cache_clear()
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("script_location", str(BACKEND_DIR / "alembic"))
+    command.upgrade(config, "0005_reading_progress" if direction == "upgrade" else "head")
+
+    engine = create_database_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar_one() == 1
+            connection.execute(text(
+                "INSERT INTO books (id, title, created_at, status, source_hash) "
+                "VALUES ('book', 'Test', '2026-01-01', 'parsed', 'hash')"
+            ))
+            connection.execute(text(
+                "INSERT INTO jobs (id, book_id, type, status, progress, created_at) "
+                "VALUES ('job', 'book', 'extraction', 'error', 50, '2026-01-01')"
+            ))
+            connection.execute(text(
+                "INSERT INTO extraction_checkpoints "
+                "(id, job_id, chapter_index, block_index, first_paragraph_position, "
+                "paragraph_count, result_json, input_tokens, output_tokens, created_at) "
+                "VALUES ('checkpoint', 'job', 2, 1, 10, 3, '{}', 100, 20, '2026-01-01')"
+            ))
+            before = connection.exec_driver_sql("SELECT * FROM extraction_checkpoints").all()
+            if fail_restore:
+                connection.exec_driver_sql(
+                    "CREATE TRIGGER reject_checkpoint_restore "
+                    "BEFORE INSERT ON extraction_checkpoints "
+                    "BEGIN SELECT RAISE(ABORT, 'checkpoint restore failed'); END"
+                )
+
+        def migrate() -> None:
+            if direction == "upgrade":
+                command.upgrade(config, "head")
+            else:
+                command.downgrade(config, "0005_reading_progress")
+
+        if fail_restore:
+            with pytest.raises(IntegrityError, match="checkpoint restore failed"):
+                migrate()
+        else:
+            migrate()
+
+        with engine.begin() as connection:
+            after = connection.exec_driver_sql("SELECT * FROM extraction_checkpoints").all()
+            assert after == before
+            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+            assert connection.exec_driver_sql("SELECT id FROM jobs").scalar_one() == "job"
+            has_limit = (direction == "upgrade") != fail_restore
+            assert ("max_chapter_index" in {
+                column["name"] for column in inspect(connection).get_columns("jobs")
+            }) == has_limit
+            if has_limit:
+                assert connection.exec_driver_sql(
+                    "SELECT max_chapter_index FROM jobs"
+                ).scalar_one() is None
+                with pytest.raises(IntegrityError):
+                    connection.exec_driver_sql("UPDATE jobs SET max_chapter_index = -1")
+                connection.exec_driver_sql("UPDATE jobs SET max_chapter_index = 0")
+            connection.exec_driver_sql("DELETE FROM jobs WHERE id = 'job'")
+            assert connection.exec_driver_sql("SELECT * FROM extraction_checkpoints").all() == []
     finally:
         engine.dispose()
 

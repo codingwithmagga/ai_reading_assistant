@@ -13,6 +13,24 @@ export interface UploadedBook extends Book {
   error: string | null;
 }
 
+export type ExtractionJobStatus = "pending" | "running" | "completed" | "error";
+
+export interface ExtractionJob {
+  id: string;
+  book_id: string;
+  type: string;
+  status: ExtractionJobStatus;
+  progress: number;
+  max_chapter_index: number | null;
+  last_completed_chapter_index: number | null;
+  last_completed_block_index: number | null;
+  error_code: string | null;
+  error: string | null;
+  input_tokens: number;
+  output_tokens: number;
+  created_at: string;
+}
+
 export interface Chapter {
   id: string;
   book_id: string;
@@ -151,6 +169,10 @@ function isNonNegativeInteger(value: unknown): value is number {
   );
 }
 
+function isNullableNonNegativeInteger(value: unknown): value is number | null {
+  return value === null || isNonNegativeInteger(value);
+}
+
 function isArrayOf<T>(
   value: unknown,
   isItem: (item: unknown) => item is T,
@@ -176,6 +198,29 @@ function isUploadedBook(value: unknown): value is UploadedBook {
     isString(value.source_hash) &&
     typeof value.reused === "boolean" &&
     isNullableString(value.error)
+  );
+}
+
+function isExtractionJob(value: unknown): value is ExtractionJob {
+  return (
+    isRecord(value) &&
+    isString(value.id) &&
+    isString(value.book_id) &&
+    isString(value.type) &&
+    (value.status === "pending" ||
+      value.status === "running" ||
+      value.status === "completed" ||
+      value.status === "error") &&
+    isNonNegativeInteger(value.progress) &&
+    value.progress <= 100 &&
+    isNullableNonNegativeInteger(value.max_chapter_index) &&
+    isNullableNonNegativeInteger(value.last_completed_chapter_index) &&
+    isNullableNonNegativeInteger(value.last_completed_block_index) &&
+    isNullableString(value.error_code) &&
+    isNullableString(value.error) &&
+    isNonNegativeInteger(value.input_tokens) &&
+    isNonNegativeInteger(value.output_tokens) &&
+    isString(value.created_at)
   );
 }
 
@@ -464,6 +509,34 @@ export function restoreBackup(file: File): Promise<{ restored: number }> {
     (value): value is { restored: number } =>
       isRecord(value) && isNonNegativeInteger(value.restored),
     { method: "POST", body },
+  );
+}
+
+export function getBookJobs(bookId: string): Promise<ExtractionJob[]> {
+  return requestJson(
+    `/books/${encodeURIComponent(bookId)}/jobs`,
+    (value): value is ExtractionJob[] => isArrayOf(value, isExtractionJob),
+  );
+}
+
+export function startExtractionJob(
+  bookId: string,
+  maxChapterIndex: number | null,
+): Promise<ExtractionJob> {
+  if (
+    maxChapterIndex !== null &&
+    (!Number.isSafeInteger(maxChapterIndex) || maxChapterIndex < 0)
+  ) {
+    throw new RangeError("Chapter index must be a non-negative safe integer.");
+  }
+  return requestJson(
+    `/books/${encodeURIComponent(bookId)}/extraction-jobs`,
+    isExtractionJob,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ max_chapter_index: maxChapterIndex }),
+    },
   );
 }
 

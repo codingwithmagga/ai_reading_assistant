@@ -147,6 +147,10 @@ class Job(Base):
             "input_tokens >= 0 AND output_tokens >= 0",
             name="ck_jobs_token_counts_nonnegative",
         ),
+        CheckConstraint(
+            "max_chapter_index IS NULL OR max_chapter_index >= 0",
+            name="ck_jobs_max_chapter_index_nonnegative",
+        ),
         Index(
             "uq_jobs_active_extraction_book",
             "book_id",
@@ -166,6 +170,7 @@ class Job(Base):
     progress: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    max_chapter_index: Mapped[int | None] = mapped_column(Integer)
     last_completed_chapter_index: Mapped[int | None] = mapped_column(Integer)
     last_completed_block_index: Mapped[int | None] = mapped_column(Integer)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

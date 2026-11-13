@@ -47,7 +47,7 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 ## Frontend responsibilities
 
 - `src/App.tsx` handles the library, upload, language selection, and view
-  selection.
+  selection, including extraction start/resume controls and job progress.
 - `src/Reader.tsx` handles chapter display, saved/manual reading positions,
   lookup, characters, and recap.
 - `src/api.ts` defines typed backend requests and responses.
@@ -59,6 +59,10 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 
 Keep HTTP details in the API client where practical, and present book text as
 text rather than executable HTML.
+
+Parsed books can start extraction through the library. Job progress is polled
+while pending or running; chapter-bounded jobs can resume or extend from their
+saved chapter-block checkpoints.
 
 ## Position and spoiler boundary
 

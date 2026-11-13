@@ -29,6 +29,7 @@ from app.schemas import (
     BookResponse,
     ChapterContentResponse,
     ChapterResponse,
+    ExtractionJobStartRequest,
     JobResponse,
     ReadingProgressResponse,
     ReadingProgressUpdate,
@@ -266,13 +267,18 @@ def update_reading_progress(
 def start_extraction_job(
     book_id: str,
     background_tasks: BackgroundTasks,
+    request: ExtractionJobStartRequest | None = None,
     session: Session = Depends(get_session),
 ) -> Job:
     if session.get_bind().dialect.name == "sqlite":
         _lock_library(session)
     _require_book(session, book_id)
     try:
-        job = create_extraction_job(session, book_id)
+        job = create_extraction_job(
+            session,
+            book_id,
+            max_chapter_index=request.max_chapter_index if request else None,
+        )
     except ExtractionJobAlreadyActiveError as error:
         raise HTTPException(
             status_code=409,
@@ -290,7 +296,8 @@ def start_extraction_job(
             },
         ) from error
 
-    background_tasks.add_task(run_extraction_job_background, job.id)
+    if job.status == "pending":
+        background_tasks.add_task(run_extraction_job_background, job.id)
     return job
 
 

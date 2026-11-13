@@ -19,6 +19,22 @@ const book: api.Book = {
   status: "parsed",
 };
 
+const extractionJob: api.ExtractionJob = {
+  id: "job-1",
+  book_id: book.id,
+  type: "extraction",
+  status: "pending",
+  progress: 0,
+  max_chapter_index: null,
+  last_completed_chapter_index: null,
+  last_completed_block_index: null,
+  error_code: null,
+  error: null,
+  input_tokens: 0,
+  output_tokens: 0,
+  created_at: "2026-11-11T00:00:00Z",
+};
+
 let systemThemeListener: ((event: MediaQueryListEvent) => void) | undefined;
 
 beforeEach(() => {
@@ -53,6 +69,8 @@ beforeEach(() => {
     }),
   );
   vi.spyOn(api, "getBooks").mockResolvedValue([]);
+  vi.spyOn(api, "getBookJobs").mockResolvedValue([]);
+  vi.spyOn(api, "startExtractionJob").mockResolvedValue(extractionJob);
   vi.spyOn(api, "uploadBook").mockResolvedValue({
     ...book,
     source_hash: "test-hash",
@@ -211,6 +229,158 @@ describe("App", () => {
     expect(open).toBeEnabled();
   });
 
+  it("starts extraction for a parsed book through the selected chapter", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+      {
+        id: "chapter-2",
+        book_id: book.id,
+        index: 1,
+        title: "Second chapter",
+        start_position: 2,
+        end_position: 3,
+      },
+    ]);
+
+    render(<App />);
+
+    const extractionLimit = await screen.findByLabelText("Extraktion bis");
+    fireEvent.change(extractionLimit, { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Extraktion starten" }));
+
+    await waitFor(() => {
+      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1);
+    });
+    expect(await screen.findByText(/Wartet/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
+    ).toHaveAttribute("value", "0");
+    expect(
+      screen.queryByRole("button", { name: "Extraktion starten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows active extraction status and progress without another start action", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getBookJobs).mockResolvedValue([
+      { ...extractionJob, status: "running", progress: 35 },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText(/Läuft/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
+    ).toHaveAttribute("value", "35");
+    expect(screen.queryByLabelText("Extraktion bis")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Extraktion starten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains an extraction error and retries the failed chapter limit", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getBookJobs).mockResolvedValue([
+      {
+        ...extractionJob,
+        status: "error",
+        max_chapter_index: 0,
+        error_code: "OpenAIError",
+        error: "Internal provider detail",
+      },
+    ]);
+    vi.mocked(api.startExtractionJob).mockResolvedValue({
+      ...extractionJob,
+      max_chapter_index: 0,
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die KI-Extraktion ist fehlgeschlagen.",
+    );
+    expect(screen.getByRole("alert")).not.toHaveTextContent(
+      "Internal provider detail",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Extraktion erneut versuchen" }));
+
+    await waitFor(() => {
+      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 0);
+    });
+  });
+
+  it("does not offer extraction for a book that has not been parsed", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([{ ...book, status: "parsing" }]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByRole("heading", { name: "Test Book" })).toBeVisible();
+    expect(screen.queryByLabelText("Extraktion bis")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Extraktion starten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("translates extraction controls into English", async () => {
+    window.localStorage.setItem("ui-language", "en");
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByLabelText("Extract through")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Start extraction" }),
+    ).toBeInTheDocument();
+  });
+
   it("shows a first-load error without showing an empty-library state, then recovers", async () => {
     vi.mocked(api.getBooks)
       .mockReset()
@@ -261,6 +431,7 @@ describe("App", () => {
   it("offers a retry when the reader cannot load chapters", async () => {
     vi.mocked(api.getBooks).mockResolvedValue([book]);
     vi.mocked(api.getChapters)
+      .mockResolvedValueOnce([])
       .mockRejectedValueOnce(new Error("server unavailable"))
       .mockResolvedValueOnce([]);
 
@@ -275,7 +446,7 @@ describe("App", () => {
 
     expect(await screen.findByText(/keine lesbaren Kapitel/)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(api.getChapters).toHaveBeenCalledTimes(2);
+    expect(api.getChapters).toHaveBeenCalledTimes(3);
   });
 
   it("follows the system theme until a user choice is saved", () => {
