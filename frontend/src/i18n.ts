@@ -94,8 +94,16 @@ export const translations = {
     continueExtraction: "Extraktion fortsetzen",
     extractionStatus: "KI-Extraktion",
     extractionProgress: "Extraktionsfortschritt",
+    extractionErrorReference: "Fehlerreferenz",
     extractionFailed:
-      "Die KI-Extraktion ist fehlgeschlagen. Du kannst sie erneut versuchen; bereits abgeschlossene Kapitel werden fortgesetzt.",
+      "Die KI-Extraktion ist fehlgeschlagen. Bereits abgeschlossene Textblöcke bleiben erhalten.",
+    extractionErrorConfig: "Der OpenAI-API-Schlüssel fehlt in der Serverkonfiguration.",
+    extractionErrorAuthentication: "Die Anmeldung bei OpenAI ist fehlgeschlagen. Prüfe den API-Schlüssel.",
+    extractionErrorLimit: "OpenAI hat ein Limit oder Kontingent erreicht. Prüfe Limits und Guthaben.",
+    extractionErrorConnection: "Die Verbindung zu OpenAI ist fehlgeschlagen oder hat zu lange gedauert.",
+    extractionErrorResponse: "OpenAI hat nach mehreren Versuchen eine ungültige Antwort geliefert.",
+    extractionErrorProcessing: "Bei der Verarbeitung oder Validierung der Extraktion ist ein Fehler aufgetreten. Details zur Fehlerstelle stehen im Backend-Log.",
+    extractionErrorProvider: "Der KI-Anbieter hat die Anfrage nicht erfolgreich verarbeitet. Prüfe das Backend-Log.",
     extractionRequestFailed: "Die KI-Extraktion konnte nicht gestartet werden.",
     extractionStatusFailed: "Der Extraktionsstatus konnte nicht geladen werden.",
     extractionStatuses: {
@@ -239,8 +247,16 @@ export const translations = {
     continueExtraction: "Continue extraction",
     extractionStatus: "AI extraction",
     extractionProgress: "Extraction progress",
+    extractionErrorReference: "Error reference",
     extractionFailed:
-      "AI extraction failed. You can retry; already completed chapters will be resumed.",
+      "AI extraction failed. Completed text blocks remain saved.",
+    extractionErrorConfig: "The OpenAI API key is missing from the server configuration.",
+    extractionErrorAuthentication: "OpenAI authentication failed. Check the API key.",
+    extractionErrorLimit: "An OpenAI rate limit or quota was reached. Check limits and billing.",
+    extractionErrorConnection: "The connection to OpenAI failed or timed out.",
+    extractionErrorResponse: "OpenAI returned an invalid response after multiple attempts.",
+    extractionErrorProcessing: "An error occurred while processing or validating extraction. The backend log identifies the failure location.",
+    extractionErrorProvider: "The AI provider could not process the request. Check the backend log.",
     extractionRequestFailed: "AI extraction could not be started.",
     extractionStatusFailed: "Extraction status could not be loaded.",
     extractionStatuses: {
@@ -299,6 +315,35 @@ export type ExtractionStatusCopy = Record<ExtractionJobStatus, string>;
 
 export function isLanguage(value: string): value is Language {
   return Object.prototype.hasOwnProperty.call(translations, value);
+}
+
+export function getExtractionErrorMessage(code: string | null, copy: Copy): string | null {
+  switch (code) {
+    case "ExtractionConfigurationError":
+      return copy.extractionErrorConfig;
+    case "AuthenticationError":
+    case "PermissionDeniedError":
+      return copy.extractionErrorAuthentication;
+    case "RateLimitError":
+      return copy.extractionErrorLimit;
+    case "APIConnectionError":
+    case "APITimeoutError":
+      return copy.extractionErrorConnection;
+    case "InvalidExtractionOutputError":
+      return copy.extractionErrorResponse;
+    case "ValueError":
+    case "ValidationError":
+    case "ExtractionBookNotReadyError":
+      return copy.extractionErrorProcessing;
+    case "APIError":
+    case "APIStatusError":
+    case "BadRequestError":
+    case "InternalServerError":
+    case "OpenAIError":
+      return copy.extractionErrorProvider;
+    default:
+      return null;
+  }
 }
 
 export function getErrorMessage(error: unknown, copy: Copy): string {

@@ -62,7 +62,9 @@ text rather than executable HTML.
 
 Parsed books can start extraction through the library. Job progress is polled
 while pending or running; chapter-bounded jobs can resume or extend from their
-saved chapter-block checkpoints.
+saved chapter-block checkpoints. Extraction errors are shown using safe,
+localized categories; backend logs record job IDs, exception types, and stack
+locations without exception messages, model output, or book text.
 
 ## Position and spoiler boundary
 

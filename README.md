@@ -93,6 +93,13 @@ or pass `null` to extract the whole book. Partial jobs can be extended later
 without reprocessing completed chapter blocks. OpenAPI schemas and interactive
 documentation are available at <http://localhost:8080/api/docs>.
 
+On extraction failure, the library displays a safe error category and job
+reference. For diagnostics, `docker compose logs backend` includes the job ID,
+exception type, and source locations; it does not log the exception message,
+model output, book text, or API key. Existing logs cannot recover details of
+failures that occurred before this diagnostic logging was enabled. Retrying
+continues from saved blocks and may incur further API charges.
+
 Query endpoints enforce the reading position on the server. For example, the
 recap returns supported event facts and characters introduced through position
 42:

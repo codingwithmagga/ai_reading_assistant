@@ -1,6 +1,7 @@
 import logging
+import traceback
 from hashlib import sha256
-from pathlib import PurePath
+from pathlib import Path, PurePath
 
 from fastapi import (
     APIRouter,
@@ -316,9 +317,15 @@ def run_extraction_job_background(job_id: str) -> None:
         with SessionLocal() as session:
             process_extraction_job(session, job_id)
     except Exception as error:
+        location = " -> ".join(
+            f"{Path(frame.f_code.co_filename).name}:{line}:{frame.f_code.co_name}"
+            for frame, line in traceback.walk_tb(error.__traceback__)
+        )
         logger.error(
-            "Extraction background job failed",
-            extra={"job_id": job_id, "error_code": type(error).__name__},
+            "Extraction background job failed: job_id=%s error_type=%s frames=%s",
+            job_id,
+            type(error).__name__,
+            location or "unavailable",
         )
 
 

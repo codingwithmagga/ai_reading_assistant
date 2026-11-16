@@ -137,7 +137,9 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
      assign them to the chapter position.
 3. **Progress and resumption:** Save job status per chapter so interrupted
    runs can resume. A job may stop at a selected chapter; a completed partial
-   run remains parsed and can be extended from its saved checkpoints.
+   run remains parsed and can be extended from its saved checkpoints. Show
+   safe, localized extraction error categories and a job reference. Diagnostic
+   logs must not include book text, model output, exception messages, or keys.
 4. **Quality checks:** Schema validation, retry invalid JSON, and track token
    costs per book.
 

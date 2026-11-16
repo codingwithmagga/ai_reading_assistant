@@ -337,6 +337,30 @@ describe("App", () => {
     });
   });
 
+  it.each([
+    ["ExtractionConfigurationError", "OpenAI-API-Schlüssel"],
+    ["InvalidExtractionOutputError", "ungültige Antwort"],
+    ["RateLimitError", "Limit"],
+    ["APIConnectionError", "Verbindung"],
+    ["ValueError", "Verarbeitung"],
+  ])("shows a safe diagnosis for extraction error %s", async (errorCode, expected) => {
+    vi.mocked(api.getBooks).mockResolvedValue([{ ...book, status: "error" }]);
+    vi.mocked(api.getBookJobs).mockResolvedValue([{
+      ...extractionJob,
+      status: "error",
+      error_code: errorCode,
+      error: "private source text and secret",
+    }]);
+
+    render(<App />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(expected);
+    expect(alert).toHaveTextContent("Fehlerreferenz: job-1");
+    expect(alert).not.toHaveTextContent("private source text");
+    expect(alert).not.toHaveTextContent("secret");
+  });
+
   it("does not offer extraction for a book that has not been parsed", async () => {
     vi.mocked(api.getBooks).mockResolvedValue([{ ...book, status: "parsing" }]);
     vi.mocked(api.getChapters).mockResolvedValue([

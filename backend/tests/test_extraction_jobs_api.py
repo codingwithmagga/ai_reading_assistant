@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -6,6 +7,31 @@ from sqlalchemy.orm import Session
 
 from app.models import Book, Job
 from tests.api_helpers import build_test_epub
+
+
+def test_background_error_logs_safe_diagnostic_location(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    from app.books import run_extraction_job_background
+
+    def fail_with_sensitive_details(session: Session, job_id: str) -> None:
+        raise ValueError("private source text and fake-secret")
+
+    monkeypatch.setattr(
+        "app.books.SessionLocal", lambda: Session(client.app.state.test_engine)
+    )
+    monkeypatch.setattr("app.books.process_extraction_job", fail_with_sensitive_details)
+    monkeypatch.setattr("app.books.logger.disabled", False)
+    with caplog.at_level(logging.ERROR, logger="app.books"):
+        run_extraction_job_background("test-job-id")
+
+    assert "test-job-id" in caplog.text
+    assert "ValueError" in caplog.text
+    assert "test_extraction_jobs_api.py" in caplog.text
+    assert "fail_with_sensitive_details" in caplog.text
+    assert "private source text" not in caplog.text
+    assert "fake-secret" not in caplog.text
+    assert caplog.records[-1].exc_info is None
 
 
 def test_extraction_job_api_starts_once_and_reports_job_status(
