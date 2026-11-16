@@ -7,11 +7,12 @@ from fastapi import (
     BackgroundTasks,
     Depends,
     File,
+    Form,
     HTTPException,
     Response,
     UploadFile,
 )
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -49,6 +50,7 @@ def list_books(session: Session = Depends(get_session)) -> list[Book]:
 def upload_book(
     response: Response,
     file: UploadFile = File(...),
+    retry_failed: bool = Form(False),
     session: Session = Depends(get_session),
 ) -> UploadResponse:
     settings = get_settings()
@@ -68,7 +70,34 @@ def upload_book(
 
     source_hash = sha256(content).hexdigest()
     existing_book = session.scalar(select(Book).where(Book.source_hash == source_hash))
-    if existing_book is not None:
+    retry_job: Job | None = None
+    if existing_book is not None and retry_failed:
+        claimed = session.execute(
+            update(Book)
+            .where(
+                Book.id == existing_book.id,
+                Book.status == "error",
+                Book.current_position.is_(None),
+                ~Book.chapters.any(),
+                ~Book.paragraphs.any(),
+                ~Book.entities.any(),
+                ~Book.facts.any(),
+                ~Book.relationships.any(),
+                Book.jobs.any((Job.type == "parsing") & (Job.status == "error")),
+                ~Book.jobs.any((Job.type != "parsing") | (Job.status != "error")),
+            )
+            .values(status="parsing")
+            .execution_options(synchronize_session=False)
+        )
+        session.refresh(existing_book)
+        if claimed.rowcount:
+            retry_job = session.scalar(
+                select(Job)
+                .where(Job.book_id == existing_book.id, Job.type == "parsing")
+                .order_by(Job.created_at.desc(), Job.id.desc())
+            )
+
+    if existing_book is not None and retry_job is None:
         response.status_code = 200
         return _upload_response(existing_book, session, reused=True)
 
@@ -82,20 +111,25 @@ def upload_book(
             max_archive_entries=settings.epub_max_archive_entries,
         )
     except EpubParsingError as error:
-        failed_book = Book(
-            title=fallback_title,
-            source_hash=source_hash,
-            status="error",
-        )
-        session.add(failed_book)
-        session.add(
-            Job(
-                book=failed_book,
-                type="parsing",
+        if retry_job is not None and existing_book is not None:
+            failed_book = existing_book
+            failed_book.status = "error"
+            retry_job.error = str(error)
+        else:
+            failed_book = Book(
+                title=fallback_title,
+                source_hash=source_hash,
                 status="error",
-                error=str(error),
             )
-        )
+            session.add(failed_book)
+            session.add(
+                Job(
+                    book=failed_book,
+                    type="parsing",
+                    status="error",
+                    error=str(error),
+                )
+            )
         try:
             session.commit()
         except IntegrityError:
@@ -114,13 +148,23 @@ def upload_book(
             },
         ) from error
 
-    book = Book(
-        title=parsed.title or fallback_title,
-        author=parsed.author,
-        language=parsed.language,
-        source_hash=source_hash,
-        status="parsing",
-    )
+    if retry_job is not None and existing_book is not None:
+        book = existing_book
+        book.title = parsed.title or fallback_title
+        book.author = parsed.author
+        book.language = parsed.language
+        retry_job.status = "completed"
+        retry_job.progress = 100
+        retry_job.error = None
+        response.status_code = 200
+    else:
+        book = Book(
+            title=parsed.title or fallback_title,
+            author=parsed.author,
+            language=parsed.language,
+            source_hash=source_hash,
+            status="parsing",
+        )
     for parsed_chapter in parsed.chapters:
         chapter = Chapter(
             book=book,
@@ -139,14 +183,15 @@ def upload_book(
             )
 
     book.status = "parsed"
-    session.add(
-        Job(
-            book=book,
-            type="parsing",
-            status="completed",
-            progress=100,
+    if retry_job is None:
+        session.add(
+            Job(
+                book=book,
+                type="parsing",
+                status="completed",
+                progress=100,
+            )
         )
-    )
     session.add(book)
     try:
         session.commit()

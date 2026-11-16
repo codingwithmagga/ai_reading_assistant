@@ -188,7 +188,10 @@ evidence-based. Output language is configurable (default: German).
 ## 8. API overview (FastAPI)
 
 - `POST /books` (EPUB upload) → parses the EPUB and stores chapters and
-  paragraphs.
+  paragraphs. Identical uploads reuse the existing record. The optional
+  multipart `retry_failed=true` retries only an empty failed-parsing record,
+  retaining its book ID; successfully parsed books and extraction data are
+  never replaced by this option.
 - `GET /books`, `GET /books/{id}`, `DELETE /books/{id}`
 - `GET /books/{id}/jobs` (processing progress)
 - `POST /books/{id}/extraction-jobs` (start or resume AI extraction; optional

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from io import BytesIO
 from zipfile import BadZipFile, ZipFile
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 from ebooklib import ITEM_DOCUMENT, epub
 from ebooklib.exceptions import EpubException
 
@@ -186,23 +186,44 @@ def _bounded_metadata(value: str | None, limit: int) -> str | None:
     return normalized[:limit] or None
 
 
-def _extract_paragraphs(body: BeautifulSoup) -> list[str]:
+def _extract_paragraphs(body: Tag | BeautifulSoup) -> list[str]:
     paragraphs: list[str] = []
-    for element in body.find_all(_BLOCK_TAGS):
-        if any(parent.name in _BLOCK_TAGS for parent in element.parents if parent is not body):
-            continue
-        text = _normalize_text(element.get_text(" ", strip=True))
+    fragments: list[str] = []
+
+    def flush() -> None:
+        text = _normalize_text(" ".join(fragments))
         if text:
             paragraphs.append(text)
+        fragments.clear()
 
-    if paragraphs:
-        return paragraphs
-
-    for element in body.find_all("div"):
-        if element.find("div") is None:
+    def visit(element: Tag | NavigableString) -> None:
+        if isinstance(element, Comment):
+            return
+        if isinstance(element, NavigableString):
+            if element.strip():
+                fragments.append(str(element).strip())
+            return
+        if element.name in {"script", "style"}:
+            return
+        if element.name == "br":
+            flush()
+            return
+        if element.name in _BLOCK_TAGS:
+            flush()
             text = _normalize_text(element.get_text(" ", strip=True))
             if text:
                 paragraphs.append(text)
+            return
+        if element.name == "div":
+            flush()
+        for child in element.children:
+            if isinstance(child, (Tag, NavigableString)):
+                visit(child)
+        if element.name == "div":
+            flush()
+
+    visit(body)
+    flush()
     return paragraphs
 
 

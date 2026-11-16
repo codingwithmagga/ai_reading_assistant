@@ -438,6 +438,31 @@ describe("notes API client", () => {
     });
   });
 
+  it("sends the failed parsing retry flag with the EPUB", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        id: "book-id",
+        title: "Book",
+        author: null,
+        language: "en",
+        created_at: "2026-11-10T00:00:00Z",
+        status: "parsed",
+        source_hash: "hash",
+        reused: false,
+        error: null,
+      }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const file = new File(["epub"], "book.epub");
+
+    await uploadBook(file, true);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/books");
+    expect(options.body.get("file")).toBe(file);
+    expect(options.body.get("retry_failed")).toBe("true");
+  });
+
   it("rejects malformed nested lookup facts in successful responses", async () => {
     vi.stubGlobal(
       "fetch",

@@ -81,6 +81,11 @@ curl -F "file=@/path/to/book.epub" http://localhost:8080/api/books
 ```
 
 Identical uploads are detected by SHA-256 and return the existing book record.
+To retry a previously failed parsing import, select **Retry failed imports**
+when uploading the same file, or add `-F "retry_failed=true"` to the upload
+request. This only retries empty failed-parsing records; successfully parsed
+books, reading progress, and extraction data are not replaced. A repeated
+parsing failure is returned as an error.
 The source EPUB is not stored permanently after parsing; metadata and extracted
 text are stored. The API also provides `GET /api/books`, `GET /api/books/{id}`,
 `GET /api/books/{id}/chapters`, and

@@ -481,9 +481,10 @@ export function getBooks(): Promise<Book[]> {
   );
 }
 
-export function uploadBook(file: File): Promise<UploadedBook> {
+export function uploadBook(file: File, retryFailed = false): Promise<UploadedBook> {
   const body = new FormData();
   body.append("file", file);
+  body.append("retry_failed", String(retryFailed));
   return requestJson("/books", isUploadedBook, { method: "POST", body });
 }
 
