@@ -173,6 +173,12 @@ select {
   font-weight: 650;
 }
 
+.retry-parsing {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 .file-name {
   color: var(--color-muted);
   overflow-wrap: anywhere;

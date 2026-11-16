@@ -99,6 +99,43 @@ def test_parser_follows_spine_and_assigns_contiguous_positions() -> None:
     assert parsed.paragraph_count == 5
 
 
+def test_parser_extracts_direct_text_and_breaks_in_reading_order() -> None:
+    book = epub.EpubBook()
+    book.set_identifier("line-break-book")
+    book.set_title("Test")
+    book.set_language("de")
+    chapter = epub.EpubHtml(
+        uid="chapter",
+        file_name="chapter.xhtml",
+        content=(
+            "<html><body><h1>Überschrift</h1>"
+            "Erster <i>formatierter</i> Satz.<br/><br/>"
+            "Zweiter Satz.<br/>Dritter Satz."
+            "<div>Vierter Satz.<br/>Fünfter Satz.</div>"
+            "<p>Ein normaler Absatz.</p></body></html>"
+        ),
+    )
+    book.add_item(chapter)
+    book.spine = ["chapter"]
+    book.add_item(epub.EpubNcx())
+    book.add_item(epub.EpubNav())
+    output = BytesIO()
+    epub.write_epub(output, book)
+
+    parsed = parse_epub(output.getvalue())
+
+    assert parsed.chapters[0].paragraphs == (
+        "Überschrift",
+        "Erster formatierter Satz.",
+        "Zweiter Satz.",
+        "Dritter Satz.",
+        "Vierter Satz.",
+        "Fünfter Satz.",
+        "Ein normaler Absatz.",
+    )
+    assert (parsed.chapters[0].start_position, parsed.chapters[0].end_position) == (0, 6)
+
+
 def test_parser_rejects_non_epub_and_empty_input() -> None:
     with pytest.raises(EpubParsingError, match="leer"):
         parse_epub(b"")

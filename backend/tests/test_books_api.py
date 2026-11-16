@@ -4,6 +4,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.epub_parser import EpubParsingError, parse_epub
 from app.models import Book, Chapter, Job, Paragraph
 from tests.api_helpers import build_test_epub
 
@@ -51,6 +52,92 @@ def test_duplicate_upload_returns_existing_book(client: TestClient) -> None:
     assert second.status_code == 200
     assert second.json()["id"] == first.json()["id"]
     assert second.json()["reused"] is True
+
+
+def test_retry_failed_parsing_reuses_book_and_stores_content(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = build_test_epub()
+
+    def fail_parse(*args: object, **kwargs: object) -> None:
+        raise EpubParsingError("initial failure")
+
+    monkeypatch.setattr("app.books.parse_epub", fail_parse)
+    first = client.post("/books", files={"file": ("sample.epub", content)})
+    assert first.status_code == 422
+    book_id = first.json()["detail"]["book_id"]
+    monkeypatch.setattr("app.books.parse_epub", parse_epub)
+
+    retry = client.post(
+        "/books",
+        files={"file": ("sample.epub", content)},
+        data={"retry_failed": "true"},
+    )
+
+    assert retry.status_code == 200
+    assert retry.json()["id"] == book_id
+    assert retry.json()["status"] == "parsed"
+    assert retry.json()["error"] is None
+    assert retry.json()["reused"] is False
+    assert len(client.get(f"/books/{book_id}/chapters").json()) == 1
+    assert len(client.get("/books").json()) == 1
+    with Session(client.app.state.test_engine) as session:
+        jobs = list(session.scalars(select(Job).where(Job.book_id == book_id)))
+        assert len(jobs) == 1
+        assert (jobs[0].status, jobs[0].progress, jobs[0].error) == ("completed", 100, None)
+
+
+def test_retry_failed_parsing_reports_repeated_failure(client: TestClient) -> None:
+    content = b"invalid"
+    first = client.post("/books", files={"file": ("broken.epub", content)})
+    retry = client.post(
+        "/books", files={"file": ("broken.epub", content)}, data={"retry_failed": "true"}
+    )
+    assert retry.status_code == 422
+    assert retry.json()["detail"]["book_id"] == first.json()["detail"]["book_id"]
+    with Session(client.app.state.test_engine) as session:
+        book = session.get(Book, first.json()["detail"]["book_id"])
+        assert book is not None
+        assert book.status == "error"
+        assert not book.chapters
+        assert len(book.jobs) == 1
+        assert book.jobs[0].error == retry.json()["detail"]["message"]
+
+
+def test_retry_option_does_not_replace_successful_book(client: TestClient) -> None:
+    content = build_test_epub()
+    first = client.post("/books", files={"file": ("sample.epub", content)})
+    book_id = first.json()["id"]
+    client.put(f"/books/{book_id}/progress", json={"position": 1})
+    retry = client.post(
+        "/books", files={"file": ("sample.epub", content)}, data={"retry_failed": "true"}
+    )
+    assert retry.status_code == 200
+    assert retry.json()["id"] == book_id
+    assert retry.json()["reused"] is True
+    assert client.get(f"/books/{book_id}/progress").json()["current_position"] == 1
+
+
+def test_retry_option_preserves_book_with_failed_extraction(client: TestClient) -> None:
+    content = build_test_epub()
+    first = client.post("/books", files={"file": ("sample.epub", content)})
+    book_id = first.json()["id"]
+    with Session(client.app.state.test_engine) as session:
+        book = session.get(Book, book_id)
+        assert book is not None
+        book.status = "error"
+        session.add(Job(book_id=book_id, type="extraction", status="error"))
+        session.commit()
+
+    retry = client.post(
+        "/books", files={"file": ("sample.epub", content)}, data={"retry_failed": "true"}
+    )
+    assert retry.status_code == 200
+    assert retry.json()["reused"] is True
+    assert retry.json()["status"] == "error"
+    assert len(client.get(f"/books/{book_id}/chapters").json()) == 1
+    with Session(client.app.state.test_engine) as session:
+        assert len(list(session.scalars(select(Job).where(Job.book_id == book_id)))) == 2
 
 
 def test_invalid_epub_is_recorded_as_error_without_partial_content(client: TestClient) -> None:

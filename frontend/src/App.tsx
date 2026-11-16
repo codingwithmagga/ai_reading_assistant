@@ -54,6 +54,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadMessage, setUploadMessage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [retryFailed, setRetryFailed] = useState(false);
   const [backupFile, setBackupFile] = useState<File | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
@@ -145,11 +146,16 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     setUploadError(null);
     setUploadMessage(null);
     try {
-      const uploadedBook = await uploadBook(selectedFile);
+      const uploadedBook = await uploadBook(selectedFile, retryFailed);
+      if (uploadedBook.status === "error" && uploadedBook.error) {
+        setUploadError(copy.previousParsingFailed);
+        return;
+      }
       setUploadMessage(
         uploadedBook.reused ? copy.duplicateSuccess : copy.uploadSuccess,
       );
       setSelectedFile(null);
+      setRetryFailed(false);
       form.reset();
       await refreshBooks();
     } catch (error) {
@@ -312,6 +318,15 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               }
               disabled={uploading || backupBusy}
             />
+            <label className="retry-parsing">
+              <input
+                type="checkbox"
+                checked={retryFailed}
+                onChange={(event) => setRetryFailed(event.currentTarget.checked)}
+                disabled={uploading || backupBusy}
+              />
+              {copy.retryFailedParsing}
+            </label>
             <button type="submit" disabled={!selectedFile || uploading || backupBusy}>
               {uploading ? copy.uploading : copy.upload}
             </button>

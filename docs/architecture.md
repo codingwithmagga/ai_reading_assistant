@@ -43,6 +43,9 @@ to help contributors navigate the code.
 The backend currently uses focused modules rather than a strict
 controller/service/repository hierarchy. Keep new code aligned with those
 existing boundaries; extract a layer only when it solves a concrete problem.
+The upload retry option atomically claims only empty failed-parsing records;
+it never re-parses books with existing text, progress, or extraction data.
+Text separated by HTML line breaks is also parsed in reading order.
 
 ## Frontend responsibilities
 

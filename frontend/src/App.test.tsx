@@ -428,6 +428,45 @@ describe("App", () => {
     );
   });
 
+  it("sends the retry option and resets it after a successful upload", async () => {
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    const file = new File(["epub"], "retry.epub");
+    const retry = screen.getByRole("checkbox", {
+      name: "Fehlgeschlagene Imports erneut parsen",
+    });
+    expect(retry).not.toBeChecked();
+    fireEvent.change(screen.getByLabelText("EPUB-Datei auswählen"), {
+      target: { files: [file] },
+    });
+    fireEvent.click(retry);
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+
+    expect(await screen.findByText("Buch wurde hochgeladen.")).toBeInTheDocument();
+    expect(api.uploadBook).toHaveBeenCalledWith(file, true);
+    expect(retry).not.toBeChecked();
+  });
+
+  it("does not report a reused failed import as successful", async () => {
+    vi.mocked(api.uploadBook).mockResolvedValueOnce({
+      ...book,
+      status: "error",
+      source_hash: "test-hash",
+      reused: true,
+      error: "parse error",
+    });
+    render(<App />);
+    await screen.findByText(/Noch keine Bücher/);
+    fireEvent.change(screen.getByLabelText("EPUB-Datei auswählen"), {
+      target: { files: [new File(["epub"], "broken.epub")] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Der frühere Import ist fehlgeschlagen. Aktiviere die Checkbox",
+    );
+    expect(screen.queryByText("Dieses Buch war bereits vorhanden.")).not.toBeInTheDocument();
+  });
+
   it("offers a retry when the reader cannot load chapters", async () => {
     vi.mocked(api.getBooks).mockResolvedValue([book]);
     vi.mocked(api.getChapters)
@@ -644,7 +683,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "EPUB hochladen" }));
 
     await screen.findByRole("heading", { name: "Test Book" });
-    expect(api.uploadBook).toHaveBeenCalledWith(file);
+    expect(api.uploadBook).toHaveBeenCalledWith(file, false);
     fireEvent.click(screen.getByRole("button", { name: "Lesen" }));
 
     expect(await screen.findByText("The restored paragraph.")).toBeInTheDocument();
