@@ -16,6 +16,7 @@ import {
   Copy,
   Language,
   getErrorMessage,
+  getExtractionErrorMessage,
   getSavedLanguage,
   getStatusLabel,
   isLanguage,
@@ -552,7 +553,8 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
           </div>
           {job.status === "error" && (
             <p className="message error" role="alert">
-              {copy.extractionFailed}
+              {copy.extractionFailed} {getExtractionErrorMessage(job.error_code, copy)}
+              {" "}{copy.extractionErrorReference}: {job.id}
             </p>
           )}
         </div>
