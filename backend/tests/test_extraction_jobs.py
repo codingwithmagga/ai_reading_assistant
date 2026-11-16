@@ -1,4 +1,6 @@
+import json
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import NAMESPACE_URL, uuid5
 
 import pytest
@@ -33,7 +35,13 @@ from app.models import (
     Paragraph,
     Relationship,
 )
-from app.openai_extractor import ExtractionResponse
+from app.openai_extractor import (
+    ExtractionResponse,
+    InvalidExtractionOutputError,
+    OpenAIChapterExtractor,
+    ResponsesAPI,
+)
+from tests.test_openai_extractor import FakeResponses
 
 
 class FakeExtractor:
@@ -121,6 +129,55 @@ def _run(
         extractor=extractor,
         settings=settings or _settings(),
     )
+
+
+@pytest.mark.parametrize("corrected", [True, False])
+def test_job_retries_invalid_entity_references_before_persisting(
+    session: Session, corrected: bool
+) -> None:
+    book = _create_parsed_book(session)
+    job = create_extraction_job(session, book.id, max_chapter_index=0)
+    invalid = {
+        "entities": [], "aliases": [], "relationships": [],
+        "facts": [{
+            "entity_name": "Marta", "text": "Marta öffnet die Tür.",
+            "paragraph_ref": "p0", "source_excerpt": "Marta öffnet die Tür.",
+            "kind": "event",
+        }],
+    }
+    valid = {
+        **invalid,
+        "entities": [{
+            "canonical_name": "Marta", "entity_type": "person", "first_mention_ref": "p0"
+        }],
+    }
+    responses = FakeResponses([json.dumps(invalid), json.dumps(valid if corrected else invalid)])
+    settings = Settings(
+        _env_file=None,
+        extraction_max_paragraphs_per_block=10,
+        extraction_max_block_characters=500,
+        openai_max_attempts=2,
+    )
+    worker = OpenAIChapterExtractor(settings, client=cast(ResponsesAPI, responses))
+    if corrected:
+        completed = process_extraction_job(session, job.id, extractor=worker, settings=settings)
+        assert completed.status == "completed"
+        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is not None
+        assert session.scalar(select(ExtractionCheckpoint.id).where(
+            ExtractionCheckpoint.job_id == job.id
+        )) is not None
+    else:
+        with pytest.raises(InvalidExtractionOutputError):
+            process_extraction_job(session, job.id, extractor=worker, settings=settings)
+        session.refresh(job)
+        assert job.status == "error"
+        assert job.error_code == "InvalidExtractionOutputError"
+        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
+        assert session.scalar(select(ExtractionCheckpoint.id).where(
+            ExtractionCheckpoint.job_id == job.id
+        )) is None
+    assert (job.input_tokens, job.output_tokens) == (24, 10)
+    assert len(responses.requests) == 2
 
 
 def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: Session) -> None:

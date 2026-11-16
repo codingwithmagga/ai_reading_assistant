@@ -339,7 +339,7 @@ describe("App", () => {
 
   it.each([
     ["ExtractionConfigurationError", "OpenAI-API-Schlüssel"],
-    ["InvalidExtractionOutputError", "ungültige Antwort"],
+    ["InvalidExtractionOutputError", "nach mehreren Versuchen keine gültige Antwort"],
     ["RateLimitError", "Limit"],
     ["APIConnectionError", "Verbindung"],
     ["ValueError", "Verarbeitung"],

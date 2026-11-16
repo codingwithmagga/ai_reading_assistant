@@ -133,8 +133,11 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
    - Entity resolution: match new names against existing entities and aliases
      (exact, normalized, then model-assisted decision) to avoid duplicates.
    - Calculate fact positions server-side from paragraph references; never
-     accept positions invented by the model. Reject invalid references or
-     assign them to the chapter position.
+     accept positions invented by the model. Reject invalid references.
+   - Before persistence, validate that entities and aliases are available by
+     each fact, alias, and relationship's paragraph. Retry invalid model
+     output with reference-specific feedback, and fail after the configured
+     attempts. The persistence layer independently enforces the same boundary.
 3. **Progress and resumption:** Save job status per chapter so interrupted
    runs can resume. A job may stop at a selected chapter; a completed partial
    run remains parsed and can be extended from its saved checkpoints. Show

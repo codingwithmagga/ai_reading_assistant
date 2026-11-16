@@ -16,6 +16,7 @@ from app.extraction_schemas import (
     ChapterParagraph,
     KnownEntity,
     validate_chapter_references,
+    validate_entity_references,
 )
 
 
@@ -155,6 +156,7 @@ class OpenAIChapterExtractor:
             try:
                 result = ChapterExtraction.model_validate_json(response.output_text)
                 result = validate_chapter_references(result, paragraphs)
+                result = validate_entity_references(result, paragraphs, known_entities)
                 return ExtractionResponse(
                     extraction=result,
                     input_tokens=input_tokens,

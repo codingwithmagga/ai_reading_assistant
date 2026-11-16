@@ -105,6 +105,11 @@ model output, book text, or API key. Existing logs cannot recover details of
 failures that occurred before this diagnostic logging was enabled. Retrying
 continues from saved blocks and may incur further API charges.
 
+The extraction prompt and server-side validation require each referenced entity
+or alias to be known by the relevant paragraph. Invalid model responses are
+retried within the configured attempt limit; failures leave completed blocks
+intact and report an extraction error.
+
 Query endpoints enforce the reading position on the server. For example, the
 recap returns supported event facts and characters introduced through position
 42:

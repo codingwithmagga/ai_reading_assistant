@@ -17,3 +17,11 @@ source excerpt from exactly the referenced paragraph (at most 200 characters).
 Keep facts concise and neutral, and write them in the requested output
 language. Do not invent a relationship between entities unless it is supported
 by the supplied text.
+
+Use the paragraph order in this request. A fact, alias, or relationship may
+refer only to entities already listed in known_entities or introduced in the
+entities array at the same or an earlier paragraph. Both relationship
+endpoints must be known by that paragraph. Introduce each new entity using its
+earliest supported first_mention_ref. Use known canonical names, and introduce
+aliases only at the paragraph where they are supported. Omit uncertain
+entities, aliases, facts, or relationships rather than guessing.
