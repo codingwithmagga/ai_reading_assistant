@@ -271,7 +271,22 @@ def _validate_job(
     checkpoints = job.extraction_checkpoints
     if job.type != "extraction" and checkpoints:
         raise ValueError("Unexpected checkpoints")
-    ordered_chapters = sorted(chapters)
+    if job.type == "extraction":
+        if job.min_chapter_index not in chapters or (
+            job.max_chapter_index is not None
+            and (
+                job.max_chapter_index not in chapters
+                or job.max_chapter_index < job.min_chapter_index
+            )
+        ):
+            raise ValueError("Invalid extraction chapter range")
+        ordered_chapters = sorted(
+            index for index in chapters
+            if index >= job.min_chapter_index
+            and (job.max_chapter_index is None or index <= job.max_chapter_index)
+        )
+    else:
+        ordered_chapters = sorted(chapters)
     chapter_offset = 0
     next_position = chapters[ordered_chapters[0]].start_position if ordered_chapters else 0
     next_block = 0

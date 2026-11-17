@@ -53,6 +53,7 @@ def create_extraction_job(
     session: Session,
     book_id: str,
     *,
+    min_chapter_index: int = 0,
     max_chapter_index: int | None = None,
 ) -> Job:
     book = session.get(Book, book_id)
@@ -65,6 +66,10 @@ def create_extraction_job(
     )
     if not chapters:
         raise ExtractionBookNotReadyError("Das Buch enthält keine verarbeiteten Kapitel.")
+    if min_chapter_index not in {chapter.index for chapter in chapters} or (
+        max_chapter_index is not None and min_chapter_index > max_chapter_index
+    ):
+        raise ExtractionBookNotReadyError("Der ausgewählte Kapitelbereich ist ungültig.")
     if max_chapter_index is not None and max_chapter_index not in {
         chapter.index for chapter in chapters
     }:
@@ -79,12 +84,19 @@ def create_extraction_job(
     )
     if active_job is not None:
         if active_job.status == "pending":
-            if active_job.max_chapter_index != max_chapter_index:
+            if (
+                active_job.min_chapter_index != min_chapter_index
+                or active_job.max_chapter_index != max_chapter_index
+            ):
                 raise ExtractionJobAlreadyActiveError(
                     "Für dieses Buch ist bereits ein anderer Extraktionsjob vorgemerkt."
                 )
             return active_job
         if active_job.status == "running":
+            if active_job.min_chapter_index != min_chapter_index:
+                raise ExtractionJobAlreadyActiveError(
+                    "Der Start eines laufenden Extraktionsjobs kann nicht geändert werden."
+                )
             lease_expires_at = _as_utc(active_job.lease_expires_at)
             if lease_expires_at is not None and lease_expires_at > datetime.now(UTC):
                 raise ExtractionJobAlreadyActiveError(
@@ -104,7 +116,7 @@ def create_extraction_job(
             session.refresh(active_job)
             return active_job
 
-    if book.status not in {"parsed", "error"}:
+    if book.status not in {"parsed", "error", "ready"}:
         raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
 
     latest_job = session.scalar(
@@ -116,24 +128,26 @@ def create_extraction_job(
         failed_job = latest_job if latest_job is not None and latest_job.status == "error" else None
         if failed_job is None:
             raise ExtractionBookNotReadyError("Das Buch ist nicht für eine Extraktion bereit.")
-        if not _is_expanded_limit(failed_job.max_chapter_index, max_chapter_index):
-            raise ExtractionBookNotReadyError(
-                "Der Extraktionsumfang kann bei einem erneuten Versuch nicht verkleinert werden."
-            )
-        failed_job.max_chapter_index = max_chapter_index
-        failed_job.status = "pending"
-        failed_job.error = None
-        failed_job.error_code = None
-        book.status = "parsed"
-        session.commit()
-        session.refresh(failed_job)
-        return failed_job
+        if (
+            failed_job.min_chapter_index != min_chapter_index
+            or not _is_expanded_limit(failed_job.max_chapter_index, max_chapter_index)
+        ):
+            book.status = "parsed"
+        else:
+            failed_job.max_chapter_index = max_chapter_index
+            failed_job.status = "pending"
+            failed_job.error = None
+            failed_job.error_code = None
+            book.status = "parsed"
+            session.commit()
+            session.refresh(failed_job)
+            return failed_job
 
-    if latest_job is not None and latest_job.status == "completed":
-        if not _is_expanded_limit(latest_job.max_chapter_index, max_chapter_index):
-            raise ExtractionBookNotReadyError(
-                "Die Extraktion ist für den ausgewählten Umfang bereits abgeschlossen."
-            )
+    if (
+        latest_job is not None and latest_job.status == "completed"
+        and latest_job.min_chapter_index == min_chapter_index
+        and _is_expanded_limit(latest_job.max_chapter_index, max_chapter_index)
+    ):
         latest_job.max_chapter_index = max_chapter_index
         latest_job.status = "pending"
         latest_job.progress = 0
@@ -143,11 +157,14 @@ def create_extraction_job(
         session.refresh(latest_job)
         return latest_job
 
+    if book.status == "ready":
+        book.status = "parsed"
     job = Job(
         book_id=book_id,
         type="extraction",
         status="pending",
         progress=0,
+        min_chapter_index=min_chapter_index,
         max_chapter_index=max_chapter_index,
     )
     session.add(job)
@@ -205,6 +222,9 @@ def process_extraction_job(
     if not chapters:
         raise ExtractionBookNotReadyError("Das Buch enthält keine verarbeiteten Kapitel.")
     last_chapter_index = chapters[-1].index
+    chapters = [chapter for chapter in chapters if chapter.index >= job.min_chapter_index]
+    if not chapters or chapters[0].index != job.min_chapter_index:
+        raise ExtractionBookNotReadyError("Das ausgewählte Startkapitel gehört nicht zum Buch.")
     if job.max_chapter_index is not None:
         chapters = [chapter for chapter in chapters if chapter.index <= job.max_chapter_index]
         if not chapters or chapters[-1].index != job.max_chapter_index:
@@ -258,7 +278,9 @@ def process_extraction_job(
         job.lease_expires_at = None
         book.status = (
             "ready"
-            if job.max_chapter_index is None or job.max_chapter_index >= last_chapter_index
+            if job.min_chapter_index == 0 and (
+                job.max_chapter_index is None or job.max_chapter_index >= last_chapter_index
+            )
             else "parsed"
         )
         session.commit()

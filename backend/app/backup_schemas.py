@@ -67,6 +67,8 @@ class BackupJob(BackupModel):
     progress: Annotated[int, Field(strict=True, ge=0, le=100)]
     error: str | None
     error_code: Annotated[str, StringConstraints(max_length=100)] | None
+    min_chapter_index: Position = 0
+    max_chapter_index: Position | None = None
     last_completed_chapter_index: Position | None
     last_completed_block_index: Position | None
     input_tokens: Position

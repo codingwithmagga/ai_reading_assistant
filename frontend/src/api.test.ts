@@ -56,6 +56,7 @@ describe("notes API client", () => {
       type: "extraction",
       status: "pending",
       progress: 0,
+      min_chapter_index: 1,
       max_chapter_index: 2,
       last_completed_chapter_index: null,
       last_completed_block_index: null,
@@ -73,14 +74,14 @@ describe("notes API client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await expect(startExtractionJob("book/one", 2)).resolves.toEqual(job);
+    await expect(startExtractionJob("book/one", 2, 1)).resolves.toEqual(job);
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/books/book%2Fone/extraction-jobs",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ max_chapter_index: 2 }),
+        body: JSON.stringify({ min_chapter_index: 1, max_chapter_index: 2 }),
       },
     );
   });
@@ -92,6 +93,7 @@ describe("notes API client", () => {
       type: "extraction",
       status: "running",
       progress: 35,
+      min_chapter_index: 0,
       max_chapter_index: null,
       last_completed_chapter_index: 0,
       last_completed_block_index: 1,
@@ -113,6 +115,7 @@ describe("notes API client", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/books/book-id/jobs", undefined);
 
     expect(() => startExtractionJob("book-id", -1)).toThrow(RangeError);
+    expect(() => startExtractionJob("book-id", 1, 2)).toThrow(RangeError);
   });
 
   it("rejects malformed extraction job responses", async () => {
@@ -127,6 +130,7 @@ describe("notes API client", () => {
               type: "extraction",
               status: "running",
               progress: 101,
+              min_chapter_index: 0,
               max_chapter_index: null,
               last_completed_chapter_index: null,
               last_completed_block_index: null,

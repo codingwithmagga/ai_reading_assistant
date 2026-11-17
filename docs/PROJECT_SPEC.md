@@ -139,8 +139,12 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
      output with reference-specific feedback, and fail after the configured
      attempts. The persistence layer independently enforces the same boundary.
 3. **Progress and resumption:** Save job status per chapter so interrupted
-   runs can resume. A job may stop at a selected chapter; a completed partial
-   run remains parsed and can be extended from its saved checkpoints. Show
+   runs can resume. Users can select an inclusive start and end section to
+   exclude front or back matter from extraction without changing reader text.
+   A completed partial run remains parsed and can be extended from its saved
+   checkpoints. Changing the start or narrowing the end creates a new job;
+   existing notes and checkpoints remain, and earlier known entities can still
+   be used as context. Show
    safe, localized extraction error categories and a job reference. Diagnostic
    logs must not include book text, model output, exception messages, or keys.
 4. **Quality checks:** Schema validation, retry invalid JSON, and track token
@@ -200,8 +204,8 @@ evidence-based. Output language is configurable (default: German).
 - `GET /books`, `GET /books/{id}`, `DELETE /books/{id}`
 - `GET /books/{id}/jobs` (processing progress)
 - `POST /books/{id}/extraction-jobs` (start or resume AI extraction; optional
-  `max_chapter_index` bounds work through that chapter, inclusive; omit or pass
-  `null` to extract the whole book)
+  `min_chapter_index` defaults to 0, and `max_chapter_index` bounds work
+  through that chapter, inclusive; omit or pass `null` for no end limit)
 - `GET /books/{id}/chapters`
 - `GET /books/{id}/content/{chapter_id}` (chapter metadata and ordered
   paragraphs; clients render book content as text, not executable HTML)

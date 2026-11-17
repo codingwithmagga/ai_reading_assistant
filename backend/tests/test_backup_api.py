@@ -59,6 +59,9 @@ def test_backup_roundtrip_preserves_resume_and_spoiler_boundary(
     assert backup["version"] == 1
     assert '"paragraphs"' not in json.dumps(backup)
     assert '"text": "Kapitel Eins"' not in json.dumps(backup)
+    for saved_job in backup["books"][0]["jobs"]:
+        saved_job.pop("min_chapter_index")
+        saved_job.pop("max_chapter_index")
 
     with Session(client.app.state.test_engine) as session:
         session.execute(delete(Entity).where(Entity.book_id == book_id))
@@ -85,6 +88,46 @@ def test_backup_roundtrip_preserves_resume_and_spoiler_boundary(
         assert job.status == "completed"
         assert (job.input_tokens, job.output_tokens) == (12, 6)
         assert len(list(session.scalars(select(ExtractionCheckpoint)))) == 1
+
+
+def test_backup_roundtrip_preserves_bounded_extraction_range(client: TestClient) -> None:
+    book_id = upload(client)
+
+    class EmptyExtractor:
+        def extract_with_usage(self, **kwargs: object) -> ExtractionResponse:
+            return ExtractionResponse(
+                ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]), 1, 1
+            )
+
+    with Session(client.app.state.test_engine) as session:
+        book = session.get(Book, book_id)
+        assert book is not None
+        for index in (1, 2):
+            chapter = Chapter(
+                book=book, index=index, title=f"Teil {index}",
+                start_position=index + 2, end_position=index + 2,
+            )
+            session.add(chapter)
+            book.paragraphs.append(
+                Paragraph(chapter=chapter, position=index + 2, text="Synthetischer Text.")
+            )
+        session.commit()
+        job = create_extraction_job(session, book_id, min_chapter_index=1, max_chapter_index=1)
+        process_extraction_job(session, job.id, extractor=EmptyExtractor())
+
+    response = client.get("/backup")
+    assert response.status_code == 200, response.text
+    data = response.json()
+    job = next(item for item in data["books"][0]["jobs"] if item["type"] == "extraction")
+    assert (job["min_chapter_index"], job["max_chapter_index"]) == (1, 1)
+    assert restore(client, data).status_code == 200
+    with Session(client.app.state.test_engine) as session:
+        restored = session.scalar(
+            select(Job).where(Job.book_id == book_id, Job.type == "extraction")
+        )
+        assert restored is not None
+        assert (restored.min_chapter_index, restored.max_chapter_index) == (1, 1)
+        assert [checkpoint.chapter_index for checkpoint in restored.extraction_checkpoints] == [1]
 
 
 @pytest.mark.parametrize("mutation", ["version", "missing", "layout", "position", "reference"])

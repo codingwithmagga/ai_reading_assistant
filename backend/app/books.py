@@ -323,6 +323,7 @@ def start_extraction_job(
         job = create_extraction_job(
             session,
             book_id,
+            min_chapter_index=request.min_chapter_index if request else 0,
             max_chapter_index=request.max_chapter_index if request else None,
         )
     except ExtractionJobAlreadyActiveError as error:

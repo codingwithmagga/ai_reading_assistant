@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from app.models import Book, Job
+from app.models import Book, Chapter, Job, Paragraph
 from tests.api_helpers import build_test_epub
 
 
@@ -167,6 +167,35 @@ def test_extraction_job_api_accepts_a_chapter_limit(client: TestClient) -> None:
     )
     assert invalid_limit.status_code == 409
     assert invalid_limit.json()["detail"]["code"] == "book_not_ready_for_extraction"
+
+
+def test_extraction_job_api_validates_and_persists_chapter_range(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("app.books.run_extraction_job_background", lambda job_id: None)
+    response = client.post(
+        "/books",
+        files={"file": ("sample.epub", build_test_epub(), "application/epub+zip")},
+    )
+    book_id = response.json()["id"]
+    with Session(client.app.state.test_engine) as session:
+        chapter = Chapter(
+            book_id=book_id, index=1, title="Second", start_position=3, end_position=3
+        )
+        session.add(chapter)
+        session.add(Paragraph(book_id=book_id, chapter=chapter, position=3, text="Sample."))
+        session.commit()
+
+    url = f"/books/{book_id}/extraction-jobs"
+    assert client.post(url, json={"min_chapter_index": -1}).status_code == 422
+    invalid = client.post(url, json={"min_chapter_index": 1, "max_chapter_index": 0})
+    assert invalid.status_code == 409
+    started = client.post(url, json={"min_chapter_index": 1, "max_chapter_index": 1})
+    assert started.status_code == 202
+    assert started.json()["min_chapter_index"] == 1
+    assert started.json()["max_chapter_index"] == 1
+    listed = client.get(f"/books/{book_id}/jobs").json()[0]
+    assert (listed["min_chapter_index"], listed["max_chapter_index"]) == (1, 1)
 
 
 def test_extraction_job_api_recovers_expired_worker_lease(
