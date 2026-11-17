@@ -211,3 +211,79 @@ def test_validation_feedback_does_not_include_invalid_input_values() -> None:
 
     feedback = responses.requests[1]["input"][2]["content"]
     assert "PRIVATE TEXT" not in feedback
+
+
+@pytest.mark.parametrize("kind", ["fact", "alias", "relationship"])
+def test_unknown_entity_references_are_retried_without_leaking_names(kind: str) -> None:
+    invalid = {
+        "entities": [],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    }
+    if kind == "fact":
+        invalid["facts"] = [{
+            "entity_name": "UNKNOWN PRIVATE NAME",
+            "text": "A fact",
+            "paragraph_ref": "p0",
+            "source_excerpt": "Marta",
+            "kind": "description",
+        }]
+    elif kind == "alias":
+        invalid["aliases"] = [{
+            "entity_name": "UNKNOWN PRIVATE NAME", "alias": "X", "paragraph_ref": "p0"
+        }]
+    else:
+        invalid["relationships"] = [{
+            "entity_a_name": "Marta", "entity_b_name": "UNKNOWN PRIVATE NAME",
+            "label": "knows", "paragraph_ref": "p0",
+        }]
+    responses = FakeResponses([json.dumps(invalid), VALID_OUTPUT])
+
+    _extract(_extractor(responses))
+
+    assert len(responses.requests) == 2
+    feedback = responses.requests[1]["input"][2]["content"]
+    assert "UNKNOWN PRIVATE NAME" not in feedback
+    assert kind in feedback
+
+
+def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
+    invalid = {
+        "entities": [{
+            "canonical_name": "Nora", "entity_type": "person", "first_mention_ref": "p1"
+        }],
+        "aliases": [],
+        "facts": [{
+            "entity_name": "Nora", "text": "A fact", "paragraph_ref": "p0",
+            "source_excerpt": "Marta", "kind": "description",
+        }],
+        "relationships": [],
+    }
+    responses = FakeResponses([json.dumps(invalid), VALID_OUTPUT])
+    result = _extractor(responses).extract_with_usage(
+        chapter_title=None,
+        paragraphs=[
+            ChapterParagraph(reference="p0", text="Marta kommt herein."),
+            ChapterParagraph(reference="p1", text="Nora kommt herein."),
+        ],
+        known_entities=[],
+    )
+    assert len(responses.requests) == 2
+    assert (result.input_tokens, result.output_tokens) == (24, 10)
+
+
+def test_unknown_entity_reference_fails_after_all_attempts() -> None:
+    invalid = json.dumps({
+        "entities": [], "aliases": [],
+        "facts": [{
+            "entity_name": "Unknown", "text": "A fact", "paragraph_ref": "p0",
+            "source_excerpt": "Marta", "kind": "description",
+        }],
+        "relationships": [],
+    })
+    responses = FakeResponses([invalid, invalid])
+    with pytest.raises(InvalidExtractionOutputError) as caught:
+        _extract(_extractor(responses, max_attempts=2))
+    assert (caught.value.input_tokens, caught.value.output_tokens) == (24, 10)
+    assert len(responses.requests) == 2

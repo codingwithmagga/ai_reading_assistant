@@ -10,6 +10,7 @@ from app.extraction_schemas import (
     EntityType,
     KnownEntity,
     validate_chapter_references,
+    validate_entity_references,
 )
 
 
@@ -203,3 +204,64 @@ def test_system_prompt_forbids_later_chapters_and_global_positions() -> None:
 
     assert "later chapters" in prompt
     assert "global positions" in prompt
+    assert "same or an earlier paragraph" in prompt
+
+
+def test_entity_references_follow_supplied_order_and_alias_positions() -> None:
+    paragraphs = [
+        ChapterParagraph(reference="p10", text="Nora appears."),
+        ChapterParagraph(reference="p2", text="Nora is called N."),
+    ]
+    result = ChapterExtraction.model_validate({
+        "entities": [{
+            "canonical_name": "Nora", "entity_type": "person", "first_mention_ref": "p10"
+        }],
+        "aliases": [{"entity_name": "Nora", "alias": "N", "paragraph_ref": "p2"}],
+        "facts": [{
+            "entity_name": "N", "text": "Known.", "paragraph_ref": "p2",
+            "source_excerpt": "Nora", "kind": "description",
+        }],
+        "relationships": [],
+    })
+    validate_chapter_references(result, paragraphs)
+    assert validate_entity_references(result, paragraphs, []) == result
+    result.facts[0].paragraph_ref = "p10"
+    with pytest.raises(ValueError, match=r"facts\[0\]"):
+        validate_entity_references(result, paragraphs, [])
+
+
+def test_known_alias_is_available_from_start_and_ambiguity_is_rejected() -> None:
+    paragraphs = [ChapterParagraph(reference="p0", text="First paragraph.")]
+    result = ChapterExtraction.model_validate({
+        "entities": [], "aliases": [],
+        "facts": [{
+            "entity_name": "N", "text": "A fact", "paragraph_ref": "p0",
+            "source_excerpt": "First", "kind": "description",
+        }],
+        "relationships": [],
+    })
+    known = [KnownEntity(canonical_name="Nora", entity_type="person", aliases=["N"])]
+    assert validate_entity_references(result, paragraphs, known) == result
+    known.append(KnownEntity(canonical_name="N", entity_type="person"))
+    with pytest.raises(ValueError, match="ambiguous"):
+        validate_entity_references(result, paragraphs, known)
+
+
+def test_reference_validation_rejects_conflicting_alias_owner_and_type() -> None:
+    paragraphs = [ChapterParagraph(reference="p0", text="Two people.")]
+    known = [
+        KnownEntity(canonical_name="Nora", entity_type="person"),
+        KnownEntity(canonical_name="Marta", entity_type="person"),
+    ]
+    conflict = ChapterExtraction.model_validate({
+        "entities": [], "facts": [], "relationships": [],
+        "aliases": [{"entity_name": "Nora", "alias": "Marta", "paragraph_ref": "p0"}],
+    })
+    with pytest.raises(ValueError, match="different entity"):
+        validate_entity_references(conflict, paragraphs, known)
+    conflict = ChapterExtraction.model_validate({
+        "entities": [{"canonical_name": "Nora", "entity_type": "place", "first_mention_ref": "p0"}],
+        "aliases": [], "facts": [], "relationships": [],
+    })
+    with pytest.raises(ValueError, match="type conflicts"):
+        validate_entity_references(conflict, paragraphs, known)

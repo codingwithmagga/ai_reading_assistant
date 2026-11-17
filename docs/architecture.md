@@ -84,7 +84,10 @@ response by hiding later information.
 
 Extraction proceeds through chapters in reading order. Model output is
 validated, and the server maps paragraph references to stored positions; the
-model is not authoritative for positions.
+model is not authoritative for positions. Before persistence, extraction
+validates entity and alias availability against the supplied paragraph order
+and retries invalid responses with reference-specific feedback. Persistence
+independently enforces the position boundary.
 
 ## API changes
 

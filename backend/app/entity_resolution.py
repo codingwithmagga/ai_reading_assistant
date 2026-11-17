@@ -9,6 +9,7 @@ from app.extraction_schemas import (
     ChapterParagraph,
     EntityType,
     KnownEntity,
+    normalize_entity_name,
     validate_chapter_references,
 )
 from app.models import (
@@ -288,7 +289,3 @@ class _EntityResolver:
                 f"Die Entitätsreferenz {name!r} ist an dieser Stelle nicht im erlaubten Kontext."
             )
         return entity
-
-
-def normalize_entity_name(value: str) -> str:
-    return " ".join(value.split()).casefold()

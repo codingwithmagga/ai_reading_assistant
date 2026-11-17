@@ -1,4 +1,5 @@
 import re
+from collections import defaultdict
 from enum import StrEnum
 from typing import Annotated
 
@@ -124,3 +125,83 @@ def validate_chapter_references(
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def normalize_entity_name(value: str) -> str:
+    return " ".join(value.split()).casefold()
+
+
+def validate_entity_references(
+    result: ChapterExtraction,
+    paragraphs: list[ChapterParagraph],
+    known_entities: list[KnownEntity],
+) -> ChapterExtraction:
+    order = {paragraph.reference: index for index, paragraph in enumerate(paragraphs)}
+    names: dict[str, list[tuple[int, int]]] = defaultdict(list)
+    entity_types: dict[int, EntityType] = {}
+    next_id = 0
+
+    def add_name(name: str, entity_id: int, position: int) -> None:
+        names[normalize_entity_name(name)].append((position, entity_id))
+
+    def resolve(name: str, position: int, context: str) -> int | None:
+        matches = {
+            entity_id
+            for first_position, entity_id in names.get(normalize_entity_name(name), [])
+            if first_position <= position
+        }
+        if len(matches) > 1:
+            raise ValueError(f"{context}: entity reference is ambiguous at this paragraph.")
+        return next(iter(matches), None)
+
+    def require(name: str, position: int, context: str) -> int:
+        entity_id = resolve(name, position, context)
+        if entity_id is None:
+            raise ValueError(f"{context}: entity is not known at this paragraph.")
+        return entity_id
+
+    for known in known_entities:
+        entity_id = next_id
+        next_id += 1
+        entity_types[entity_id] = known.entity_type
+        add_name(known.canonical_name, entity_id, -1)
+        for alias in known.aliases:
+            add_name(alias, entity_id, -1)
+
+    for index, entity in sorted(
+        enumerate(result.entities),
+        key=lambda item: (
+            order[item[1].first_mention_ref],
+            normalize_entity_name(item[1].canonical_name),
+        ),
+    ):
+        position = order[entity.first_mention_ref]
+        context = f"entities[{index}]"
+        entity_id = resolve(entity.canonical_name, position, context)
+        if entity_id is None:
+            entity_id = next_id
+            next_id += 1
+            entity_types[entity_id] = entity.entity_type
+            add_name(entity.canonical_name, entity_id, position)
+        elif entity_types[entity_id] != entity.entity_type:
+            raise ValueError(f"{context}: entity type conflicts with an existing entity.")
+
+    for index, alias in sorted(
+        enumerate(result.aliases),
+        key=lambda item: (order[item[1].paragraph_ref], normalize_entity_name(item[1].alias)),
+    ):
+        position = order[alias.paragraph_ref]
+        context = f"aliases[{index}]"
+        entity_id = require(alias.entity_name, position, context)
+        owner = resolve(alias.alias, position, context)
+        if owner is not None and owner != entity_id:
+            raise ValueError(f"{context}: alias belongs to a different entity at this paragraph.")
+        add_name(alias.alias, entity_id, position)
+
+    for index, fact in enumerate(result.facts):
+        require(fact.entity_name, order[fact.paragraph_ref], f"facts[{index}]")
+    for index, relationship in enumerate(result.relationships):
+        position = order[relationship.paragraph_ref]
+        require(relationship.entity_a_name, position, f"relationships[{index}].entity_a_name")
+        require(relationship.entity_b_name, position, f"relationships[{index}].entity_b_name")
+    return result
