@@ -25,6 +25,7 @@ const extractionJob: api.ExtractionJob = {
   type: "extraction",
   status: "pending",
   progress: 0,
+  min_chapter_index: 0,
   max_chapter_index: null,
   last_completed_chapter_index: null,
   last_completed_block_index: null,
@@ -257,7 +258,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Extraktion starten" }));
 
     await waitFor(() => {
-      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1);
+      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1, 0);
     });
     expect(await screen.findByText(/Wartet/)).toBeInTheDocument();
     expect(
@@ -267,6 +268,45 @@ describe("App", () => {
       screen.queryByRole("button", { name: "Extraktion starten" }),
     ).not.toBeInTheDocument();
   });
+
+  it("allows selecting the first and last extraction sections", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      { id: "c0", book_id: book.id, index: 0, title: "Vorwort", start_position: 0, end_position: 0 },
+      { id: "c1", book_id: book.id, index: 1, title: "Geschichte", start_position: 1, end_position: 1 },
+      { id: "c2", book_id: book.id, index: 2, title: "Nachwort", start_position: 2, end_position: 2 },
+    ]);
+    render(<App />);
+    const start = await screen.findByLabelText("Extraktion ab");
+    fireEvent.change(start, { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Extraktion bis"), { target: { value: "1" } });
+    expect(screen.getByText(/Vorhandene Notizen bleiben/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Extraktion starten" }));
+    await waitFor(() => expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1, 1));
+  });
+
+  it.each(["error", "completed"] as const)(
+    "allows selecting a narrower range after an extraction is %s",
+    async (status) => {
+      vi.mocked(api.getBooks).mockResolvedValue([{ ...book, status: status === "error" ? "error" : "ready" }]);
+      vi.mocked(api.getChapters).mockResolvedValue([
+        { id: "c0", book_id: book.id, index: 0, title: "Vorwort", start_position: 0, end_position: 0 },
+        { id: "c1", book_id: book.id, index: 1, title: "Kapitel", start_position: 1, end_position: 1 },
+        { id: "c2", book_id: book.id, index: 2, title: "Nachwort", start_position: 2, end_position: 2 },
+      ]);
+      vi.mocked(api.getBookJobs).mockResolvedValue([{
+        ...extractionJob, status, max_chapter_index: null,
+      }]);
+
+      render(<App />);
+      await screen.findByLabelText("Extraktion ab");
+      fireEvent.change(screen.getByLabelText("Extraktion bis"), { target: { value: "1" } });
+      fireEvent.click(screen.getByRole("button", {
+        name: status === "error" ? "Extraktion erneut versuchen" : "Extraktion fortsetzen",
+      }));
+      await waitFor(() => expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1, 0));
+    },
+  );
 
   it("shows active extraction status and progress without another start action", async () => {
     vi.mocked(api.getBooks).mockResolvedValue([book]);
@@ -333,7 +373,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Extraktion erneut versuchen" }));
 
     await waitFor(() => {
-      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 0);
+      expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 0, 0);
     });
   });
 

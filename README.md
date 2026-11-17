@@ -92,10 +92,15 @@ text are stored. The API also provides `GET /api/books`, `GET /api/books/{id}`,
 `GET /api/books/{id}/content/{chapter_id}`. Start extraction with
 `POST /api/books/{id}/extraction-jobs` (HTTP 202); status, safe error details,
 and token counts are available from `GET /api/books/{id}/jobs`. Starting a
-second active job returns HTTP 409. The extraction request may include
-`{"max_chapter_index": 2}` to stop after that zero-based chapter; omit the body
-or pass `null` to extract the whole book. Partial jobs can be extended later
-without reprocessing completed chapter blocks. OpenAPI schemas and interactive
+second active job returns HTTP 409. The library lets you select the first and
+last EPUB sections for extraction, including both boundaries; this can exclude
+front and back matter without changing the reader. The extraction request may
+include `{"min_chapter_index": 1, "max_chapter_index": 2}` (zero-based);
+the start defaults to 0 and a null or omitted end includes the remaining
+sections. Partial jobs can be extended later without reprocessing completed
+chapter blocks. Changing the start or narrowing the end creates a new job:
+existing notes and checkpoints are retained, and earlier existing entities
+may still be used as context. OpenAPI schemas and interactive
 documentation are available at <http://localhost:8080/api/docs>.
 
 On extraction failure, the library displays a safe error category and job

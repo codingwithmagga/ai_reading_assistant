@@ -77,6 +77,70 @@ class QueuedExtractor:
         return ExtractionResponse(next(self.extractions), input_tokens=8, output_tokens=4)
 
 
+def test_extraction_range_skips_front_and_back_matter(session: Session) -> None:
+    book = _create_parsed_book(session)
+    worker = FakeExtractor()
+    job = create_extraction_job(session, book.id, min_chapter_index=1, max_chapter_index=1)
+
+    completed = _run(session, job, worker)
+
+    assert completed.status == "completed"
+    assert len(worker.calls) == 1
+    assert completed.last_completed_chapter_index == 1
+    assert [(p.chapter_index, p.block_index) for p in completed.extraction_checkpoints] == [(1, 0)]
+
+
+def test_changed_start_creates_new_job_without_deleting_old_data(session: Session) -> None:
+    book = _create_parsed_book(session)
+    original = create_extraction_job(session, book.id)
+    with pytest.raises(RuntimeError):
+        _run(session, original, FakeExtractor(fail_on_call=2))
+    old_checkpoint = session.scalar(
+        select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == original.id)
+    )
+    old_entity = session.scalar(select(Entity.id).where(Entity.book_id == book.id))
+
+    replacement = create_extraction_job(session, book.id, min_chapter_index=1, max_chapter_index=1)
+    completed = _run(session, replacement, FakeExtractor())
+
+    assert completed.id != original.id
+    assert session.get(ExtractionCheckpoint, old_checkpoint) is not None
+    assert session.get(Entity, old_entity) is not None
+    assert session.get(Job, original.id).status == "error"
+    assert completed.status == "completed"
+
+
+def test_failed_full_range_can_be_restarted_with_earlier_end(session: Session) -> None:
+    book = _create_parsed_book(session)
+    original = create_extraction_job(session, book.id)
+    with pytest.raises(RuntimeError):
+        _run(session, original, FakeExtractor(fail_on_call=2))
+
+    replacement = create_extraction_job(session, book.id, max_chapter_index=0)
+
+    assert replacement.id != original.id
+    assert _run(session, replacement, FakeExtractor()).status == "completed"
+    assert session.get(Job, original.id).status == "error"
+
+
+def test_completed_full_range_can_be_restarted_with_different_start(session: Session) -> None:
+    book = _create_parsed_book(session)
+    original = _run(session, create_extraction_job(session, book.id), FakeExtractor())
+    assert book.status == "ready"
+
+    replacement = create_extraction_job(session, book.id, min_chapter_index=1)
+
+    assert replacement.id != original.id
+    assert _run(session, replacement, FakeExtractor()).status == "completed"
+
+
+@pytest.mark.parametrize("start,end", [(2, None), (1, 0), (0, 3)])
+def test_extraction_rejects_invalid_range(session: Session, start: int, end: int | None) -> None:
+    book = _create_parsed_book(session)
+    with pytest.raises(ValueError):
+        create_extraction_job(session, book.id, min_chapter_index=start, max_chapter_index=end)
+
+
 @pytest.fixture
 def session() -> Session:
     engine = create_engine("sqlite://")

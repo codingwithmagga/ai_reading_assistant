@@ -64,8 +64,11 @@ Keep HTTP details in the API client where practical, and present book text as
 text rather than executable HTML.
 
 Parsed books can start extraction through the library. Job progress is polled
-while pending or running; chapter-bounded jobs can resume or extend from their
-saved chapter-block checkpoints. Extraction errors are shown using safe,
+while pending or running; jobs use inclusive chapter start and end bounds and
+can resume or extend from their saved chapter-block checkpoints. Changing the
+start or narrowing the end starts a new job without deleting prior notes or
+checkpoints; earlier known entities remain available as extraction context.
+The reader retains all parsed sections. Extraction errors are shown using safe,
 localized categories; backend logs record job IDs, exception types, and stack
 locations without exception messages, model output, or book text.
 

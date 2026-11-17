@@ -171,6 +171,10 @@ class Job(Base):
     error: Mapped[str | None] = mapped_column(Text)
     error_code: Mapped[str | None] = mapped_column(String(100))
     max_chapter_index: Mapped[int | None] = mapped_column(Integer)
+    min_chapter_index: Mapped[int] = mapped_column(
+        Integer, CheckConstraint("min_chapter_index >= 0"), nullable=False, default=0,
+        server_default="0",
+    )
     last_completed_chapter_index: Mapped[int | None] = mapped_column(Integer)
     last_completed_block_index: Mapped[int | None] = mapped_column(Integer)
     input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

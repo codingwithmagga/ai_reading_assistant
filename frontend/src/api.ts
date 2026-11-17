@@ -21,6 +21,7 @@ export interface ExtractionJob {
   type: string;
   status: ExtractionJobStatus;
   progress: number;
+  min_chapter_index: number;
   max_chapter_index: number | null;
   last_completed_chapter_index: number | null;
   last_completed_block_index: number | null;
@@ -213,7 +214,9 @@ function isExtractionJob(value: unknown): value is ExtractionJob {
       value.status === "error") &&
     isNonNegativeInteger(value.progress) &&
     value.progress <= 100 &&
+    isNonNegativeInteger(value.min_chapter_index) &&
     isNullableNonNegativeInteger(value.max_chapter_index) &&
+    (value.max_chapter_index === null || value.max_chapter_index >= value.min_chapter_index) &&
     isNullableNonNegativeInteger(value.last_completed_chapter_index) &&
     isNullableNonNegativeInteger(value.last_completed_block_index) &&
     isNullableString(value.error_code) &&
@@ -523,10 +526,12 @@ export function getBookJobs(bookId: string): Promise<ExtractionJob[]> {
 export function startExtractionJob(
   bookId: string,
   maxChapterIndex: number | null,
+  minChapterIndex = 0,
 ): Promise<ExtractionJob> {
   if (
-    maxChapterIndex !== null &&
-    (!Number.isSafeInteger(maxChapterIndex) || maxChapterIndex < 0)
+    !Number.isSafeInteger(minChapterIndex) || minChapterIndex < 0 ||
+    (maxChapterIndex !== null &&
+      (!Number.isSafeInteger(maxChapterIndex) || maxChapterIndex < minChapterIndex))
   ) {
     throw new RangeError("Chapter index must be a non-negative safe integer.");
   }
@@ -536,7 +541,7 @@ export function startExtractionJob(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ max_chapter_index: maxChapterIndex }),
+      body: JSON.stringify({ min_chapter_index: minChapterIndex, max_chapter_index: maxChapterIndex }),
     },
   );
 }

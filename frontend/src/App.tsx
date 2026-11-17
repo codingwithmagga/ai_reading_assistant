@@ -409,6 +409,7 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
   const [chapters, setChapters] = useState<Chapter[] | null>(null);
   const [job, setJob] = useState<ExtractionJob | null>(null);
   const [chapterLimit, setChapterLimit] = useState("all");
+  const [chapterStart, setChapterStart] = useState("0");
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -426,6 +427,7 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
         const extractionJob = jobs.find((item) => item.type === "extraction") ?? null;
         setChapters(bookChapters);
         setJob(extractionJob);
+        setChapterStart(String(extractionJob?.min_chapter_index ?? 0));
         setChapterLimit(
           extractionJob !== null &&
             extractionJob.status !== "completed" &&
@@ -494,7 +496,7 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
     const maxChapterIndex =
       chapterLimit === "all" ? null : Number(chapterLimit);
     try {
-      setJob(await startExtractionJob(book.id, maxChapterIndex));
+      setJob(await startExtractionJob(book.id, maxChapterIndex, Number(chapterStart)));
     } catch (requestError) {
       setError(
         `${copy.extractionRequestFailed} ${getErrorMessage(requestError, copy)}`,
@@ -505,15 +507,9 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
     }
   }
 
-  const lastChapter = chapters?.[chapters.length - 1];
-  const extractionComplete =
-    job?.status === "completed" &&
-    (job.max_chapter_index === null ||
-      (lastChapter !== undefined && job.max_chapter_index >= lastChapter.index));
   const canStart =
     !loading &&
     !isActive &&
-    !extractionComplete &&
     Boolean(chapters?.length) &&
     (book.status === "parsed" ||
       job?.status === "error" ||
@@ -561,6 +557,25 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
       )}
       {canStart && chapters && (
         <form className="extraction-form" onSubmit={submitExtraction}>
+          <label htmlFor={`extraction-start-${book.id}`}>{copy.extractionFrom}</label>
+          <select
+            id={`extraction-start-${book.id}`}
+            value={chapterStart}
+            onChange={(event) => {
+              const start = event.currentTarget.value;
+              setChapterStart(start);
+              if (chapterLimit !== "all" && Number(chapterLimit) < Number(start)) {
+                setChapterLimit("all");
+              }
+            }}
+            disabled={starting}
+          >
+            {chapters.map((chapter) => (
+              <option key={chapter.id} value={chapter.index}>
+                {chapter.title ?? `${copy.chapter} ${chapter.index + 1}`}
+              </option>
+            ))}
+          </select>
           <label htmlFor={`extraction-limit-${book.id}`}>
             {copy.extractionThrough}
           </label>
@@ -572,24 +587,14 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
           >
             <option value="all">{copy.allChapters}</option>
             {chapters
-              .filter((chapter) => {
-                if (job?.status === "error") {
-                  return (
-                    job.max_chapter_index !== null &&
-                    chapter.index >= job.max_chapter_index
-                  );
-                }
-                if (job?.status === "completed" && job.max_chapter_index !== null) {
-                  return chapter.index > job.max_chapter_index;
-                }
-                return true;
-              })
+              .filter((chapter) => chapter.index >= Number(chapterStart))
               .map((chapter) => (
                 <option key={chapter.id} value={chapter.index}>
                   {chapter.title ?? `${copy.chapter} ${chapter.index + 1}`}
                 </option>
               ))}
           </select>
+          <p>{copy.extractionRangeWarning}</p>
           <button type="submit" disabled={starting}>
             {submitLabel}
           </button>
