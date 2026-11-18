@@ -101,6 +101,7 @@ def validate_chapter_references(
         raise ValueError("Absatzreferenzen in der Eingabe müssen eindeutig sein.")
 
     paragraph_by_ref = {paragraph.reference: paragraph.text for paragraph in paragraphs}
+    repaired = result.model_copy(deep=True)
 
     references = [
         *(entity.first_mention_ref for entity in result.entities),
@@ -112,19 +113,48 @@ def validate_chapter_references(
     if unknown_refs:
         raise ValueError(f"Unbekannte Absatzreferenz(en): {', '.join(unknown_refs)}.")
 
-    for fact in result.facts:
-        source_text = _normalize_whitespace(paragraph_by_ref[fact.paragraph_ref]).casefold()
-        excerpt = _normalize_whitespace(fact.source_excerpt).casefold()
-        if excerpt not in source_text:
+    for index, fact in enumerate(repaired.facts):
+        source_text = _normalize_whitespace(paragraph_by_ref[fact.paragraph_ref])
+        excerpt = _normalize_whitespace(fact.source_excerpt)
+        if excerpt.casefold() not in source_text.casefold():
+            ellipsis_excerpt = _repair_ellipsis_excerpt(excerpt, source_text)
+            if ellipsis_excerpt is not None:
+                fact.source_excerpt = ellipsis_excerpt
+                continue
             raise ValueError(
-                f"Quellauszug für Absatz {fact.paragraph_ref} ist im Absatztext nicht enthalten."
+                f"facts[{index}].source_excerpt: Quellauszug für Absatz "
+                f"{fact.paragraph_ref} ist kein verbatim, zusammenhängender Teil "
+                "des Absatzes. "
+                "Verwende einen Textabschnitt von höchstens 200 Zeichen direkt aus "
+                "dem angegebenen Absatz und verwende keine Ellipsen oder Kürzungszeichen."
             )
 
-    return result
+    return repaired
 
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _repair_ellipsis_excerpt(excerpt: str, source_text: str) -> str | None:
+    if "..." not in excerpt and "…" not in excerpt:
+        return None
+
+    segments = [
+        _normalize_whitespace(segment)
+        for segment in re.split(r"\.{3}|…", excerpt)
+        if _normalize_whitespace(segment)
+    ]
+    source_normalized = source_text.casefold()
+    candidates = [
+        segment
+        for segment in segments
+        if len(segment) <= 200
+        and segment.casefold() in source_normalized
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=len)
 
 
 def normalize_entity_name(value: str) -> str:
@@ -157,7 +187,11 @@ def validate_entity_references(
     def require(name: str, position: int, context: str) -> int:
         entity_id = resolve(name, position, context)
         if entity_id is None:
-            raise ValueError(f"{context}: entity is not known at this paragraph.")
+            raise ValueError(
+                f"{context}: entity is not known at this paragraph. "
+                "Only reference entities introduced at this paragraph or earlier; "
+                "do not move or infer a paragraph reference."
+            )
         return entity_id
 
     for known in known_entities:

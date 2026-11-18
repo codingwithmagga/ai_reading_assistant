@@ -171,6 +171,103 @@ def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
         )
 
 
+def test_reference_validation_replaces_ellipsis_excerpt_with_verbatim_segment() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Albus Dumbledore",
+                    "text": "Albus Dumbledore ist am Ligusterweg erschienen.",
+                    "paragraph_ref": "p18",
+                    "source_excerpt": (
+                        "An der Ecke erschien ein Mann, so jäh und lautlos..."
+                        "Der Name dieses Mannes war Albus Dumbledore."
+                    ),
+                    "kind": "event",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(
+            reference="p18",
+            text=(
+                "An der Ecke, die sie beobachtet hatte, erschien ein Mann, "
+                "so jäh und lautlos, als wäre er geradewegs aus dem Boden gewachsen. "
+                "Der Name dieses Mannes war Albus Dumbledore."
+            ),
+        )
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.facts[0].source_excerpt == (
+        "Der Name dieses Mannes war Albus Dumbledore."
+    )
+
+
+def test_future_relationship_reference_is_not_accepted_or_shifted() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Harry",
+                    "entity_type": "person",
+                    "first_mention_ref": "p12",
+                }
+            ],
+            "aliases": [],
+            "facts": [],
+            "relationships": [
+                {
+                    "entity_a_name": "Dudley",
+                    "entity_b_name": "Harry",
+                    "label": "Bekannt",
+                    "paragraph_ref": "p3",
+                }
+            ],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Dudley war anwesend."),
+        ChapterParagraph(reference="p12", text="Harry wurde erwähnt."),
+    ]
+
+    with pytest.raises(ValueError, match=r"relationships\[0\].*not known.*do not move"):
+        validate_entity_references(result, paragraphs, [])
+
+
+def test_reference_validation_error_identifies_fact_and_paragraph() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Marta",
+                    "text": "Marta ist Wirtin.",
+                    "paragraph_ref": "p13",
+                    "source_excerpt": "Marta wurde zur Königin gekrönt.",
+                    "kind": "description",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"facts\[0\].*Absatz p13.*verbatim",
+    ):
+        validate_chapter_references(
+            result,
+            [ChapterParagraph(reference="p13", text="Marta ist Wirtin.")],
+        )
+
+
 def test_reference_validation_rejects_duplicate_input_references() -> None:
     with pytest.raises(ValueError, match="eindeutig"):
         validate_chapter_references(

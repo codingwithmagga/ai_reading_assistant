@@ -121,6 +121,34 @@ def test_invalid_reference_is_retried_with_validation_feedback() -> None:
     assert "Unbekannte Absatzreferenz" in responses.requests[1]["input"][2]["content"]
 
 
+def test_non_verbatim_excerpt_is_retried_with_specific_feedback() -> None:
+    invalid_output = json.dumps(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Marta",
+                    "text": "Marta ist Wirtin.",
+                    "paragraph_ref": "p0",
+                    "source_excerpt": "Marta wurde zur Königin gekrönt.",
+                    "kind": "description",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    responses = FakeResponses([invalid_output, VALID_OUTPUT])
+
+    _extract(_extractor(responses))
+
+    feedback = responses.requests[1]["input"][2]["content"]
+    assert "facts[0].source_excerpt" in feedback
+    assert "Absatz p0" in feedback
+    assert "verbatim" in feedback
+    assert "Marta wurde zur Königin gekrönt." not in feedback
+
+
 def test_invalid_output_fails_after_configured_attempts() -> None:
     responses = FakeResponses(["{}", "{}"])
 

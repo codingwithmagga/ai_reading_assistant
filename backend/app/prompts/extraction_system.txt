@@ -14,6 +14,8 @@ Every entity, alias, fact, and relationship must use a paragraph reference
 from the current request. Do not invent references or provide global positions,
 chapter numbers, or other position values. Each fact requires a short verbatim
 source excerpt from exactly the referenced paragraph (at most 200 characters).
+Do not use ellipses or omission markers in source excerpts; copy a contiguous
+verbatim passage directly from the paragraph.
 Keep facts concise and neutral, and write them in the requested output
 language. Do not invent a relationship between entities unless it is supported
 by the supplied text.
