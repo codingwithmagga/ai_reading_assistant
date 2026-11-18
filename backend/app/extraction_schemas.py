@@ -97,8 +97,9 @@ def validate_chapter_references(
     paragraphs: list[ChapterParagraph],
 ) -> ChapterExtraction:
     allowed_refs = {paragraph.reference for paragraph in paragraphs}
+    issues: list[str] = []
     if len(allowed_refs) != len(paragraphs):
-        raise ValueError("Absatzreferenzen in der Eingabe müssen eindeutig sein.")
+        issues.append("Absatzreferenzen in der Eingabe müssen eindeutig sein.")
 
     references = [
         *(entity.first_mention_ref for entity in result.entities),
@@ -108,7 +109,9 @@ def validate_chapter_references(
     ]
     unknown_refs = sorted(set(references) - allowed_refs)
     if unknown_refs:
-        raise ValueError(f"Unbekannte Absatzreferenz(en): {', '.join(unknown_refs)}.")
+        issues.append(f"Unbekannte Absatzreferenz(en): {', '.join(unknown_refs)}.")
+    if issues:
+        raise ValueError("\n".join(issues))
 
     return result
 
@@ -133,6 +136,7 @@ def validate_entity_references(
     names: dict[str, list[tuple[int, int]]] = defaultdict(list)
     entity_types: dict[int, EntityType] = {}
     next_id = 0
+    issues: list[str] = []
 
     def add_name(name: str, entity_id: int, position: int) -> None:
         names[normalize_entity_name(name)].append((position, entity_id))
@@ -144,13 +148,13 @@ def validate_entity_references(
             if first_position <= position
         }
         if len(matches) > 1:
-            raise ValueError(f"{context}: entity reference is ambiguous at this paragraph.")
+            issues.append(f"{context}: entity reference is ambiguous at this paragraph.")
         return next(iter(matches), None)
 
     def require(name: str, position: int, context: str) -> int:
         entity_id = resolve(name, position, context)
         if entity_id is None:
-            raise ValueError(
+            issues.append(
                 f"{context}: entity is not known at this paragraph. "
                 "Only reference entities introduced at this paragraph or earlier; "
                 "do not move or infer a paragraph reference."
@@ -168,11 +172,13 @@ def validate_entity_references(
     for index, entity in sorted(
         enumerate(result.entities),
         key=lambda item: (
-            order[item[1].first_mention_ref],
+            order.get(item[1].first_mention_ref, len(order)),
             normalize_entity_name(item[1].canonical_name),
         ),
     ):
-        position = order[entity.first_mention_ref]
+        position = order.get(entity.first_mention_ref)
+        if position is None:
+            continue
         context = f"entities[{index}]"
         entity_id = resolve(entity.canonical_name, position, context)
         if entity_id is None:
@@ -181,24 +187,48 @@ def validate_entity_references(
             entity_types[entity_id] = entity.entity_type
             add_name(entity.canonical_name, entity_id, position)
         elif entity_types[entity_id] != entity.entity_type:
-            raise ValueError(f"{context}: entity type conflicts with an existing entity.")
+            issues.append(
+                f"{context}.entity_type: entity type conflict; "
+                f"existing type: {entity_types[entity_id].value}; "
+                f"received type: {entity.entity_type.value}. "
+                "Use the existing type for this canonical entity."
+            )
 
     for index, alias in sorted(
         enumerate(result.aliases),
-        key=lambda item: (order[item[1].paragraph_ref], normalize_entity_name(item[1].alias)),
+        key=lambda item: (
+            order.get(item[1].paragraph_ref, len(order)),
+            normalize_entity_name(item[1].alias),
+        ),
     ):
-        position = order[alias.paragraph_ref]
+        position = order.get(alias.paragraph_ref)
+        if position is None:
+            continue
         context = f"aliases[{index}]"
         entity_id = require(alias.entity_name, position, context)
         owner = resolve(alias.alias, position, context)
         if owner is not None and owner != entity_id:
-            raise ValueError(f"{context}: alias belongs to a different entity at this paragraph.")
-        add_name(alias.alias, entity_id, position)
+            issues.append(f"{context}: alias belongs to a different entity at this paragraph.")
+        elif entity_id is not None:
+            add_name(alias.alias, entity_id, position)
 
     for index, fact in enumerate(result.facts):
-        require(fact.entity_name, order[fact.paragraph_ref], f"facts[{index}]")
+        position = order.get(fact.paragraph_ref)
+        if position is not None:
+            require(fact.entity_name, position, f"facts[{index}]")
     for index, relationship in enumerate(result.relationships):
-        position = order[relationship.paragraph_ref]
-        require(relationship.entity_a_name, position, f"relationships[{index}].entity_a_name")
-        require(relationship.entity_b_name, position, f"relationships[{index}].entity_b_name")
+        position = order.get(relationship.paragraph_ref)
+        if position is not None:
+            require(
+                relationship.entity_a_name,
+                position,
+                f"relationships[{index}].entity_a_name",
+            )
+            require(
+                relationship.entity_b_name,
+                position,
+                f"relationships[{index}].entity_b_name",
+            )
+    if issues:
+        raise ValueError("\n".join(dict.fromkeys(issues)))
     return result

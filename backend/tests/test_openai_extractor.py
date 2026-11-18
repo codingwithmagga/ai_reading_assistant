@@ -4,7 +4,7 @@ from typing import cast
 import pytest
 
 from app.config import Settings
-from app.extraction_schemas import ChapterParagraph, KnownEntity
+from app.extraction_schemas import ChapterParagraph, EntityType, KnownEntity
 from app.openai_extractor import (
     ExtractionConfigurationError,
     InvalidExtractionOutputError,
@@ -119,6 +119,64 @@ def test_invalid_reference_is_retried_with_validation_feedback() -> None:
     assert result.entities[0].first_mention_ref == "p0"
     assert len(responses.requests) == 2
     assert "Unbekannte Absatzreferenz" in responses.requests[1]["input"][2]["content"]
+
+
+def test_multiple_validation_errors_are_sent_in_one_retry() -> None:
+    invalid_output = json.dumps(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Nora",
+                    "entity_type": "place",
+                    "first_mention_ref": "p0",
+                },
+                {
+                    "canonical_name": "Marta",
+                    "entity_type": "group",
+                    "first_mention_ref": "p0",
+                },
+            ],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Unknown",
+                    "text": "A fact",
+                    "paragraph_ref": "p0",
+                    "source_excerpt": "Marta",
+                    "kind": "description",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    responses = FakeResponses([invalid_output, VALID_OUTPUT])
+
+    extractor = OpenAIChapterExtractor(
+        Settings(
+            _env_file=None,
+            openai_model="gpt-test",
+            openai_max_attempts=3,
+            openai_api_key="test-key",
+            app_output_language="de",
+        ),
+        client=cast(ResponsesAPI, responses),
+    )
+    extractor.extract(
+        chapter_title="Kapitel 1",
+        paragraphs=[ChapterParagraph(reference="p0", text="Nora and Marta appear.")],
+        known_entities=[
+            KnownEntity(canonical_name="Nora", entity_type=EntityType.PERSON),
+            KnownEntity(canonical_name="Marta", entity_type=EntityType.PERSON),
+        ],
+    )
+
+    feedback = responses.requests[1]["input"][2]["content"]
+    assert "entities[0].entity_type" in feedback
+    assert "existing type:" in feedback
+    assert "received type: place" in feedback
+    assert "entities[1].entity_type" in feedback
+    assert "received type: group" in feedback
+    assert "facts[0]" in feedback
 
 
 def test_invalid_output_fails_after_configured_attempts() -> None:

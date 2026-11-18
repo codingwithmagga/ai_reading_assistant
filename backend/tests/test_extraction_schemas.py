@@ -318,6 +318,41 @@ def test_known_alias_is_available_from_start_and_ambiguity_is_rejected() -> None
         validate_entity_references(result, paragraphs, known)
 
 
+def test_multiple_entity_type_conflicts_are_reported_together() -> None:
+    paragraphs = [ChapterParagraph(reference="p0", text="Nora and Marta appear.")]
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Nora",
+                "entity_type": "place",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Marta",
+                "entity_type": "group",
+                "first_mention_ref": "p0",
+            },
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Nora", entity_type=EntityType.PERSON),
+        KnownEntity(canonical_name="Marta", entity_type=EntityType.PERSON),
+    ]
+
+    with pytest.raises(ValueError) as caught:
+        validate_entity_references(result, paragraphs, known)
+
+    message = str(caught.value)
+    assert "entities[0].entity_type" in message
+    assert "existing type: person" in message
+    assert "received type: place" in message
+    assert "entities[1].entity_type" in message
+    assert "received type: group" in message
+
+
 def test_reference_validation_rejects_conflicting_alias_owner_and_type() -> None:
     paragraphs = [ChapterParagraph(reference="p0", text="Two people.")]
     known = [
@@ -334,5 +369,5 @@ def test_reference_validation_rejects_conflicting_alias_owner_and_type() -> None
         "entities": [{"canonical_name": "Nora", "entity_type": "place", "first_mention_ref": "p0"}],
         "aliases": [], "facts": [], "relationships": [],
     })
-    with pytest.raises(ValueError, match="type conflicts"):
+    with pytest.raises(ValueError, match="existing type: person"):
         validate_entity_references(conflict, paragraphs, known)

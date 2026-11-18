@@ -155,8 +155,17 @@ class OpenAIChapterExtractor:
                 output_tokens += usage.output_tokens
             try:
                 result = ChapterExtraction.model_validate_json(response.output_text)
-                result = validate_chapter_references(result, paragraphs)
-                result = validate_entity_references(result, paragraphs, known_entities)
+                validation_issues: list[str] = []
+                try:
+                    result = validate_chapter_references(result, paragraphs)
+                except ValueError as error:
+                    validation_issues.append(str(error))
+                try:
+                    result = validate_entity_references(result, paragraphs, known_entities)
+                except ValueError as error:
+                    validation_issues.append(str(error))
+                if validation_issues:
+                    raise ValueError("\n".join(dict.fromkeys(validation_issues)))
                 return ExtractionResponse(
                     extraction=result,
                     input_tokens=input_tokens,
