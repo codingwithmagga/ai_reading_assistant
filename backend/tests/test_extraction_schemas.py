@@ -480,48 +480,78 @@ def test_normalize_extraction_drops_unresolved_relationships_and_aliases() -> No
     assert normalized.relationships == []
 
 
-def test_normalize_extraction_drops_alias_shadowing_another_entity() -> None:
+@pytest.mark.parametrize(
+    ("canonical_name", "alias_name"),
+    [
+        ("Mrs Dursley", "Tante Petunia"),
+        ("Mr Dursley", "Onkel Vernon"),
+    ],
+)
+def test_normalize_extraction_merges_alias_shadowing_another_entity(
+    canonical_name: str,
+    alias_name: str,
+) -> None:
     result = ChapterExtraction.model_validate({
         "entities": [
             {
-                "canonical_name": "Mrs Dursley",
+                "canonical_name": canonical_name,
                 "entity_type": "person",
                 "first_mention_ref": "p0",
             },
             {
-                "canonical_name": "Tante Petunia",
+                "canonical_name": alias_name,
                 "entity_type": "person",
                 "first_mention_ref": "p0",
             },
         ],
         "aliases": [
             {
-                "entity_name": "Mrs Dursley",
-                "alias": "Tante Petunia",
+                "entity_name": canonical_name,
+                "alias": alias_name,
                 "paragraph_ref": "p0",
             }
         ],
-        "facts": [],
-        "relationships": [],
+        "facts": [
+            {
+                "entity_name": alias_name,
+                "text": "Sie wohnt bei den Dursleys.",
+                "paragraph_ref": "p0",
+                "source_excerpt": canonical_name,
+                "kind": "description",
+            }
+        ],
+        "relationships": [
+            {
+                "entity_a_name": "Dudley",
+                "entity_b_name": alias_name,
+                "label": "Sohn",
+                "paragraph_ref": "p0",
+            }
+        ],
     })
     known = [
         KnownEntity(
-            canonical_name="Mrs Dursley",
+            canonical_name=canonical_name,
             entity_type=EntityType.PERSON,
         ),
         KnownEntity(
-            canonical_name="Tante Petunia",
+            canonical_name=alias_name,
             entity_type=EntityType.PERSON,
         ),
     ]
 
     normalized = normalize_extraction(
         result,
-        [ChapterParagraph(reference="p0", text="Mrs Dursley und Tante Petunia.")],
+        [ChapterParagraph(reference="p0", text=f"{canonical_name} und {alias_name}.")],
         known,
     )
 
-    assert normalized.aliases == []
+    assert normalized.entities == []
+    assert len(normalized.aliases) == 1
+    assert normalized.aliases[0].entity_name == canonical_name
+    assert normalized.aliases[0].alias == alias_name
+    assert len(normalized.facts) == 1
+    assert normalized.facts[0].entity_name == canonical_name
 
 
 def test_multiple_entity_type_conflicts_are_reported_together() -> None:

@@ -15,3 +15,8 @@ introduced by the entities array. Do not invent global positions or paragraph
 references. Keep facts concise, neutral, evidence-based, and in the requested
 output language. Omit uncertain entities, aliases, facts, or relationships
 rather than guessing.
+
+In aliases, use the canonical entity name in entity_name and a directly
+supported variant name in alias. Use an alias when the text clearly identifies
+one known person or entity with another name, such as family titles or role
+names. Do not duplicate a known canonical name as a new entity.

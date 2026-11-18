@@ -99,11 +99,14 @@ def normalize_extraction(
 ) -> ChapterExtraction:
     normalized = result.model_copy(deep=True)
     candidates: dict[str, tuple[str, EntityType]] = {}
+    known_names = set()
 
     for known in known_entities:
         canonical = known.canonical_name
+        known_names.add(normalize_entity_name(canonical))
         candidates[normalize_entity_name(canonical)] = (canonical, known.entity_type)
         for alias in known.aliases:
+            known_names.add(normalize_entity_name(alias))
             candidates[normalize_entity_name(alias)] = (canonical, known.entity_type)
 
     kept_entities = []
@@ -133,22 +136,45 @@ def normalize_extraction(
                 return entity.canonical_name, entity.entity_type
         return None
 
+    merge_targets: dict[str, tuple[str, EntityType]] = {}
+    for alias in normalized.aliases:
+        owner = resolve_name(alias.entity_name)
+        target = resolve_name(alias.alias)
+        if owner is None or target is None or owner[0] == target[0]:
+            continue
+        owner_known = normalize_entity_name(owner[0]) in known_names
+        target_known = normalize_entity_name(target[0]) in known_names
+        if target_known and not owner_known:
+            canonical = target
+            alternate_name = owner
+            alias.entity_name = canonical[0]
+            alias.alias = alternate_name[0]
+        else:
+            canonical = owner
+            alternate_name = target
+            alias.entity_name = canonical[0]
+        owner_name = canonical[0]
+        owner_type = canonical[1]
+        target_name = alternate_name[0]
+        merge_targets[normalize_entity_name(target_name)] = (owner_name, owner_type)
+        candidates[normalize_entity_name(target_name)] = (owner_name, owner_type)
+
+    if merge_targets:
+        normalized.entities = [
+            entity
+            for entity in normalized.entities
+            if normalize_entity_name(entity.canonical_name) not in merge_targets
+        ]
+
     for alias in normalized.aliases:
         owner = resolve_name(alias.entity_name)
         if owner is None:
             continue
         alias.entity_name = owner[0]
-        alias_owner = resolve_name(alias.alias)
-        if alias_owner is not None and alias_owner[0] != owner[0]:
-            continue
     normalized.aliases = [
         alias
         for alias in normalized.aliases
         if resolve_name(alias.entity_name) is not None
-        and (
-            (alias_owner := resolve_name(alias.alias)) is None
-            or alias_owner[0] == resolve_name(alias.entity_name)[0]
-        )
     ]
     for fact in normalized.facts:
         owner = resolve_name(fact.entity_name)
