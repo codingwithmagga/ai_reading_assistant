@@ -79,7 +79,7 @@ def persist_block_extraction(
         ChapterParagraph(reference=f"p{index}", text=paragraph.text)
         for index, paragraph in enumerate(paragraphs)
     ]
-    validate_chapter_references(extraction, request_paragraphs)
+    extraction = validate_chapter_references(extraction, request_paragraphs)
     positions = {f"p{index}": paragraph.position for index, paragraph in enumerate(paragraphs)}
     if any(
         paragraph.book_id != book.id

@@ -97,7 +97,7 @@ def test_openai_responses_request_uses_strict_schema_and_only_supplied_text() ->
     ]
 
 
-def test_invalid_reference_is_retried_with_validation_feedback() -> None:
+def test_unknown_model_reference_is_repaired_instead_of_retried() -> None:
     invalid_output = json.dumps(
         {
             "entities": [
@@ -112,13 +112,12 @@ def test_invalid_reference_is_retried_with_validation_feedback() -> None:
             "relationships": [],
         }
     )
-    responses = FakeResponses([invalid_output, VALID_OUTPUT])
+    responses = FakeResponses([invalid_output])
 
     result = _extract(_extractor(responses))
 
     assert result.entities[0].first_mention_ref == "p0"
-    assert len(responses.requests) == 2
-    assert "Unbekannte Absatzreferenz" in responses.requests[1]["input"][2]["content"]
+    assert len(responses.requests) == 1
 
 
 def test_multiple_validation_errors_are_sent_in_one_retry() -> None:
@@ -188,7 +187,7 @@ def test_invalid_output_fails_after_configured_attempts() -> None:
     assert len(responses.requests) == 2
 
 
-def test_extraction_response_sums_usage_across_validation_retries() -> None:
+def test_extraction_response_usage_does_not_add_repair_retry() -> None:
     invalid_output = json.dumps(
         {
             "entities": [
@@ -212,8 +211,8 @@ def test_extraction_response_sums_usage_across_validation_retries() -> None:
         known_entities=[],
     )
 
-    assert result.input_tokens == 24
-    assert result.output_tokens == 10
+    assert result.input_tokens == 12
+    assert result.output_tokens == 5
 
 
 def test_missing_api_key_is_an_explicit_configuration_error() -> None:

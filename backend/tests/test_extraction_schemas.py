@@ -48,6 +48,91 @@ def test_chapter_extraction_accepts_supported_data() -> None:
     assert validate_chapter_references(result, paragraphs) == result
 
 
+def test_reference_validation_repairs_wrong_fact_reference_from_source_text() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Marta",
+                    "text": "Marta hat die Wahrheit erfahren.",
+                    "paragraph_ref": "p3",
+                    "source_excerpt": "Marta erfuhr die Wahrheit.",
+                    "kind": "event",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Marta wartete."),
+        ChapterParagraph(reference="p13", text="Marta erfuhr die Wahrheit."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.facts[0].paragraph_ref == "p13"
+
+
+def test_reference_validation_repairs_unknown_references_within_the_block() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Marta",
+                    "entity_type": "person",
+                    "first_mention_ref": "p99",
+                }
+            ],
+            "aliases": [
+                {
+                    "entity_name": "Marta",
+                    "alias": "die Wirtin",
+                    "paragraph_ref": "p98",
+                }
+            ],
+            "facts": [],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p0", text="Der Raum war leer."),
+        ChapterParagraph(reference="p1", text="Die Wirtin Marta trat ein."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.entities[0].first_mention_ref == "p1"
+    assert repaired.aliases[0].paragraph_ref == "p1"
+
+
+def test_reference_validation_uses_later_relationship_endpoint() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [],
+            "relationships": [
+                {
+                    "entity_a_name": "Dudley",
+                    "entity_b_name": "Harry",
+                    "label": "Bekannt",
+                    "paragraph_ref": "p3",
+                }
+            ],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Dudley spielte."),
+        ChapterParagraph(reference="p12", text="Harry wurde erwähnt."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.relationships[0].paragraph_ref == "p12"
+
+
 @pytest.mark.parametrize(
     "payload",
     [
@@ -127,7 +212,7 @@ def test_chapter_extraction_rejects_duplicate_entity_names() -> None:
         )
 
 
-def test_reference_validation_rejects_unknown_reference() -> None:
+def test_reference_validation_repairs_unknown_entity_reference() -> None:
     result = ChapterExtraction.model_validate(
         {
             "entities": [
@@ -139,11 +224,12 @@ def test_reference_validation_rejects_unknown_reference() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="p2"):
-        validate_chapter_references(
-            result,
-            [ChapterParagraph(reference="p0", text="Marta kommt herein.")],
-        )
+    repaired = validate_chapter_references(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta kommt herein.")],
+    )
+
+    assert repaired.entities[0].first_mention_ref == "p0"
 
 
 def test_reference_validation_accepts_non_verbatim_excerpt() -> None:

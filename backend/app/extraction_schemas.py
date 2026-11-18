@@ -100,28 +100,93 @@ def validate_chapter_references(
     issues: list[str] = []
     if len(allowed_refs) != len(paragraphs):
         issues.append("Absatzreferenzen in der Eingabe müssen eindeutig sein.")
-
-    references = [
-        *(entity.first_mention_ref for entity in result.entities),
-        *(alias.paragraph_ref for alias in result.aliases),
-        *(fact.paragraph_ref for fact in result.facts),
-        *(relationship.paragraph_ref for relationship in result.relationships),
-    ]
-    unknown_refs = sorted(set(references) - allowed_refs)
-    if unknown_refs:
-        issues.append(f"Unbekannte Absatzreferenz(en): {', '.join(unknown_refs)}.")
     if issues:
         raise ValueError("\n".join(issues))
 
-    return result
+    repaired = result.model_copy(deep=True)
+    fallback_ref = paragraphs[0].reference if paragraphs else None
+
+    for entity in repaired.entities:
+        if entity.first_mention_ref not in allowed_refs:
+            entity.first_mention_ref = _resolve_reference(
+                current_ref=entity.first_mention_ref,
+                evidence=[entity.canonical_name],
+                paragraphs=paragraphs,
+                fallback_ref=fallback_ref,
+            )
+
+    for alias in repaired.aliases:
+        if alias.paragraph_ref not in allowed_refs:
+            alias.paragraph_ref = _resolve_reference(
+                current_ref=alias.paragraph_ref,
+                evidence=[alias.alias],
+                paragraphs=paragraphs,
+                fallback_ref=fallback_ref,
+            )
+
+    for fact in repaired.facts:
+        fact.paragraph_ref = _resolve_reference(
+            current_ref=fact.paragraph_ref,
+            evidence=[fact.source_excerpt, fact.text, fact.entity_name],
+            paragraphs=paragraphs,
+            fallback_ref=fallback_ref,
+        )
+
+    for relationship in repaired.relationships:
+        relationship.paragraph_ref = _resolve_later_relationship_reference(
+            current_ref=relationship.paragraph_ref,
+            evidence=[relationship.entity_a_name, relationship.entity_b_name],
+            paragraphs=paragraphs,
+            fallback_ref=fallback_ref,
+        )
+
+    return repaired
 
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
+def _resolve_reference(
+    *,
+    current_ref: str,
+    evidence: list[str],
+    paragraphs: list[ChapterParagraph],
+    fallback_ref: str | None,
+) -> str:
+    for item in evidence:
+        if not item:
+            continue
+        normalized_item = _normalize_whitespace(item).casefold()
+        for paragraph in paragraphs:
+            paragraph_text = _normalize_whitespace(paragraph.text).casefold()
+            if normalized_item in paragraph_text:
+                return paragraph.reference
+    if any(paragraph.reference == current_ref for paragraph in paragraphs):
+        return current_ref
+    return fallback_ref or current_ref
 
 
+def _resolve_later_relationship_reference(
+    *,
+    current_ref: str,
+    evidence: list[str],
+    paragraphs: list[ChapterParagraph],
+    fallback_ref: str | None,
+) -> str:
+    matched_positions: list[int] = []
+    for item in evidence:
+        normalized_item = _normalize_whitespace(item).casefold()
+        for index, paragraph in enumerate(paragraphs):
+            paragraph_text = _normalize_whitespace(paragraph.text).casefold()
+            if normalized_item and normalized_item in paragraph_text:
+                matched_positions.append(index)
+                break
+    if matched_positions:
+        return paragraphs[max(matched_positions)].reference
+    if any(paragraph.reference == current_ref for paragraph in paragraphs):
+        return current_ref
+    return fallback_ref or current_ref
 
 def normalize_entity_name(value: str) -> str:
     return " ".join(value.split()).casefold()
