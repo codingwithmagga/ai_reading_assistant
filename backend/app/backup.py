@@ -236,7 +236,7 @@ def _validate_book(session: Session, data: BackupBook, book: Book) -> None:
             raise ValueError("Invalid relationship")
     for job in data.jobs:
         _validate_job(job, chapters, paragraphs)
-        if data.status == "error" and job.type == "extraction" and job.status == "error":
+        if job.type == "extraction" and job.status == "error":
             _validate_resume_settings(job, chapters, paragraphs)
 
 

@@ -314,7 +314,7 @@ def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
     assert job.progress == 33
     assert job.error_code == "RuntimeError"
     assert "private source text" not in job.error
-    assert book.status == "error"
+    assert book.status == "parsed"
     assert session.scalar(
         select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id)
     )

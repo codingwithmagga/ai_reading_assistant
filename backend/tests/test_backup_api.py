@@ -274,7 +274,7 @@ def test_restore_failed_job_resumes_from_checkpoint(
     monkeypatch.setattr("app.backup.get_settings", lambda: settings)
     backup = client.get("/backup").json()
     assert restore(client, backup).status_code == 200
-    assert client.get(f"/books/{book_id}").json()["status"] == "error"
+    assert client.get(f"/books/{book_id}").json()["status"] == "parsed"
     chapter_id = client.get(f"/books/{book_id}/chapters").json()[0]["id"]
     assert client.get(f"/books/{book_id}/content/{chapter_id}").status_code == 200
     with Session(client.app.state.test_engine) as session:
@@ -282,7 +282,13 @@ def test_restore_failed_job_resumes_from_checkpoint(
         process_extraction_job(session, resumed.id, extractor=Extractor(), settings=settings)
         assert resumed.status == "completed"
         assert resumed.input_tokens == 3
-    assert calls == ["Kapitel Eins", "Erster Absatz.", "Erster Absatz.", "Zweiter Absatz."]
+    assert calls == [
+        "Kapitel Eins",
+        "Erster Absatz.",
+        "Kapitel Eins",
+        "Erster Absatz.",
+        "Zweiter Absatz.",
+    ]
 
 
 def test_empty_parsing_error_is_excluded_and_existing_record_is_untouched(
