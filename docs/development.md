@@ -15,6 +15,11 @@ the repository root:
 docker compose up --build
 ```
 
+The backend code directory is bind-mounted in development, and Uvicorn uses
+reload mode. Most Python source changes do not require rebuilding or
+reinstalling dependencies. Dependency changes in `pyproject.toml` rebuild the
+cached Docker dependency layer; Docker also caches pip downloads.
+
 The application is available at <http://localhost:8080>. To stop it:
 
 ```bash
