@@ -9,6 +9,7 @@ from app.extraction_schemas import (
     ChapterParagraph,
     EntityType,
     KnownEntity,
+    normalize_extraction,
     validate_chapter_references,
     validate_entity_references,
 )
@@ -402,6 +403,82 @@ def test_known_alias_is_available_from_start_and_ambiguity_is_rejected() -> None
     known.append(KnownEntity(canonical_name="N", entity_type="person"))
     with pytest.raises(ValueError, match="ambiguous"):
         validate_entity_references(result, paragraphs, known)
+
+
+def test_normalize_extraction_uses_known_canonical_names_and_types() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Harry Potter",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Rubeus Hagrid",
+                "entity_type": "person",
+                "first_mention_ref": "p14",
+            },
+        ],
+        "aliases": [],
+        "facts": [
+            {
+                "entity_name": "Harry",
+                "text": "Harry lebt bei den Dursleys.",
+                "paragraph_ref": "p3",
+                "source_excerpt": "Harry",
+                "kind": "description",
+            }
+        ],
+        "relationships": [],
+    })
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Harry kommt zu seiner Tante."),
+        ChapterParagraph(reference="p14", text="Hagrid brachte das Kind."),
+    ]
+    known = [
+        KnownEntity(
+            canonical_name="HARRY POTTER",
+            entity_type=EntityType.CONCEPT,
+        ),
+        KnownEntity(
+            canonical_name="Rubeus Hagrid",
+            entity_type=EntityType.PERSON,
+        ),
+    ]
+
+    normalized = normalize_extraction(result, paragraphs, known)
+
+    assert normalized.entities == []
+    assert normalized.facts[0].entity_name == "HARRY POTTER"
+    assert normalized.facts[0].paragraph_ref == "p3"
+
+
+def test_normalize_extraction_drops_unresolved_relationships_and_aliases() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [],
+        "aliases": [
+            {
+                "entity_name": "Unknown Person",
+                "alias": "Mystery",
+                "paragraph_ref": "p0",
+            }
+        ],
+        "facts": [],
+        "relationships": [
+            {
+                "entity_a_name": "Unknown Person",
+                "entity_b_name": "Unknown Place",
+                "label": "bekannt",
+                "paragraph_ref": "p0",
+            }
+        ],
+    })
+    paragraphs = [ChapterParagraph(reference="p0", text="Die Geschichte beginnt.")]
+
+    normalized = normalize_extraction(result, paragraphs, [])
+
+    assert normalized.aliases == []
+    assert normalized.relationships == []
 
 
 def test_multiple_entity_type_conflicts_are_reported_together() -> None:

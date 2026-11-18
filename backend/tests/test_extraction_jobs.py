@@ -37,7 +37,6 @@ from app.models import (
 )
 from app.openai_extractor import (
     ExtractionResponse,
-    InvalidExtractionOutputError,
     OpenAIChapterExtractor,
     ResponsesAPI,
 )
@@ -195,13 +194,10 @@ def _run(
     )
 
 
-@pytest.mark.parametrize("corrected", [True, False])
-def test_job_retries_invalid_entity_references_before_persisting(
-    session: Session, corrected: bool
-) -> None:
+def test_job_drops_unresolved_entity_facts_without_retry(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id, max_chapter_index=0)
-    invalid = {
+    extraction = {
         "entities": [], "aliases": [], "relationships": [],
         "facts": [{
             "entity_name": "Marta", "text": "Marta öffnet die Tür.",
@@ -209,13 +205,7 @@ def test_job_retries_invalid_entity_references_before_persisting(
             "kind": "event",
         }],
     }
-    valid = {
-        **invalid,
-        "entities": [{
-            "canonical_name": "Marta", "entity_type": "person", "first_mention_ref": "p0"
-        }],
-    }
-    responses = FakeResponses([json.dumps(invalid), json.dumps(valid if corrected else invalid)])
+    responses = FakeResponses([json.dumps(extraction)])
     settings = Settings(
         _env_file=None,
         extraction_max_paragraphs_per_block=10,
@@ -223,25 +213,11 @@ def test_job_retries_invalid_entity_references_before_persisting(
         openai_max_attempts=2,
     )
     worker = OpenAIChapterExtractor(settings, client=cast(ResponsesAPI, responses))
-    if corrected:
-        completed = process_extraction_job(session, job.id, extractor=worker, settings=settings)
-        assert completed.status == "completed"
-        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is not None
-        assert session.scalar(select(ExtractionCheckpoint.id).where(
-            ExtractionCheckpoint.job_id == job.id
-        )) is not None
-    else:
-        with pytest.raises(InvalidExtractionOutputError):
-            process_extraction_job(session, job.id, extractor=worker, settings=settings)
-        session.refresh(job)
-        assert job.status == "error"
-        assert job.error_code == "InvalidExtractionOutputError"
-        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
-        assert session.scalar(select(ExtractionCheckpoint.id).where(
-            ExtractionCheckpoint.job_id == job.id
-        )) is None
-    assert (job.input_tokens, job.output_tokens) == (24, 10)
-    assert len(responses.requests) == 2
+    completed = process_extraction_job(session, job.id, extractor=worker, settings=settings)
+
+    assert completed.status == "completed"
+    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
+    assert len(responses.requests) == 1
 
 
 def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: Session) -> None:

@@ -77,7 +77,7 @@ def test_openai_responses_request_uses_strict_schema_and_only_supplied_text() ->
 
     result = _extract(_extractor(responses))
 
-    assert result.entities[0].canonical_name == "Marta"
+    assert result.entities == []
     request = responses.requests[0]
     assert request["model"] == "gpt-test"
     assert request["input"][1]["content"].find("Marta kommt herein.") >= 0
@@ -116,11 +116,11 @@ def test_unknown_model_reference_is_repaired_instead_of_retried() -> None:
 
     result = _extract(_extractor(responses))
 
-    assert result.entities[0].first_mention_ref == "p0"
+    assert result.entities == []
     assert len(responses.requests) == 1
 
 
-def test_multiple_validation_errors_are_sent_in_one_retry() -> None:
+def test_known_entity_errors_are_normalized_without_a_retry() -> None:
     invalid_output = json.dumps(
         {
             "entities": [
@@ -169,13 +169,7 @@ def test_multiple_validation_errors_are_sent_in_one_retry() -> None:
         ],
     )
 
-    feedback = responses.requests[1]["input"][2]["content"]
-    assert "entities[0].entity_type" in feedback
-    assert "existing type:" in feedback
-    assert "received type: place" in feedback
-    assert "entities[1].entity_type" in feedback
-    assert "received type: group" in feedback
-    assert "facts[0]" in feedback
+    assert len(responses.requests) == 1
 
 
 def test_invalid_output_fails_after_configured_attempts() -> None:
@@ -271,7 +265,7 @@ def test_validation_feedback_does_not_include_invalid_input_values() -> None:
 
 
 @pytest.mark.parametrize("kind", ["fact", "alias", "relationship"])
-def test_unknown_entity_references_are_retried_without_leaking_names(kind: str) -> None:
+def test_unknown_entity_references_are_dropped_without_retries(kind: str) -> None:
     invalid = {
         "entities": [],
         "aliases": [],
@@ -295,14 +289,14 @@ def test_unknown_entity_references_are_retried_without_leaking_names(kind: str) 
             "entity_a_name": "Marta", "entity_b_name": "UNKNOWN PRIVATE NAME",
             "label": "knows", "paragraph_ref": "p0",
         }]
-    responses = FakeResponses([json.dumps(invalid), VALID_OUTPUT])
+    responses = FakeResponses([json.dumps(invalid)])
 
-    _extract(_extractor(responses))
+    result = _extract(_extractor(responses))
 
-    assert len(responses.requests) == 2
-    feedback = responses.requests[1]["input"][2]["content"]
-    assert "UNKNOWN PRIVATE NAME" not in feedback
-    assert kind in feedback
+    assert len(responses.requests) == 1
+    assert result.facts == []
+    assert result.aliases == []
+    assert result.relationships == []
 
 
 def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
@@ -330,7 +324,7 @@ def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
     assert (result.input_tokens, result.output_tokens) == (24, 10)
 
 
-def test_unknown_entity_reference_fails_after_all_attempts() -> None:
+def test_unknown_entity_reference_is_dropped() -> None:
     invalid = json.dumps({
         "entities": [], "aliases": [],
         "facts": [{
@@ -339,8 +333,7 @@ def test_unknown_entity_reference_fails_after_all_attempts() -> None:
         }],
         "relationships": [],
     })
-    responses = FakeResponses([invalid, invalid])
-    with pytest.raises(InvalidExtractionOutputError) as caught:
-        _extract(_extractor(responses, max_attempts=2))
-    assert (caught.value.input_tokens, caught.value.output_tokens) == (24, 10)
-    assert len(responses.requests) == 2
+    responses = FakeResponses([invalid])
+    result = _extract(_extractor(responses, max_attempts=2))
+    assert result.facts == []
+    assert len(responses.requests) == 1

@@ -15,6 +15,7 @@ from app.extraction_schemas import (
     ChapterExtraction,
     ChapterParagraph,
     KnownEntity,
+    normalize_extraction,
     validate_chapter_references,
     validate_entity_references,
 )
@@ -160,6 +161,7 @@ class OpenAIChapterExtractor:
                     result = validate_chapter_references(result, paragraphs)
                 except ValueError as error:
                     validation_issues.append(str(error))
+                result = normalize_extraction(result, paragraphs, known_entities)
                 try:
                     result = validate_entity_references(result, paragraphs, known_entities)
                 except ValueError as error:
