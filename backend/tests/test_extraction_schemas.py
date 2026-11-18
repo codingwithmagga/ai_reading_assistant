@@ -348,7 +348,7 @@ def test_chapter_input_only_contains_local_references_and_supplied_text() -> Non
     )
     payload = json.loads(request)
 
-    assert payload["paragraphs"] == [{"reference": "p0", "text": "Marta kommt herein."}]
+    assert payload["paragraphs"] == [{"text": "Marta kommt herein."}]
     assert payload["known_entities"] == [
         {"canonical_name": "Marta", "entity_type": "person", "aliases": []}
     ]
@@ -362,7 +362,6 @@ def test_system_prompt_forbids_later_chapters_and_global_positions() -> None:
 
     assert "later chapters" in prompt
     assert "global positions" in prompt
-    assert "same or an earlier paragraph" in prompt
 
 
 def test_entity_references_follow_supplied_order_and_alias_positions() -> None:

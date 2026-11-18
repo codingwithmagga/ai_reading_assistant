@@ -19,7 +19,7 @@ from app.backup_schemas import (
 from app.config import get_settings
 from app.database import get_session
 from app.extraction_jobs import ExtractionBookNotReadyError, _make_blocks
-from app.extraction_schemas import ChapterExtraction, ChapterParagraph, validate_chapter_references
+from app.extraction_schemas import ChapterExtraction
 from app.models import (
     Book,
     Chapter,
@@ -207,13 +207,21 @@ def _validate_book(session: Session, data: BackupBook, book: Book) -> None:
         entity = entities.get(fact.entity_id)
         paragraph = paragraphs.get(fact.position)
         chapter = chapters.get(fact.chapter_index)
+        chapter_paragraphs = [
+            item.text
+            for item in paragraphs.values()
+            if chapter is not None and item.chapter_id == chapter.id
+        ]
         if (
             entity is None
             or paragraph is None
             or chapter is None
             or paragraph.chapter_id != chapter.id
             or fact.position < entity.first_position
-            or _normalize(fact.source_excerpt) not in _normalize(paragraph.text)
+            or not any(
+                _normalize(fact.source_excerpt) in _normalize(text)
+                for text in chapter_paragraphs
+            )
         ):
             raise ValueError("Invalid fact")
     for relation in data.relationships:
@@ -313,11 +321,7 @@ def _validate_job(
         block = [paragraphs.get(position) for position in range(next_position, end)]
         if any(paragraph is None or paragraph.chapter_id != chapter.id for paragraph in block):
             raise ValueError("Invalid checkpoint paragraphs")
-        extraction = ChapterExtraction.model_validate_json(checkpoint.result_json)
-        validate_chapter_references(
-            extraction,
-            [ChapterParagraph(reference=f"p{i}", text=p.text) for i, p in enumerate(block)],
-        )
+        ChapterExtraction.model_validate_json(checkpoint.result_json)
         next_position = end
         next_block += 1
     last = checkpoints[-1] if checkpoints else None

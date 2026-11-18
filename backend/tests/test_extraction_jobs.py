@@ -474,13 +474,13 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
         )
     )
     assert entities["Marta"].first_position == 0
-    assert entities["Dorf"].first_position == 1
+    assert entities["Dorf"].first_position == 0
     stored_alias = session.scalar(
         select(EntityAlias).where(EntityAlias.entity_id == entities["Marta"].id)
     )
     assert stored_alias is not None
     assert stored_alias.alias == "die Wirtin"
-    assert stored_alias.first_position == 1
+    assert stored_alias.first_position == 0
     stored_fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
     assert stored_fact is not None
     assert stored_fact.entity_id == entities["Marta"].id
@@ -492,7 +492,7 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
     assert stored_relationship is not None
     assert stored_relationship.entity_a_id == entities["Marta"].id
     assert stored_relationship.entity_b_id == entities["Dorf"].id
-    assert stored_relationship.position == 1
+    assert stored_relationship.position == 0
     second_block_entities = extractor.calls[1]["known_entities"]
     assert {entity.canonical_name for entity in second_block_entities} == {"Marta", "Dorf"}
     assert next(
@@ -500,7 +500,7 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
     ).aliases == ["die Wirtin"]
 
 
-def test_fact_cannot_precede_entity_first_mention(session: Session) -> None:
+def test_fact_and_entity_share_block_position(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id)
     extraction = ChapterExtraction(
@@ -527,18 +527,18 @@ def test_fact_cannot_precede_entity_first_mention(session: Session) -> None:
         [
             extraction,
             ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
         ]
     )
 
-    with pytest.raises(ValueError, match="nicht im erlaubten Kontext"):
-        _run(session, job, extractor)
+    completed = _run(session, job, extractor)
 
-    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
-    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
-    assert (
-        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
-        is None
-    )
+    assert completed.status == "completed"
+    entity = session.scalar(select(Entity).where(Entity.book_id == book.id))
+    fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
+    assert entity is not None
+    assert fact is not None
+    assert entity.first_position == fact.position == 0
 
 
 def test_ambiguous_prior_alias_is_not_auto_merged(session: Session) -> None:

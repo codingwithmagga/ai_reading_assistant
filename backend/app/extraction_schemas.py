@@ -38,19 +38,19 @@ class StrictModel(BaseModel):
 class EntityExtraction(StrictModel):
     canonical_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     entity_type: EntityType
-    first_mention_ref: ParagraphReference
+    first_mention_ref: ParagraphReference = "p0"
 
 
 class AliasExtraction(StrictModel):
     entity_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     alias: Annotated[str, StringConstraints(min_length=1, max_length=500)]
-    paragraph_ref: ParagraphReference
+    paragraph_ref: ParagraphReference = "p0"
 
 
 class FactExtraction(StrictModel):
     entity_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     text: Annotated[str, StringConstraints(min_length=1, max_length=2_000)]
-    paragraph_ref: ParagraphReference
+    paragraph_ref: ParagraphReference = "p0"
     source_excerpt: ExcerptText
     kind: FactKind
 
@@ -59,7 +59,7 @@ class RelationshipExtraction(StrictModel):
     entity_a_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     entity_b_name: Annotated[str, StringConstraints(min_length=1, max_length=500)]
     label: Annotated[str, StringConstraints(min_length=1, max_length=500)]
-    paragraph_ref: ParagraphReference
+    paragraph_ref: ParagraphReference = "p0"
 
 
 class ChapterExtraction(StrictModel):

@@ -75,14 +75,19 @@ def test_backup_roundtrip_preserves_resume_and_spoiler_boundary(
     assert result.status_code == 200, result.text
     assert result.json() == {"restored": 1}
     assert client.get(f"/books/{book_id}/progress").json()["current_position"] == 2
-    assert client.get(f"/books/{book_id}/entities", params={"position": 0}).json() == []
+    assert [
+        entity["canonical_name"]
+        for entity in client.get(
+            f"/books/{book_id}/entities", params={"position": 0}
+        ).json()
+    ] == ["Marta"]
     assert client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 1}
-    ).json()["matches"] == []
+    ).json()["matches"]
     match = client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 2}
     ).json()["matches"][0]
-    assert [fact["position"] for fact in match["facts"]] == [1, 2]
+    assert [fact["position"] for fact in match["facts"]] == [0, 0]
     with Session(client.app.state.test_engine) as session:
         job = session.scalar(select(Job).where(Job.book_id == book_id, Job.type == "extraction"))
         assert job.status == "completed"

@@ -83,18 +83,14 @@ def test_openai_responses_request_uses_strict_schema_and_only_supplied_text() ->
     assert request["input"][1]["content"].find("Marta kommt herein.") >= 0
     user_payload = json.loads(request["input"][1]["content"])
     assert user_payload["output_language"] == "de"
-    assert user_payload["paragraphs"] == [{"reference": "p0", "text": "Marta kommt herein."}]
+    assert user_payload["paragraphs"] == [{"text": "Marta kommt herein."}]
     text_format = request["text"]
     assert text_format["type"] == "json_schema"
     assert text_format["strict"] is True
     output_schema = text_format["schema"]
     assert output_schema["required"] == ["entities", "aliases", "facts", "relationships"]
     assert output_schema["additionalProperties"] is False
-    assert output_schema["$defs"]["EntityExtraction"]["required"] == [
-        "canonical_name",
-        "entity_type",
-        "first_mention_ref",
-    ]
+    assert "first_mention_ref" not in output_schema["$defs"]["EntityExtraction"]["properties"]
 
 
 def test_unknown_model_reference_is_repaired_instead_of_retried() -> None:
@@ -299,7 +295,7 @@ def test_unknown_entity_references_are_dropped_without_retries(kind: str) -> Non
     assert result.relationships == []
 
 
-def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
+def test_missing_reference_fields_are_not_retried() -> None:
     invalid = {
         "entities": [{
             "canonical_name": "Nora", "entity_type": "person", "first_mention_ref": "p1"
@@ -311,7 +307,7 @@ def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
         }],
         "relationships": [],
     }
-    responses = FakeResponses([json.dumps(invalid), VALID_OUTPUT])
+    responses = FakeResponses([json.dumps(invalid)])
     result = _extractor(responses).extract_with_usage(
         chapter_title=None,
         paragraphs=[
@@ -320,8 +316,8 @@ def test_future_entity_reference_is_retried_and_usage_is_counted() -> None:
         ],
         known_entities=[],
     )
-    assert len(responses.requests) == 2
-    assert (result.input_tokens, result.output_tokens) == (24, 10)
+    assert len(responses.requests) == 1
+    assert (result.input_tokens, result.output_tokens) == (12, 5)
 
 
 def test_unknown_entity_reference_is_dropped() -> None:

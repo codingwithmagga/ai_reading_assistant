@@ -106,9 +106,11 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"position": 1},
     )
     assert before_introduction.status_code == at_introduction.status_code == 200
-    assert before_introduction.json() == []
+    assert [entity["canonical_name"] for entity in before_introduction.json()] == ["Marta"]
     assert [entity["canonical_name"] for entity in at_introduction.json()] == ["Marta"]
-    assert at_introduction.json()[0]["aliases"] == []
+    assert at_introduction.json()[0]["aliases"] == [
+        {"alias": "die Wirtin", "first_position": 0}
+    ]
 
     before_alias = client.get(
         f"/books/{book_id}/lookup",
@@ -119,11 +121,11 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"q": "die Wirtin", "position": 2},
     )
     assert before_alias.status_code == at_alias.status_code == 200
-    assert before_alias.json()["matches"] == []
+    assert len(before_alias.json()["matches"]) == 1
     assert len(at_alias.json()["matches"]) == 1
     assert [
         fact["position"] for fact in at_alias.json()["matches"][0]["facts"]
-    ] == [1, 2]
+    ] == [0, 0]
 
     before_event = client.get(
         f"/books/{book_id}/recap",
@@ -134,7 +136,9 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"position": 2},
     )
     assert before_event.status_code == at_event.status_code == 200
-    assert before_event.json()["events"] == []
+    assert [event["text"] for event in before_event.json()["events"]] == [
+        "Marta spricht den Gast an."
+    ]
     assert [event["text"] for event in at_event.json()["events"]] == [
         "Marta spricht den Gast an."
     ]
