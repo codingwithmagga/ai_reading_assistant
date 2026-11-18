@@ -480,6 +480,50 @@ def test_normalize_extraction_drops_unresolved_relationships_and_aliases() -> No
     assert normalized.relationships == []
 
 
+def test_normalize_extraction_drops_alias_shadowing_another_entity() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Mrs Dursley",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Tante Petunia",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+        ],
+        "aliases": [
+            {
+                "entity_name": "Mrs Dursley",
+                "alias": "Tante Petunia",
+                "paragraph_ref": "p0",
+            }
+        ],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(
+            canonical_name="Mrs Dursley",
+            entity_type=EntityType.PERSON,
+        ),
+        KnownEntity(
+            canonical_name="Tante Petunia",
+            entity_type=EntityType.PERSON,
+        ),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="Mrs Dursley und Tante Petunia.")],
+        known,
+    )
+
+    assert normalized.aliases == []
+
+
 def test_multiple_entity_type_conflicts_are_reported_together() -> None:
     paragraphs = [ChapterParagraph(reference="p0", text="Nora and Marta appear.")]
     result = ChapterExtraction.model_validate({

@@ -116,10 +116,12 @@ def persist_block_extraction(
         extraction.aliases,
         key=lambda alias: normalize_entity_name(alias.alias),
     ):
-        entity = resolver.require(item.entity_name, position)
+        entity = resolver.find(item.entity_name, position)
+        if entity is None:
+            continue
         alias_owner = resolver.find(item.alias, position)
         if alias_owner is not None and alias_owner.id != entity.id:
-            raise ValueError(f"Der Alias {item.alias!r} ist an dieser Stelle mehrdeutig.")
+            continue
         if normalize_entity_name(item.alias) == normalize_entity_name(entity.canonical_name):
             continue
         existing_alias = resolver.find_alias(item.alias, position)

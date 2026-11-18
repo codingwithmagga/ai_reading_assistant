@@ -138,10 +138,17 @@ def normalize_extraction(
         if owner is None:
             continue
         alias.entity_name = owner[0]
+        alias_owner = resolve_name(alias.alias)
+        if alias_owner is not None and alias_owner[0] != owner[0]:
+            continue
     normalized.aliases = [
         alias
         for alias in normalized.aliases
         if resolve_name(alias.entity_name) is not None
+        and (
+            (alias_owner := resolve_name(alias.alias)) is None
+            or alias_owner[0] == resolve_name(alias.entity_name)[0]
+        )
     ]
     for fact in normalized.facts:
         owner = resolve_name(fact.entity_name)

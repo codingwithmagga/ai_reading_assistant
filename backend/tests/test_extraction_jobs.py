@@ -584,7 +584,7 @@ def test_ambiguous_prior_alias_is_not_auto_merged(session: Session) -> None:
     assert len(extractor.calls[1]["known_entities"]) == 2
 
 
-def test_alias_cannot_shadow_another_entities_canonical_name(session: Session) -> None:
+def test_alias_shadowing_another_entities_canonical_name_is_dropped(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id)
     extraction = ChapterExtraction(
@@ -614,17 +614,19 @@ def test_alias_cannot_shadow_another_entities_canonical_name(session: Session) -
         [
             extraction,
             ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
         ]
     )
 
-    with pytest.raises(ValueError, match="mehrdeutig"):
-        _run(session, job, extractor)
+    completed = _run(session, job, extractor)
 
-    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
-    assert (
-        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
-        is None
-    )
+    assert completed.status == "completed"
+    canonical_names = {
+        entity.canonical_name
+        for entity in session.scalars(select(Entity).where(Entity.book_id == book.id))
+    }
+    assert canonical_names == {"Marta", "Dorf"}
+    assert session.scalar(select(EntityAlias.id).where(EntityAlias.alias == "Marta")) is None
 
 
 def test_known_entity_context_excludes_entities_and_aliases_from_later_positions(
