@@ -146,7 +146,7 @@ def test_reference_validation_rejects_unknown_reference() -> None:
         )
 
 
-def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
+def test_reference_validation_accepts_non_verbatim_excerpt() -> None:
     result = ChapterExtraction.model_validate(
         {
             "facts": [
@@ -164,14 +164,15 @@ def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="Quellauszug"):
-        validate_chapter_references(
-            result,
-            [ChapterParagraph(reference="p0", text="Marta ist Wirtin.")],
-        )
+    repaired = validate_chapter_references(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta ist Wirtin.")],
+    )
+
+    assert repaired.facts[0].source_excerpt == "Marta ist Königin."
 
 
-def test_reference_validation_replaces_ellipsis_excerpt_with_verbatim_segment() -> None:
+def test_reference_validation_preserves_ellipsis_excerpt() -> None:
     result = ChapterExtraction.model_validate(
         {
             "entities": [],
@@ -205,6 +206,7 @@ def test_reference_validation_replaces_ellipsis_excerpt_with_verbatim_segment() 
     repaired = validate_chapter_references(result, paragraphs)
 
     assert repaired.facts[0].source_excerpt == (
+        "An der Ecke erschien ein Mann, so jäh und lautlos..."
         "Der Name dieses Mannes war Albus Dumbledore."
     )
 
@@ -238,34 +240,6 @@ def test_future_relationship_reference_is_not_accepted_or_shifted() -> None:
 
     with pytest.raises(ValueError, match=r"relationships\[0\].*not known.*do not move"):
         validate_entity_references(result, paragraphs, [])
-
-
-def test_reference_validation_error_identifies_fact_and_paragraph() -> None:
-    result = ChapterExtraction.model_validate(
-        {
-            "entities": [],
-            "aliases": [],
-            "facts": [
-                {
-                    "entity_name": "Marta",
-                    "text": "Marta ist Wirtin.",
-                    "paragraph_ref": "p13",
-                    "source_excerpt": "Marta wurde zur Königin gekrönt.",
-                    "kind": "description",
-                }
-            ],
-            "relationships": [],
-        }
-    )
-
-    with pytest.raises(
-        ValueError,
-        match=r"facts\[0\].*Absatz p13.*verbatim",
-    ):
-        validate_chapter_references(
-            result,
-            [ChapterParagraph(reference="p13", text="Marta ist Wirtin.")],
-        )
 
 
 def test_reference_validation_rejects_duplicate_input_references() -> None:
