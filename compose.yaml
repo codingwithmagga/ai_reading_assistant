@@ -2,6 +2,11 @@ services:
   backend:
     build:
       context: ./backend
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/alembic:/app/alembic
+      - reading-data:/app/data
+    command: sh -c "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
@@ -15,8 +20,6 @@ services:
       EPUB_MAX_UPLOAD_MB: ${EPUB_MAX_UPLOAD_MB:-50}
       EPUB_MAX_UNCOMPRESSED_MB: ${EPUB_MAX_UNCOMPRESSED_MB:-250}
       EPUB_MAX_ARCHIVE_ENTRIES: ${EPUB_MAX_ARCHIVE_ENTRIES:-5000}
-    volumes:
-      - reading-data:/app/data
     expose:
       - "8000"
     restart: unless-stopped

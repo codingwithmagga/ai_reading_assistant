@@ -6,11 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.extraction_schemas import (
     ChapterExtraction,
-    ChapterParagraph,
     EntityType,
     KnownEntity,
     normalize_entity_name,
-    validate_chapter_references,
 )
 from app.models import (
     Book,
@@ -75,12 +73,7 @@ def persist_block_extraction(
     if chapter.book_id != book.id:
         raise ValueError("Das Kapitel gehört nicht zum Buch der Extraktion.")
 
-    request_paragraphs = [
-        ChapterParagraph(reference=f"p{index}", text=paragraph.text)
-        for index, paragraph in enumerate(paragraphs)
-    ]
-    validate_chapter_references(extraction, request_paragraphs)
-    positions = {f"p{index}": paragraph.position for index, paragraph in enumerate(paragraphs)}
+    position = paragraphs[0].position
     if any(
         paragraph.book_id != book.id
         or paragraph.chapter_id != chapter.id
@@ -92,12 +85,8 @@ def persist_block_extraction(
     resolver = _EntityResolver(session, book.id)
     for item in sorted(
         extraction.entities,
-        key=lambda entity: (
-            positions[entity.first_mention_ref],
-            normalize_entity_name(entity.canonical_name),
-        ),
+        key=lambda entity: normalize_entity_name(entity.canonical_name),
     ):
-        position = positions[item.first_mention_ref]
         entity = resolver.find(item.canonical_name, position)
         if entity is not None:
             if entity.type != item.entity_type.value:
@@ -125,13 +114,14 @@ def persist_block_extraction(
 
     for item in sorted(
         extraction.aliases,
-        key=lambda alias: (positions[alias.paragraph_ref], normalize_entity_name(alias.alias)),
+        key=lambda alias: normalize_entity_name(alias.alias),
     ):
-        position = positions[item.paragraph_ref]
-        entity = resolver.require(item.entity_name, position)
+        entity = resolver.find(item.entity_name, position)
+        if entity is None:
+            continue
         alias_owner = resolver.find(item.alias, position)
         if alias_owner is not None and alias_owner.id != entity.id:
-            raise ValueError(f"Der Alias {item.alias!r} ist an dieser Stelle mehrdeutig.")
+            continue
         if normalize_entity_name(item.alias) == normalize_entity_name(entity.canonical_name):
             continue
         existing_alias = resolver.find_alias(item.alias, position)
@@ -167,13 +157,8 @@ def persist_block_extraction(
     }
     for item in sorted(
         extraction.facts,
-        key=lambda fact: (
-            positions[fact.paragraph_ref],
-            normalize_entity_name(fact.entity_name),
-            fact.kind,
-        ),
+        key=lambda fact: (normalize_entity_name(fact.entity_name), fact.kind),
     ):
-        position = positions[item.paragraph_ref]
         entity = resolver.require(item.entity_name, position)
         fact_key = (entity.id, position, item.kind.value, item.text)
         if fact_key in existing_facts:
@@ -197,12 +182,8 @@ def persist_block_extraction(
     }
     for item in sorted(
         extraction.relationships,
-        key=lambda relation: (
-            positions[relation.paragraph_ref],
-            normalize_entity_name(relation.label),
-        ),
+        key=lambda relation: normalize_entity_name(relation.label),
     ):
-        position = positions[item.paragraph_ref]
         entity_a = resolver.require(item.entity_a_name, position)
         entity_b = resolver.require(item.entity_b_name, position)
         relationship_key = (entity_a.id, entity_b.id, item.label, position)

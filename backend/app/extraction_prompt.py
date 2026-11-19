@@ -23,7 +23,7 @@ def build_chapter_input(
         "output_language": output_language,
         "chapter_title": chapter_title,
         "paragraphs": [
-            {"reference": paragraph.reference, "text": paragraph.text} for paragraph in paragraphs
+            {"text": paragraph.text} for paragraph in paragraphs
         ],
         "known_entities": [
             {
@@ -38,21 +38,18 @@ def build_chapter_input(
                 {
                     "canonical_name": "string",
                     "entity_type": "person|place|group|object|concept",
-                    "first_mention_ref": "paragraph reference from this input",
                 }
             ],
             "aliases": [
                 {
                     "entity_name": "canonical name",
                     "alias": "string",
-                    "paragraph_ref": "paragraph reference from this input",
                 }
             ],
             "facts": [
                 {
                     "entity_name": "canonical name",
                     "text": "short, supported fact",
-                    "paragraph_ref": "paragraph reference from this input",
                     "source_excerpt": "verbatim excerpt of at most 200 characters",
                     "kind": "description|relationship|event|motivation",
                 }
@@ -62,7 +59,6 @@ def build_chapter_input(
                     "entity_a_name": "canonical name",
                     "entity_b_name": "canonical name",
                     "label": "supported relationship",
-                    "paragraph_ref": "paragraph reference from this input",
                 }
             ],
         },

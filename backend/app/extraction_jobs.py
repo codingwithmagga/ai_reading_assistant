@@ -297,7 +297,7 @@ def process_extraction_job(
                 job.input_tokens += error.input_tokens
                 job.output_tokens += error.output_tokens
         if book is not None:
-            book.status = "error"
+            book.status = "parsed"
         session.commit()
         raise
 

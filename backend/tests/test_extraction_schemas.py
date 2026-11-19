@@ -9,6 +9,7 @@ from app.extraction_schemas import (
     ChapterParagraph,
     EntityType,
     KnownEntity,
+    normalize_extraction,
     validate_chapter_references,
     validate_entity_references,
 )
@@ -46,6 +47,91 @@ def test_chapter_extraction_accepts_supported_data() -> None:
     paragraphs = [ChapterParagraph(reference="p0", text="Marta ist Wirtin.")]
 
     assert validate_chapter_references(result, paragraphs) == result
+
+
+def test_reference_validation_repairs_wrong_fact_reference_from_source_text() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Marta",
+                    "text": "Marta hat die Wahrheit erfahren.",
+                    "paragraph_ref": "p3",
+                    "source_excerpt": "Marta erfuhr die Wahrheit.",
+                    "kind": "event",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Marta wartete."),
+        ChapterParagraph(reference="p13", text="Marta erfuhr die Wahrheit."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.facts[0].paragraph_ref == "p13"
+
+
+def test_reference_validation_repairs_unknown_references_within_the_block() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Marta",
+                    "entity_type": "person",
+                    "first_mention_ref": "p99",
+                }
+            ],
+            "aliases": [
+                {
+                    "entity_name": "Marta",
+                    "alias": "die Wirtin",
+                    "paragraph_ref": "p98",
+                }
+            ],
+            "facts": [],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p0", text="Der Raum war leer."),
+        ChapterParagraph(reference="p1", text="Die Wirtin Marta trat ein."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.entities[0].first_mention_ref == "p1"
+    assert repaired.aliases[0].paragraph_ref == "p1"
+
+
+def test_reference_validation_uses_later_relationship_endpoint() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [],
+            "relationships": [
+                {
+                    "entity_a_name": "Dudley",
+                    "entity_b_name": "Harry",
+                    "label": "Bekannt",
+                    "paragraph_ref": "p3",
+                }
+            ],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Dudley spielte."),
+        ChapterParagraph(reference="p12", text="Harry wurde erwähnt."),
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.relationships[0].paragraph_ref == "p12"
 
 
 @pytest.mark.parametrize(
@@ -127,7 +213,7 @@ def test_chapter_extraction_rejects_duplicate_entity_names() -> None:
         )
 
 
-def test_reference_validation_rejects_unknown_reference() -> None:
+def test_reference_validation_repairs_unknown_entity_reference() -> None:
     result = ChapterExtraction.model_validate(
         {
             "entities": [
@@ -139,14 +225,15 @@ def test_reference_validation_rejects_unknown_reference() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="p2"):
-        validate_chapter_references(
-            result,
-            [ChapterParagraph(reference="p0", text="Marta kommt herein.")],
-        )
+    repaired = validate_chapter_references(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta kommt herein.")],
+    )
+
+    assert repaired.entities[0].first_mention_ref == "p0"
 
 
-def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
+def test_reference_validation_accepts_non_verbatim_excerpt() -> None:
     result = ChapterExtraction.model_validate(
         {
             "facts": [
@@ -164,11 +251,82 @@ def test_reference_validation_rejects_non_verbatim_excerpt() -> None:
         }
     )
 
-    with pytest.raises(ValueError, match="Quellauszug"):
-        validate_chapter_references(
-            result,
-            [ChapterParagraph(reference="p0", text="Marta ist Wirtin.")],
+    repaired = validate_chapter_references(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta ist Wirtin.")],
+    )
+
+    assert repaired.facts[0].source_excerpt == "Marta ist Königin."
+
+
+def test_reference_validation_preserves_ellipsis_excerpt() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [],
+            "aliases": [],
+            "facts": [
+                {
+                    "entity_name": "Albus Dumbledore",
+                    "text": "Albus Dumbledore ist am Ligusterweg erschienen.",
+                    "paragraph_ref": "p18",
+                    "source_excerpt": (
+                        "An der Ecke erschien ein Mann, so jäh und lautlos..."
+                        "Der Name dieses Mannes war Albus Dumbledore."
+                    ),
+                    "kind": "event",
+                }
+            ],
+            "relationships": [],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(
+            reference="p18",
+            text=(
+                "An der Ecke, die sie beobachtet hatte, erschien ein Mann, "
+                "so jäh und lautlos, als wäre er geradewegs aus dem Boden gewachsen. "
+                "Der Name dieses Mannes war Albus Dumbledore."
+            ),
         )
+    ]
+
+    repaired = validate_chapter_references(result, paragraphs)
+
+    assert repaired.facts[0].source_excerpt == (
+        "An der Ecke erschien ein Mann, so jäh und lautlos..."
+        "Der Name dieses Mannes war Albus Dumbledore."
+    )
+
+
+def test_future_relationship_reference_is_not_accepted_or_shifted() -> None:
+    result = ChapterExtraction.model_validate(
+        {
+            "entities": [
+                {
+                    "canonical_name": "Harry",
+                    "entity_type": "person",
+                    "first_mention_ref": "p12",
+                }
+            ],
+            "aliases": [],
+            "facts": [],
+            "relationships": [
+                {
+                    "entity_a_name": "Dudley",
+                    "entity_b_name": "Harry",
+                    "label": "Bekannt",
+                    "paragraph_ref": "p3",
+                }
+            ],
+        }
+    )
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Dudley war anwesend."),
+        ChapterParagraph(reference="p12", text="Harry wurde erwähnt."),
+    ]
+
+    with pytest.raises(ValueError, match=r"relationships\[0\].*not known.*do not move"):
+        validate_entity_references(result, paragraphs, [])
 
 
 def test_reference_validation_rejects_duplicate_input_references() -> None:
@@ -190,7 +348,7 @@ def test_chapter_input_only_contains_local_references_and_supplied_text() -> Non
     )
     payload = json.loads(request)
 
-    assert payload["paragraphs"] == [{"reference": "p0", "text": "Marta kommt herein."}]
+    assert payload["paragraphs"] == [{"text": "Marta kommt herein."}]
     assert payload["known_entities"] == [
         {"canonical_name": "Marta", "entity_type": "person", "aliases": []}
     ]
@@ -204,7 +362,6 @@ def test_system_prompt_forbids_later_chapters_and_global_positions() -> None:
 
     assert "later chapters" in prompt
     assert "global positions" in prompt
-    assert "same or an earlier paragraph" in prompt
 
 
 def test_entity_references_follow_supplied_order_and_alias_positions() -> None:
@@ -247,6 +404,191 @@ def test_known_alias_is_available_from_start_and_ambiguity_is_rejected() -> None
         validate_entity_references(result, paragraphs, known)
 
 
+def test_normalize_extraction_uses_known_canonical_names_and_types() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Harry Potter",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Rubeus Hagrid",
+                "entity_type": "person",
+                "first_mention_ref": "p14",
+            },
+        ],
+        "aliases": [],
+        "facts": [
+            {
+                "entity_name": "Harry",
+                "text": "Harry lebt bei den Dursleys.",
+                "paragraph_ref": "p3",
+                "source_excerpt": "Harry",
+                "kind": "description",
+            }
+        ],
+        "relationships": [],
+    })
+    paragraphs = [
+        ChapterParagraph(reference="p3", text="Harry kommt zu seiner Tante."),
+        ChapterParagraph(reference="p14", text="Hagrid brachte das Kind."),
+    ]
+    known = [
+        KnownEntity(
+            canonical_name="HARRY POTTER",
+            entity_type=EntityType.CONCEPT,
+        ),
+        KnownEntity(
+            canonical_name="Rubeus Hagrid",
+            entity_type=EntityType.PERSON,
+        ),
+    ]
+
+    normalized = normalize_extraction(result, paragraphs, known)
+
+    assert normalized.entities == []
+    assert normalized.facts[0].entity_name == "HARRY POTTER"
+    assert normalized.facts[0].paragraph_ref == "p3"
+
+
+def test_normalize_extraction_drops_unresolved_relationships_and_aliases() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [],
+        "aliases": [
+            {
+                "entity_name": "Unknown Person",
+                "alias": "Mystery",
+                "paragraph_ref": "p0",
+            }
+        ],
+        "facts": [],
+        "relationships": [
+            {
+                "entity_a_name": "Unknown Person",
+                "entity_b_name": "Unknown Place",
+                "label": "bekannt",
+                "paragraph_ref": "p0",
+            }
+        ],
+    })
+    paragraphs = [ChapterParagraph(reference="p0", text="Die Geschichte beginnt.")]
+
+    normalized = normalize_extraction(result, paragraphs, [])
+
+    assert normalized.aliases == []
+    assert normalized.relationships == []
+
+
+@pytest.mark.parametrize(
+    ("canonical_name", "alias_name"),
+    [
+        ("Mrs Dursley", "Tante Petunia"),
+        ("Mr Dursley", "Onkel Vernon"),
+    ],
+)
+def test_normalize_extraction_merges_alias_shadowing_another_entity(
+    canonical_name: str,
+    alias_name: str,
+) -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": canonical_name,
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": alias_name,
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+        ],
+        "aliases": [
+            {
+                "entity_name": canonical_name,
+                "alias": alias_name,
+                "paragraph_ref": "p0",
+            }
+        ],
+        "facts": [
+            {
+                "entity_name": alias_name,
+                "text": "Sie wohnt bei den Dursleys.",
+                "paragraph_ref": "p0",
+                "source_excerpt": canonical_name,
+                "kind": "description",
+            }
+        ],
+        "relationships": [
+            {
+                "entity_a_name": "Dudley",
+                "entity_b_name": alias_name,
+                "label": "Sohn",
+                "paragraph_ref": "p0",
+            }
+        ],
+    })
+    known = [
+        KnownEntity(
+            canonical_name=canonical_name,
+            entity_type=EntityType.PERSON,
+        ),
+        KnownEntity(
+            canonical_name=alias_name,
+            entity_type=EntityType.PERSON,
+        ),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text=f"{canonical_name} und {alias_name}.")],
+        known,
+    )
+
+    assert normalized.entities == []
+    assert len(normalized.aliases) == 1
+    assert normalized.aliases[0].entity_name == canonical_name
+    assert normalized.aliases[0].alias == alias_name
+    assert len(normalized.facts) == 1
+    assert normalized.facts[0].entity_name == canonical_name
+
+
+def test_multiple_entity_type_conflicts_are_reported_together() -> None:
+    paragraphs = [ChapterParagraph(reference="p0", text="Nora and Marta appear.")]
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Nora",
+                "entity_type": "place",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Marta",
+                "entity_type": "group",
+                "first_mention_ref": "p0",
+            },
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Nora", entity_type=EntityType.PERSON),
+        KnownEntity(canonical_name="Marta", entity_type=EntityType.PERSON),
+    ]
+
+    with pytest.raises(ValueError) as caught:
+        validate_entity_references(result, paragraphs, known)
+
+    message = str(caught.value)
+    assert "entities[0].entity_type" in message
+    assert "existing type: person" in message
+    assert "received type: place" in message
+    assert "entities[1].entity_type" in message
+    assert "received type: group" in message
+
+
 def test_reference_validation_rejects_conflicting_alias_owner_and_type() -> None:
     paragraphs = [ChapterParagraph(reference="p0", text="Two people.")]
     known = [
@@ -263,5 +605,5 @@ def test_reference_validation_rejects_conflicting_alias_owner_and_type() -> None
         "entities": [{"canonical_name": "Nora", "entity_type": "place", "first_mention_ref": "p0"}],
         "aliases": [], "facts": [], "relationships": [],
     })
-    with pytest.raises(ValueError, match="type conflicts"):
+    with pytest.raises(ValueError, match="existing type: person"):
         validate_entity_references(conflict, paragraphs, known)

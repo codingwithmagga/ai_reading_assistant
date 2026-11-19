@@ -37,7 +37,6 @@ from app.models import (
 )
 from app.openai_extractor import (
     ExtractionResponse,
-    InvalidExtractionOutputError,
     OpenAIChapterExtractor,
     ResponsesAPI,
 )
@@ -195,13 +194,10 @@ def _run(
     )
 
 
-@pytest.mark.parametrize("corrected", [True, False])
-def test_job_retries_invalid_entity_references_before_persisting(
-    session: Session, corrected: bool
-) -> None:
+def test_job_drops_unresolved_entity_facts_without_retry(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id, max_chapter_index=0)
-    invalid = {
+    extraction = {
         "entities": [], "aliases": [], "relationships": [],
         "facts": [{
             "entity_name": "Marta", "text": "Marta öffnet die Tür.",
@@ -209,13 +205,7 @@ def test_job_retries_invalid_entity_references_before_persisting(
             "kind": "event",
         }],
     }
-    valid = {
-        **invalid,
-        "entities": [{
-            "canonical_name": "Marta", "entity_type": "person", "first_mention_ref": "p0"
-        }],
-    }
-    responses = FakeResponses([json.dumps(invalid), json.dumps(valid if corrected else invalid)])
+    responses = FakeResponses([json.dumps(extraction)])
     settings = Settings(
         _env_file=None,
         extraction_max_paragraphs_per_block=10,
@@ -223,25 +213,11 @@ def test_job_retries_invalid_entity_references_before_persisting(
         openai_max_attempts=2,
     )
     worker = OpenAIChapterExtractor(settings, client=cast(ResponsesAPI, responses))
-    if corrected:
-        completed = process_extraction_job(session, job.id, extractor=worker, settings=settings)
-        assert completed.status == "completed"
-        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is not None
-        assert session.scalar(select(ExtractionCheckpoint.id).where(
-            ExtractionCheckpoint.job_id == job.id
-        )) is not None
-    else:
-        with pytest.raises(InvalidExtractionOutputError):
-            process_extraction_job(session, job.id, extractor=worker, settings=settings)
-        session.refresh(job)
-        assert job.status == "error"
-        assert job.error_code == "InvalidExtractionOutputError"
-        assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
-        assert session.scalar(select(ExtractionCheckpoint.id).where(
-            ExtractionCheckpoint.job_id == job.id
-        )) is None
-    assert (job.input_tokens, job.output_tokens) == (24, 10)
-    assert len(responses.requests) == 2
+    completed = process_extraction_job(session, job.id, extractor=worker, settings=settings)
+
+    assert completed.status == "completed"
+    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
+    assert len(responses.requests) == 1
 
 
 def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: Session) -> None:
@@ -338,7 +314,7 @@ def test_failed_job_resumes_after_last_atomic_checkpoint_without_duplication(
     assert job.progress == 33
     assert job.error_code == "RuntimeError"
     assert "private source text" not in job.error
-    assert book.status == "error"
+    assert book.status == "parsed"
     assert session.scalar(
         select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id)
     )
@@ -498,13 +474,13 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
         )
     )
     assert entities["Marta"].first_position == 0
-    assert entities["Dorf"].first_position == 1
+    assert entities["Dorf"].first_position == 0
     stored_alias = session.scalar(
         select(EntityAlias).where(EntityAlias.entity_id == entities["Marta"].id)
     )
     assert stored_alias is not None
     assert stored_alias.alias == "die Wirtin"
-    assert stored_alias.first_position == 1
+    assert stored_alias.first_position == 0
     stored_fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
     assert stored_fact is not None
     assert stored_fact.entity_id == entities["Marta"].id
@@ -516,7 +492,7 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
     assert stored_relationship is not None
     assert stored_relationship.entity_a_id == entities["Marta"].id
     assert stored_relationship.entity_b_id == entities["Dorf"].id
-    assert stored_relationship.position == 1
+    assert stored_relationship.position == 0
     second_block_entities = extractor.calls[1]["known_entities"]
     assert {entity.canonical_name for entity in second_block_entities} == {"Marta", "Dorf"}
     assert next(
@@ -524,7 +500,7 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
     ).aliases == ["die Wirtin"]
 
 
-def test_fact_cannot_precede_entity_first_mention(session: Session) -> None:
+def test_fact_and_entity_share_block_position(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id)
     extraction = ChapterExtraction(
@@ -551,18 +527,18 @@ def test_fact_cannot_precede_entity_first_mention(session: Session) -> None:
         [
             extraction,
             ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
         ]
     )
 
-    with pytest.raises(ValueError, match="nicht im erlaubten Kontext"):
-        _run(session, job, extractor)
+    completed = _run(session, job, extractor)
 
-    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
-    assert session.scalar(select(Fact.id).where(Fact.book_id == book.id)) is None
-    assert (
-        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
-        is None
-    )
+    assert completed.status == "completed"
+    entity = session.scalar(select(Entity).where(Entity.book_id == book.id))
+    fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
+    assert entity is not None
+    assert fact is not None
+    assert entity.first_position == fact.position == 0
 
 
 def test_ambiguous_prior_alias_is_not_auto_merged(session: Session) -> None:
@@ -608,7 +584,7 @@ def test_ambiguous_prior_alias_is_not_auto_merged(session: Session) -> None:
     assert len(extractor.calls[1]["known_entities"]) == 2
 
 
-def test_alias_cannot_shadow_another_entities_canonical_name(session: Session) -> None:
+def test_alias_shadowing_another_entities_canonical_name_is_dropped(session: Session) -> None:
     book = _create_parsed_book(session)
     job = create_extraction_job(session, book.id)
     extraction = ChapterExtraction(
@@ -638,17 +614,19 @@ def test_alias_cannot_shadow_another_entities_canonical_name(session: Session) -
         [
             extraction,
             ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
         ]
     )
 
-    with pytest.raises(ValueError, match="mehrdeutig"):
-        _run(session, job, extractor)
+    completed = _run(session, job, extractor)
 
-    assert session.scalar(select(Entity.id).where(Entity.book_id == book.id)) is None
-    assert (
-        session.scalar(select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == job.id))
-        is None
-    )
+    assert completed.status == "completed"
+    canonical_names = {
+        entity.canonical_name
+        for entity in session.scalars(select(Entity).where(Entity.book_id == book.id))
+    }
+    assert canonical_names == {"Marta", "Dorf"}
+    assert session.scalar(select(EntityAlias.id).where(EntityAlias.alias == "Marta")) is None
 
 
 def test_known_entity_context_excludes_entities_and_aliases_from_later_positions(

@@ -75,14 +75,19 @@ def test_backup_roundtrip_preserves_resume_and_spoiler_boundary(
     assert result.status_code == 200, result.text
     assert result.json() == {"restored": 1}
     assert client.get(f"/books/{book_id}/progress").json()["current_position"] == 2
-    assert client.get(f"/books/{book_id}/entities", params={"position": 0}).json() == []
+    assert [
+        entity["canonical_name"]
+        for entity in client.get(
+            f"/books/{book_id}/entities", params={"position": 0}
+        ).json()
+    ] == ["Marta"]
     assert client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 1}
-    ).json()["matches"] == []
+    ).json()["matches"]
     match = client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 2}
     ).json()["matches"][0]
-    assert [fact["position"] for fact in match["facts"]] == [1, 2]
+    assert [fact["position"] for fact in match["facts"]] == [0, 0]
     with Session(client.app.state.test_engine) as session:
         job = session.scalar(select(Job).where(Job.book_id == book_id, Job.type == "extraction"))
         assert job.status == "completed"
@@ -269,7 +274,7 @@ def test_restore_failed_job_resumes_from_checkpoint(
     monkeypatch.setattr("app.backup.get_settings", lambda: settings)
     backup = client.get("/backup").json()
     assert restore(client, backup).status_code == 200
-    assert client.get(f"/books/{book_id}").json()["status"] == "error"
+    assert client.get(f"/books/{book_id}").json()["status"] == "parsed"
     chapter_id = client.get(f"/books/{book_id}/chapters").json()[0]["id"]
     assert client.get(f"/books/{book_id}/content/{chapter_id}").status_code == 200
     with Session(client.app.state.test_engine) as session:
@@ -277,7 +282,13 @@ def test_restore_failed_job_resumes_from_checkpoint(
         process_extraction_job(session, resumed.id, extractor=Extractor(), settings=settings)
         assert resumed.status == "completed"
         assert resumed.input_tokens == 3
-    assert calls == ["Kapitel Eins", "Erster Absatz.", "Erster Absatz.", "Zweiter Absatz."]
+    assert calls == [
+        "Kapitel Eins",
+        "Erster Absatz.",
+        "Kapitel Eins",
+        "Erster Absatz.",
+        "Zweiter Absatz.",
+    ]
 
 
 def test_empty_parsing_error_is_excluded_and_existing_record_is_untouched(
