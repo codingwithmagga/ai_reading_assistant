@@ -1130,7 +1130,7 @@ describe("App", () => {
     );
   });
 
-  it("loads known characters and chronological recap at the active notes position", async () => {
+  it("loads known entities for the dropdown and chronological recap at the active notes position", async () => {
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
     vi.mocked(api.getBooks).mockResolvedValue([book]);
     vi.mocked(api.getChapters).mockResolvedValue([
@@ -1202,8 +1202,21 @@ describe("App", () => {
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
-    await screen.findByText("Liora");
-    expect(api.getBookEntities).toHaveBeenLastCalledWith(book.id, 0, "person");
+    await screen.findByLabelText("Bekannten Eintrag auswählen");
+    expect(screen.getByLabelText("Eintragstyp")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Eintragstyp"), {
+      target: { value: "person" },
+    });
+    await waitFor(() => {
+      expect(
+        screen.getByRole("option", { name: "Liora (Person)" }),
+      ).toBeInTheDocument();
+    });
+    fireEvent.change(screen.getByLabelText("Bekannten Eintrag auswählen"), {
+      target: { value: "Liora" },
+    });
+    expect(screen.getByLabelText("Bekannten Eintrag auswählen")).toHaveValue("Liora");
+    expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 0);
     expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
 
     fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
@@ -1212,16 +1225,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
     expect(await screen.findByText("Liora finds a key.")).toBeInTheDocument();
-    expect(screen.getByText("Liora").closest("li")).toHaveTextContent(
-      "the traveler",
-    );
     expect(screen.getByText("She found a small key.")).toBeInTheDocument();
     await waitFor(() => {
-      expect(api.getBookEntities).toHaveBeenLastCalledWith(
-        book.id,
-        0,
-        "person",
-      );
+      expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 0);
       expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
     });
   });
@@ -1259,9 +1265,13 @@ describe("App", () => {
         },
       ],
     });
-    vi.mocked(api.getBookEntities)
+    vi.mocked(api.getBookRecap)
       .mockRejectedValueOnce(new Error("network down"))
-      .mockResolvedValue([]);
+      .mockResolvedValue({
+        position: 0,
+        characters: [],
+        events: [],
+      });
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
@@ -1273,9 +1283,9 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
 
     expect(
-      await screen.findByText(/Bis zu dieser Position sind keine Figuren bekannt/),
+      await screen.findByText(/Bis zu dieser Position sind keine Ereignisse bekannt/),
     ).toBeInTheDocument();
-    expect(api.getBookEntities).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Bekannte Figuren")).not.toBeInTheDocument();
     expect(screen.getByText("The reader remains available.")).toBeInTheDocument();
   });
 });

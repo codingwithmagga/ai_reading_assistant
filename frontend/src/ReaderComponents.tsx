@@ -4,6 +4,7 @@ import {
   ChapterContent,
   EntityListItem,
   EntityLookupResponse,
+  EntityType,
   RecapResponse,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
@@ -174,6 +175,8 @@ interface NotesPanelProps {
   exportError: string | null;
   onExport: (format: "json" | "markdown") => void;
   lookupTerm: string;
+  lookupEntityType: EntityType | "all";
+  lookupEntityOptions: EntityListItem[];
   selectedTextPosition: number | null;
   lookupResponse: EntityLookupResponse | null;
   lookupError: string | null;
@@ -182,10 +185,8 @@ interface NotesPanelProps {
   onLookupTermChange: (value: string) => void;
   onLookupClear: () => void;
   onLookupRetry: () => void;
-  characters: EntityListItem[];
-  charactersLoading: boolean;
-  charactersError: string | null;
-  onCharactersRetry: () => void;
+  onLookupEntityTypeChange: (value: EntityType | "all") => void;
+  onLookupEntityNameChange: (value: string) => void;
   recap: RecapResponse | null;
   recapLoading: boolean;
   recapError: string | null;
@@ -199,6 +200,8 @@ export function NotesPanel({
   exportError,
   onExport,
   lookupTerm,
+  lookupEntityType,
+  lookupEntityOptions,
   selectedTextPosition,
   lookupResponse,
   lookupError,
@@ -207,15 +210,20 @@ export function NotesPanel({
   onLookupTermChange,
   onLookupClear,
   onLookupRetry,
-  characters,
-  charactersLoading,
-  charactersError,
-  onCharactersRetry,
+  onLookupEntityTypeChange,
+  onLookupEntityNameChange,
   recap,
   recapLoading,
   recapError,
   onRecapRetry,
 }: NotesPanelProps) {
+  const filteredEntityOptions =
+    lookupEntityType === "all"
+      ? lookupEntityOptions
+      : lookupEntityOptions.filter(
+          (entity) => entity.type === lookupEntityType,
+        );
+
   return (
     <aside className="notes-panel" aria-label={copy.notesPanel}>
       <details open>
@@ -255,6 +263,55 @@ export function NotesPanel({
           <p id="lookup-help" className="help-text">
             {copy.exactMatchHelp}
           </p>
+          <label htmlFor="entity-type-filter">{copy.entityTypeFilter}</label>
+          <select
+            id="entity-type-filter"
+            value={lookupEntityType}
+            onChange={(event) =>
+              onLookupEntityTypeChange(
+                event.currentTarget.value as EntityType | "all",
+              )
+            }
+          >
+            <option value="all">{copy.allEntityTypes}</option>
+            <option value="person">{getEntityTypeLabel("person", copy)}</option>
+            <option value="place">{getEntityTypeLabel("place", copy)}</option>
+            <option value="group">{getEntityTypeLabel("group", copy)}</option>
+            <option value="object">{getEntityTypeLabel("object", copy)}</option>
+            <option value="concept">{getEntityTypeLabel("concept", copy)}</option>
+          </select>
+          <label htmlFor="known-entity-select">
+            {copy.selectKnownEntity}
+          </label>
+          <select
+            id="known-entity-select"
+            value={lookupTerm && filteredEntityOptions.some(
+              (entity) =>
+                entity.canonical_name === lookupTerm ||
+                entity.aliases.some((alias) => alias.alias === lookupTerm),
+            ) ? lookupTerm : ""}
+            onChange={(event) =>
+              onLookupEntityNameChange(event.currentTarget.value)
+            }
+          >
+            <option value="">{copy.chooseKnownEntity}</option>
+            {filteredEntityOptions.flatMap((entity) => [
+              <option
+                key={`canonical-${entity.id}`}
+                value={entity.canonical_name}
+              >
+                {entity.canonical_name} ({getEntityTypeLabel(entity.type, copy)})
+              </option>,
+              ...entity.aliases.map((alias) => (
+                <option
+                  key={`alias-${entity.id}-${alias.alias}`}
+                  value={alias.alias}
+                >
+                  {alias.alias} ({getEntityTypeLabel(entity.type, copy)})
+                </option>
+              )),
+            ])}
+          </select>
           <input
             id="entity-lookup"
             type="search"
@@ -357,45 +414,6 @@ export function NotesPanel({
             ))}
           </div>
         )}
-
-        <section
-          className="notes-data"
-          aria-labelledby="characters-heading"
-          aria-live="polite"
-          aria-busy={charactersLoading}
-        >
-          <h3 id="characters-heading">{copy.knownCharacters}</h3>
-          {charactersLoading ? (
-            <p role="status">{copy.loadingCharacters}</p>
-          ) : charactersError ? (
-            <div className="message error" role="alert">
-              <p>
-                {copy.notesLoadFailed} {charactersError}
-              </p>
-              <button type="button" onClick={onCharactersRetry}>
-                {copy.retry}
-              </button>
-            </div>
-          ) : characters.length > 0 ? (
-            <ul>
-              {characters.map((character) => (
-                <li key={character.id}>
-                  <strong>{character.canonical_name}</strong>
-                  {character.aliases.length > 0 && (
-                    <>
-                      {" "}
-                      <span>
-                        ({character.aliases.map((alias) => alias.alias).join(", ")})
-                      </span>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-state">{copy.noKnownCharacters}</p>
-          )}
-        </section>
 
         <section
           className="notes-data"

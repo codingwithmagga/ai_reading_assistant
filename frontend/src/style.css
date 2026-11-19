@@ -437,7 +437,8 @@ select {
   font-weight: 600;
 }
 
-.lookup-form input {
+.lookup-form input,
+.lookup-form select {
   width: 100%;
   min-height: 2.5rem;
   padding: 0.4rem 0.65rem;

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
+  EntityType,
   EntityListItem,
   EntityLookupResponse,
   RecapResponse,
@@ -29,12 +30,12 @@ export function useReaderNotes({
     useState<EntityLookupResponse | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
-  const [characters, setCharacters] = useState<EntityListItem[]>([]);
-  const [charactersPosition, setCharactersPosition] = useState<number | null>(
-    null,
-  );
-  const [charactersLoading, setCharactersLoading] = useState(false);
-  const [charactersError, setCharactersError] = useState<string | null>(null);
+  const [lookupEntityType, setLookupEntityType] = useState<
+    EntityType | "all"
+  >("all");
+  const [lookupEntityOptions, setLookupEntityOptions] = useState<
+    EntityListItem[]
+  >([]);
   const [recap, setRecap] = useState<RecapResponse | null>(null);
   const [recapPosition, setRecapPosition] = useState<number | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
@@ -60,7 +61,6 @@ export function useReaderNotes({
   const activeLookupPosition = selectedTextPosition ?? position;
   activeLookupPositionRef.current = activeLookupPosition;
 
-  const visibleCharacters = charactersPosition === position ? characters : [];
   const visibleRecap = recapPosition === position ? recap : null;
 
   useEffect(() => {
@@ -82,13 +82,10 @@ export function useReaderNotes({
     let active = true;
     const requestId = ++notesRequestId.current;
     if (position === null) {
-      setCharacters([]);
-      setCharactersPosition(null);
+      setLookupEntityOptions([]);
       setRecap(null);
       setRecapPosition(null);
-      setCharactersError(null);
       setRecapError(null);
-      setCharactersLoading(false);
       setRecapLoading(false);
       return () => {
         active = false;
@@ -97,20 +94,16 @@ export function useReaderNotes({
 
     const requestPosition = position;
     const key = `${bookId}:${requestPosition}`;
-    setCharacters([]);
-    setCharactersPosition(null);
     setRecap(null);
     setRecapPosition(null);
-    setCharactersLoading(true);
     setRecapLoading(true);
-    setCharactersError(null);
     setRecapError(null);
 
     const timer = window.setTimeout(() => {
       let request = notesInFlight.current.get(key);
       if (!request) {
         request = Promise.allSettled([
-          getBookEntities(bookId, requestPosition, "person"),
+          getBookEntities(bookId, requestPosition),
           getBookRecap(bookId, requestPosition),
         ]);
         notesInFlight.current.set(key, request);
@@ -121,17 +114,14 @@ export function useReaderNotes({
         });
       }
 
-      void request.then(([charactersResult, recapResult]) => {
+      void request.then(([entitiesResult, recapResult]) => {
         if (!active || requestId !== notesRequestId.current) {
           return;
         }
-        if (charactersResult.status === "fulfilled") {
-          setCharacters(charactersResult.value);
-          setCharactersPosition(requestPosition);
+        if (entitiesResult.status === "fulfilled") {
+          setLookupEntityOptions(entitiesResult.value);
         } else {
-          setCharactersError(
-            getErrorMessage(charactersResult.reason, copyRef.current),
-          );
+          setLookupEntityOptions([]);
         }
         if (recapResult.status === "fulfilled") {
           setRecap(recapResult.value);
@@ -139,7 +129,6 @@ export function useReaderNotes({
         } else {
           setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
         }
-        setCharactersLoading(false);
         setRecapLoading(false);
       });
     }, 250);
@@ -251,8 +240,21 @@ export function useReaderNotes({
     setLookupLoading(false);
   }
 
+  function changeLookupEntityType(value: EntityType | "all") {
+    setLookupEntityType(value);
+  }
+
+  function changeLookupEntityName(value: string) {
+    if (!value) {
+      return;
+    }
+    changeLookupTerm(value);
+  }
+
   return {
     lookupTerm,
+    lookupEntityType,
+    lookupEntityOptions,
     selectedTextPosition,
     lookupResponse,
     lookupError,
@@ -261,12 +263,10 @@ export function useReaderNotes({
     submitLookup,
     changeLookupTerm,
     clearLookup,
+    changeLookupEntityType,
+    changeLookupEntityName,
     retryLookup: () => void performLookup(lookupTerm, activeLookupPosition),
     captureSelectedText,
-    characters: visibleCharacters,
-    charactersLoading,
-    charactersError,
-    retryCharacters: () => setRetryNotes((attempt) => attempt + 1),
     recap: visibleRecap,
     recapLoading,
     recapError,

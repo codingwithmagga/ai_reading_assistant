@@ -439,6 +439,8 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           exportError={exportError}
           onExport={(format) => void exportNotes(format)}
           lookupTerm={notes.lookupTerm}
+          lookupEntityType={notes.lookupEntityType}
+          lookupEntityOptions={notes.lookupEntityOptions}
           selectedTextPosition={notes.selectedTextPosition}
           lookupResponse={notes.lookupResponse}
           lookupError={notes.lookupError}
@@ -447,10 +449,8 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           onLookupTermChange={notes.changeLookupTerm}
           onLookupClear={notes.clearLookup}
           onLookupRetry={notes.retryLookup}
-          characters={notes.characters}
-          charactersLoading={notes.charactersLoading}
-          charactersError={notes.charactersError}
-          onCharactersRetry={notes.retryCharacters}
+          onLookupEntityTypeChange={notes.changeLookupEntityType}
+          onLookupEntityNameChange={notes.changeLookupEntityName}
           recap={notes.recap}
           recapLoading={notes.recapLoading}
           recapError={notes.recapError}
