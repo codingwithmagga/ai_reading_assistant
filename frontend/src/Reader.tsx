@@ -476,10 +476,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           onLookupRetry={notes.retryLookup}
           onLookupEntityTypeChange={notes.changeLookupEntityType}
           onLookupEntityNameChange={notes.changeLookupEntityName}
-          characters={notes.characters}
-          charactersLoading={notes.charactersLoading}
-          charactersError={notes.charactersError}
-          onCharactersRetry={notes.retryCharacters}
           recap={notes.recap}
           recapLoading={notes.recapLoading}
           recapError={notes.recapError}

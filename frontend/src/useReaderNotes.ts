@@ -36,12 +36,6 @@ export function useReaderNotes({
   const [lookupEntityOptions, setLookupEntityOptions] = useState<
     EntityListItem[]
   >([]);
-  const [characters, setCharacters] = useState<EntityListItem[]>([]);
-  const [charactersPosition, setCharactersPosition] = useState<number | null>(
-    null,
-  );
-  const [charactersLoading, setCharactersLoading] = useState(false);
-  const [charactersError, setCharactersError] = useState<string | null>(null);
   const [recap, setRecap] = useState<RecapResponse | null>(null);
   const [recapPosition, setRecapPosition] = useState<number | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
@@ -56,7 +50,6 @@ export function useReaderNotes({
       Promise<
         [
           PromiseSettledResult<EntityListItem[]>,
-          PromiseSettledResult<EntityListItem[]>,
           PromiseSettledResult<RecapResponse>,
         ]
       >
@@ -68,7 +61,6 @@ export function useReaderNotes({
   const activeLookupPosition = selectedTextPosition ?? position;
   activeLookupPositionRef.current = activeLookupPosition;
 
-  const visibleCharacters = charactersPosition === position ? characters : [];
   const visibleRecap = recapPosition === position ? recap : null;
 
   useEffect(() => {
@@ -90,14 +82,10 @@ export function useReaderNotes({
     let active = true;
     const requestId = ++notesRequestId.current;
     if (position === null) {
-      setCharacters([]);
-      setCharactersPosition(null);
       setLookupEntityOptions([]);
       setRecap(null);
       setRecapPosition(null);
-      setCharactersError(null);
       setRecapError(null);
-      setCharactersLoading(false);
       setRecapLoading(false);
       return () => {
         active = false;
@@ -106,20 +94,15 @@ export function useReaderNotes({
 
     const requestPosition = position;
     const key = `${bookId}:${requestPosition}`;
-    setCharacters([]);
-    setCharactersPosition(null);
     setRecap(null);
     setRecapPosition(null);
-    setCharactersLoading(true);
     setRecapLoading(true);
-    setCharactersError(null);
     setRecapError(null);
 
     const timer = window.setTimeout(() => {
       let request = notesInFlight.current.get(key);
       if (!request) {
         request = Promise.allSettled([
-          getBookEntities(bookId, requestPosition, "person"),
           getBookEntities(bookId, requestPosition),
           getBookRecap(bookId, requestPosition),
         ]);
@@ -131,20 +114,14 @@ export function useReaderNotes({
         });
       }
 
-      void request.then(([charactersResult, entitiesResult, recapResult]) => {
+      void request.then(([entitiesResult, recapResult]) => {
         if (!active || requestId !== notesRequestId.current) {
           return;
         }
-        if (charactersResult.status === "fulfilled") {
-          setCharacters(charactersResult.value);
-          setCharactersPosition(requestPosition);
-        } else {
-          setCharactersError(
-            getErrorMessage(charactersResult.reason, copyRef.current),
-          );
-        }
         if (entitiesResult.status === "fulfilled") {
           setLookupEntityOptions(entitiesResult.value);
+        } else {
+          setLookupEntityOptions([]);
         }
         if (recapResult.status === "fulfilled") {
           setRecap(recapResult.value);
@@ -152,7 +129,6 @@ export function useReaderNotes({
         } else {
           setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
         }
-        setCharactersLoading(false);
         setRecapLoading(false);
       });
     }, 250);
@@ -291,10 +267,6 @@ export function useReaderNotes({
     changeLookupEntityName,
     retryLookup: () => void performLookup(lookupTerm, activeLookupPosition),
     captureSelectedText,
-    characters: visibleCharacters,
-    charactersLoading,
-    charactersError,
-    retryCharacters: () => setRetryNotes((attempt) => attempt + 1),
     recap: visibleRecap,
     recapLoading,
     recapError,

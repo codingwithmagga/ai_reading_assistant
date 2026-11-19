@@ -204,10 +204,6 @@ interface NotesPanelProps {
   onLookupRetry: () => void;
   onLookupEntityTypeChange: (value: EntityType | "all") => void;
   onLookupEntityNameChange: (value: string) => void;
-  characters: EntityListItem[];
-  charactersLoading: boolean;
-  charactersError: string | null;
-  onCharactersRetry: () => void;
   recap: RecapResponse | null;
   recapLoading: boolean;
   recapError: string | null;
@@ -233,10 +229,6 @@ export function NotesPanel({
   onLookupRetry,
   onLookupEntityTypeChange,
   onLookupEntityNameChange,
-  characters,
-  charactersLoading,
-  charactersError,
-  onCharactersRetry,
   recap,
   recapLoading,
   recapError,
@@ -439,45 +431,6 @@ export function NotesPanel({
             ))}
           </div>
         )}
-
-        <section
-          className="notes-data"
-          aria-labelledby="characters-heading"
-          aria-live="polite"
-          aria-busy={charactersLoading}
-        >
-          <h3 id="characters-heading">{copy.knownCharacters}</h3>
-          {charactersLoading ? (
-            <p role="status">{copy.loadingCharacters}</p>
-          ) : charactersError ? (
-            <div className="message error" role="alert">
-              <p>
-                {copy.notesLoadFailed} {charactersError}
-              </p>
-              <button type="button" onClick={onCharactersRetry}>
-                {copy.retry}
-              </button>
-            </div>
-          ) : characters.length > 0 ? (
-            <ul>
-              {characters.map((character) => (
-                <li key={character.id}>
-                  <strong>{character.canonical_name}</strong>
-                  {character.aliases.length > 0 && (
-                    <>
-                      {" "}
-                      <span>
-                        ({character.aliases.map((alias) => alias.alias).join(", ")})
-                      </span>
-                    </>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="empty-state">{copy.noKnownCharacters}</p>
-          )}
-        </section>
 
         <section
           className="notes-data"
