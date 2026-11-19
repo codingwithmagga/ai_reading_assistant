@@ -1205,7 +1205,15 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
     await screen.findByText("Liora");
-    expect(api.getBookEntities).toHaveBeenLastCalledWith(book.id, 0, "person");
+    expect(screen.getByLabelText("Eintragstyp")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Eintragstyp"), {
+      target: { value: "person" },
+    });
+    fireEvent.change(screen.getByLabelText("Bekannten Eintrag auswählen"), {
+      target: { value: "Liora" },
+    });
+    expect(screen.getByLabelText("Figur, Ort oder Begriff")).toHaveValue("Liora");
+    expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 0, "person");
     expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
 
     fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
@@ -1219,11 +1227,7 @@ describe("App", () => {
     );
     expect(screen.getByText("She found a small key.")).toBeInTheDocument();
     await waitFor(() => {
-      expect(api.getBookEntities).toHaveBeenLastCalledWith(
-        book.id,
-        1,
-        "person",
-      );
+      expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 1, "person");
       expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 1);
     });
 
@@ -1292,7 +1296,7 @@ describe("App", () => {
     expect(
       await screen.findByText(/Bis zu dieser Position sind keine Figuren bekannt/),
     ).toBeInTheDocument();
-    expect(api.getBookEntities).toHaveBeenCalledTimes(2);
+    expect(api.getBookEntities).toHaveBeenCalledTimes(4);
     expect(screen.getByText("The reader remains available.")).toBeInTheDocument();
   });
 });

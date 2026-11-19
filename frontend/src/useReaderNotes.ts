@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
+  EntityType,
   EntityListItem,
   EntityLookupResponse,
   RecapResponse,
@@ -29,6 +30,12 @@ export function useReaderNotes({
     useState<EntityLookupResponse | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupEntityType, setLookupEntityType] = useState<
+    EntityType | "all"
+  >("all");
+  const [lookupEntityOptions, setLookupEntityOptions] = useState<
+    EntityListItem[]
+  >([]);
   const [characters, setCharacters] = useState<EntityListItem[]>([]);
   const [charactersPosition, setCharactersPosition] = useState<number | null>(
     null,
@@ -48,6 +55,7 @@ export function useReaderNotes({
       string,
       Promise<
         [
+          PromiseSettledResult<EntityListItem[]>,
           PromiseSettledResult<EntityListItem[]>,
           PromiseSettledResult<RecapResponse>,
         ]
@@ -84,6 +92,7 @@ export function useReaderNotes({
     if (position === null) {
       setCharacters([]);
       setCharactersPosition(null);
+      setLookupEntityOptions([]);
       setRecap(null);
       setRecapPosition(null);
       setCharactersError(null);
@@ -111,6 +120,7 @@ export function useReaderNotes({
       if (!request) {
         request = Promise.allSettled([
           getBookEntities(bookId, requestPosition, "person"),
+          getBookEntities(bookId, requestPosition),
           getBookRecap(bookId, requestPosition),
         ]);
         notesInFlight.current.set(key, request);
@@ -121,7 +131,7 @@ export function useReaderNotes({
         });
       }
 
-      void request.then(([charactersResult, recapResult]) => {
+      void request.then(([charactersResult, entitiesResult, recapResult]) => {
         if (!active || requestId !== notesRequestId.current) {
           return;
         }
@@ -132,6 +142,9 @@ export function useReaderNotes({
           setCharactersError(
             getErrorMessage(charactersResult.reason, copyRef.current),
           );
+        }
+        if (entitiesResult.status === "fulfilled") {
+          setLookupEntityOptions(entitiesResult.value);
         }
         if (recapResult.status === "fulfilled") {
           setRecap(recapResult.value);
@@ -251,8 +264,21 @@ export function useReaderNotes({
     setLookupLoading(false);
   }
 
+  function changeLookupEntityType(value: EntityType | "all") {
+    setLookupEntityType(value);
+  }
+
+  function changeLookupEntityName(value: string) {
+    if (!value) {
+      return;
+    }
+    changeLookupTerm(value);
+  }
+
   return {
     lookupTerm,
+    lookupEntityType,
+    lookupEntityOptions,
     selectedTextPosition,
     lookupResponse,
     lookupError,
@@ -261,6 +287,8 @@ export function useReaderNotes({
     submitLookup,
     changeLookupTerm,
     clearLookup,
+    changeLookupEntityType,
+    changeLookupEntityName,
     retryLookup: () => void performLookup(lookupTerm, activeLookupPosition),
     captureSelectedText,
     characters: visibleCharacters,

@@ -4,6 +4,7 @@ import {
   ChapterContent,
   EntityListItem,
   EntityLookupResponse,
+  EntityType,
   RecapResponse,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
@@ -191,6 +192,8 @@ interface NotesPanelProps {
   exportError: string | null;
   onExport: (format: "json" | "markdown") => void;
   lookupTerm: string;
+  lookupEntityType: EntityType | "all";
+  lookupEntityOptions: EntityListItem[];
   selectedTextPosition: number | null;
   lookupResponse: EntityLookupResponse | null;
   lookupError: string | null;
@@ -199,6 +202,8 @@ interface NotesPanelProps {
   onLookupTermChange: (value: string) => void;
   onLookupClear: () => void;
   onLookupRetry: () => void;
+  onLookupEntityTypeChange: (value: EntityType | "all") => void;
+  onLookupEntityNameChange: (value: string) => void;
   characters: EntityListItem[];
   charactersLoading: boolean;
   charactersError: string | null;
@@ -216,6 +221,8 @@ export function NotesPanel({
   exportError,
   onExport,
   lookupTerm,
+  lookupEntityType,
+  lookupEntityOptions,
   selectedTextPosition,
   lookupResponse,
   lookupError,
@@ -224,6 +231,8 @@ export function NotesPanel({
   onLookupTermChange,
   onLookupClear,
   onLookupRetry,
+  onLookupEntityTypeChange,
+  onLookupEntityNameChange,
   characters,
   charactersLoading,
   charactersError,
@@ -233,6 +242,13 @@ export function NotesPanel({
   recapError,
   onRecapRetry,
 }: NotesPanelProps) {
+  const filteredEntityOptions =
+    lookupEntityType === "all"
+      ? lookupEntityOptions
+      : lookupEntityOptions.filter(
+          (entity) => entity.type === lookupEntityType,
+        );
+
   return (
     <aside className="notes-panel" aria-label={copy.notesPanel}>
       <details open>
@@ -272,6 +288,55 @@ export function NotesPanel({
           <p id="lookup-help" className="help-text">
             {copy.exactMatchHelp}
           </p>
+          <label htmlFor="entity-type-filter">{copy.entityTypeFilter}</label>
+          <select
+            id="entity-type-filter"
+            value={lookupEntityType}
+            onChange={(event) =>
+              onLookupEntityTypeChange(
+                event.currentTarget.value as EntityType | "all",
+              )
+            }
+          >
+            <option value="all">{copy.allEntityTypes}</option>
+            <option value="person">{getEntityTypeLabel("person", copy)}</option>
+            <option value="place">{getEntityTypeLabel("place", copy)}</option>
+            <option value="group">{getEntityTypeLabel("group", copy)}</option>
+            <option value="object">{getEntityTypeLabel("object", copy)}</option>
+            <option value="concept">{getEntityTypeLabel("concept", copy)}</option>
+          </select>
+          <label htmlFor="known-entity-select">
+            {copy.selectKnownEntity}
+          </label>
+          <select
+            id="known-entity-select"
+            value={lookupTerm && filteredEntityOptions.some(
+              (entity) =>
+                entity.canonical_name === lookupTerm ||
+                entity.aliases.some((alias) => alias.alias === lookupTerm),
+            ) ? lookupTerm : ""}
+            onChange={(event) =>
+              onLookupEntityNameChange(event.currentTarget.value)
+            }
+          >
+            <option value="">{copy.chooseKnownEntity}</option>
+            {filteredEntityOptions.flatMap((entity) => [
+              <option
+                key={`canonical-${entity.id}`}
+                value={entity.canonical_name}
+              >
+                {entity.canonical_name} ({getEntityTypeLabel(entity.type, copy)})
+              </option>,
+              ...entity.aliases.map((alias) => (
+                <option
+                  key={`alias-${entity.id}-${alias.alias}`}
+                  value={alias.alias}
+                >
+                  {alias.alias} ({getEntityTypeLabel(entity.type, copy)})
+                </option>
+              )),
+            ])}
+          </select>
           <input
             id="entity-lookup"
             type="search"
