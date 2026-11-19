@@ -53,16 +53,13 @@ export function PositionControls({
   chapters,
   copy,
   manualChapterId,
-  manualParagraphCount,
   manualPosition,
   manualPositionError,
   onApplyManualPosition,
   onFollowReader,
   onManualChapterChange,
-  onManualParagraphChange,
   onManualPositionMethodChange,
   onPercentageChange,
-  paragraphInChapter,
   percentage,
   positionMethod,
   totalPositions,
@@ -71,16 +68,13 @@ export function PositionControls({
   chapters: Chapter[];
   copy: Copy;
   manualChapterId: string;
-  manualParagraphCount: number;
   manualPosition: number | null;
   manualPositionError: string | null;
   onApplyManualPosition: FormEventHandler<HTMLFormElement>;
   onFollowReader: () => void;
   onManualChapterChange: (chapterId: string) => void;
-  onManualParagraphChange: (value: string) => void;
   onManualPositionMethodChange: (value: "chapter" | "percentage") => void;
   onPercentageChange: (value: string) => void;
-  paragraphInChapter: string;
   percentage: string;
   positionMethod: "chapter" | "percentage";
   totalPositions: number;
@@ -145,19 +139,6 @@ export function PositionControls({
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span>{copy.paragraphInChapter}</span>
-              <input
-                type="number"
-                min={1}
-                max={manualParagraphCount}
-                step={1}
-                value={paragraphInChapter}
-                onChange={(event) =>
-                  onManualParagraphChange(event.currentTarget.value)
-                }
-              />
             </label>
           </div>
         ) : (

@@ -763,15 +763,13 @@ describe("App", () => {
     fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
       target: { value: "chapter-1" },
     });
-    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
-      target: { value: "2" },
-    });
+    expect(screen.queryByLabelText("Absatz im Kapitel")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
     expect(screen.getByText(/Manuelle Position aktiv/)).toHaveTextContent(
       "Manuelle Position aktiv",
     );
-    expect(screen.getByText("2 von 4")).toBeInTheDocument();
+    expect(screen.getByText("1 von 4")).toBeInTheDocument();
     expect(screen.getByText(/Leseposition:/)).toHaveTextContent("4 von 4");
     await act(async () => {
       await vi.advanceTimersByTimeAsync(600);
@@ -896,8 +894,8 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
     await screen.findByText("She notices a map.");
 
-    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
-      target: { value: "2" },
+    fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
+      target: { value: "chapter-1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
     fireEvent.change(screen.getByLabelText("Figur, Ort oder Begriff"), {
@@ -913,7 +911,7 @@ describe("App", () => {
     expect(
       await screen.findByRole("heading", { name: "Liora" }),
     ).toBeInTheDocument();
-    expect(api.lookupBookEntity).toHaveBeenCalledWith(book.id, "Liora", 1);
+    expect(api.lookupBookEntity).toHaveBeenCalledWith(book.id, "Liora", 0);
     expect(screen.getByText("<script>not executable</script>")).toBeInTheDocument();
     expect(
       screen.getByText("<img src=x onerror=alert(1)>"),
@@ -994,14 +992,14 @@ describe("App", () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
     await screen.findByText("Folgt der aktuellen Leseposition im Reader.");
-    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
-      target: { value: "2" },
+    fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
+      target: { value: "chapter-1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
     fireEvent.click(screen.getByRole("button", { name: "JSON herunterladen" }));
     await waitFor(() => {
-      expect(api.getBookNotesExport).toHaveBeenCalledWith(book.id, 1);
+      expect(api.getBookNotesExport).toHaveBeenCalledWith(book.id, 0);
     });
     fireEvent.click(screen.getByRole("button", { name: "Markdown herunterladen" }));
     await waitFor(() => {
@@ -1208,8 +1206,8 @@ describe("App", () => {
     expect(api.getBookEntities).toHaveBeenLastCalledWith(book.id, 0, "person");
     expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
 
-    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
-      target: { value: "2" },
+    fireEvent.change(screen.getByLabelText("Kapitel für Notizen"), {
+      target: { value: "chapter-1" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
@@ -1221,26 +1219,11 @@ describe("App", () => {
     await waitFor(() => {
       expect(api.getBookEntities).toHaveBeenLastCalledWith(
         book.id,
-        1,
+        0,
         "person",
       );
-      expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 1);
+      expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
     });
-
-    vi.mocked(api.getBookEntities).mockImplementation(
-      () => new Promise<api.EntityListItem[]>(() => {}),
-    );
-    vi.mocked(api.getBookRecap).mockImplementation(
-      () => new Promise<api.RecapResponse>(() => {}),
-    );
-    fireEvent.change(screen.getByLabelText("Absatz im Kapitel"), {
-      target: { value: "1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
-
-    expect(await screen.findByText("Figuren werden geladen …")).toBeInTheDocument();
-    expect(screen.queryByText("Liora", { selector: "strong" })).toBeNull();
-    expect(screen.queryByText("Liora finds a key.")).toBeNull();
   });
 
   it("keeps the reader usable and retries when a notes request fails", async () => {

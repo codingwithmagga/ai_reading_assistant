@@ -40,7 +40,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   const [retryReader, setRetryReader] = useState(0);
   const [manualPosition, setManualPosition] = useState<number | null>(null);
   const [manualChapterId, setManualChapterId] = useState("");
-  const [paragraphInChapter, setParagraphInChapter] = useState("1");
   const [percentage, setPercentage] = useState("0");
   const [positionMethod, setPositionMethod] = useState<"chapter" | "percentage">(
     "chapter",
@@ -99,9 +98,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         const initialPosition = savedPosition ?? initialChapter.start_position;
         setSelectedChapterId(initialChapter.id);
         setManualChapterId(initialChapter.id);
-        setParagraphInChapter(
-          String(initialPosition - initialChapter.start_position + 1),
-        );
         latestPosition.current = initialPosition;
         setCurrentPosition(initialPosition);
         setRestorePosition(initialPosition);
@@ -231,7 +227,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     setRestorePosition(chapter.start_position);
     setSelectedChapterId(chapter.id);
     setManualChapterId(chapter.id);
-    setParagraphInChapter("1");
     setReadyToTrack(false);
     setReaderError(null);
   }
@@ -244,16 +239,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         setManualPositionError(copy.invalidPositionValue);
         return;
       }
-      const paragraphIndex = Number(paragraphInChapter);
-      if (!Number.isInteger(paragraphIndex) || paragraphIndex < 1) {
-        setManualPositionError(copy.invalidPositionValue);
-        return;
-      }
-      const nextPosition = Math.min(
-        chapter.start_position + paragraphIndex - 1,
-        chapter.end_position,
-      );
-      setManualPosition(nextPosition);
+      setManualPosition(chapter.start_position);
       setManualPositionError(null);
       return;
     }
@@ -334,10 +320,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
 
   const activeChapter = chapters.find((chapter) => chapter.id === selectedChapterId);
   const totalPositions = chapters[chapters.length - 1]?.end_position ?? 0;
-  const manualChapter = chapters.find((chapter) => chapter.id === manualChapterId);
-  const manualParagraphCount = manualChapter
-    ? manualChapter.end_position - manualChapter.start_position + 1
-    : 0;
 
   return (
     <section className="reader" aria-labelledby="reader-heading">
@@ -380,7 +362,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         chapters={chapters}
         copy={copy}
         manualChapterId={manualChapterId}
-        manualParagraphCount={manualParagraphCount}
         manualPosition={manualPosition}
         manualPositionError={manualPositionError}
         onApplyManualPosition={applyManualPosition}
@@ -392,12 +373,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           const chapter = chapters.find((item) => item.id === chapterId);
           if (chapter) {
             setManualChapterId(chapter.id);
-            setParagraphInChapter("1");
           }
-          setManualPositionError(null);
-        }}
-        onManualParagraphChange={(value) => {
-          setParagraphInChapter(value);
           setManualPositionError(null);
         }}
         onManualPositionMethodChange={(value) => {
@@ -408,7 +384,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           setPercentage(value);
           setManualPositionError(null);
         }}
-        paragraphInChapter={paragraphInChapter}
         percentage={percentage}
         positionMethod={positionMethod}
         totalPositions={totalPositions}
