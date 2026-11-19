@@ -54,16 +54,13 @@ export function PositionControls({
   chapters,
   copy,
   manualChapterId,
-  manualParagraphCount,
   manualPosition,
   manualPositionError,
   onApplyManualPosition,
   onFollowReader,
   onManualChapterChange,
-  onManualParagraphChange,
   onManualPositionMethodChange,
   onPercentageChange,
-  paragraphInChapter,
   percentage,
   positionMethod,
   totalPositions,
@@ -72,16 +69,13 @@ export function PositionControls({
   chapters: Chapter[];
   copy: Copy;
   manualChapterId: string;
-  manualParagraphCount: number;
   manualPosition: number | null;
   manualPositionError: string | null;
   onApplyManualPosition: FormEventHandler<HTMLFormElement>;
   onFollowReader: () => void;
   onManualChapterChange: (chapterId: string) => void;
-  onManualParagraphChange: (value: string) => void;
   onManualPositionMethodChange: (value: "chapter" | "percentage") => void;
   onPercentageChange: (value: string) => void;
-  paragraphInChapter: string;
   percentage: string;
   positionMethod: "chapter" | "percentage";
   totalPositions: number;
@@ -113,25 +107,25 @@ export function PositionControls({
         onSubmit={onApplyManualPosition}
       >
         <h4>{copy.manualPosition}</h4>
-        <label>
-          <span>{copy.positionMethod}</span>
-          <select
-            value={positionMethod}
-            onChange={(event) => {
-              if (
-                event.currentTarget.value === "chapter" ||
-                event.currentTarget.value === "percentage"
-              ) {
-                onManualPositionMethodChange(event.currentTarget.value);
-              }
-            }}
-          >
-            <option value="chapter">{copy.byChapter}</option>
-            <option value="percentage">{copy.byPercentage}</option>
-          </select>
-        </label>
-        {positionMethod === "chapter" ? (
-          <div className="manual-position-fields">
+        <div className="manual-position-fields">
+          <label>
+            <span>{copy.positionMethod}</span>
+            <select
+              value={positionMethod}
+              onChange={(event) => {
+                if (
+                  event.currentTarget.value === "chapter" ||
+                  event.currentTarget.value === "percentage"
+                ) {
+                  onManualPositionMethodChange(event.currentTarget.value);
+                }
+              }}
+            >
+              <option value="chapter">{copy.byChapter}</option>
+              <option value="percentage">{copy.byPercentage}</option>
+            </select>
+          </label>
+          {positionMethod === "chapter" ? (
             <label>
               <span>{copy.positionChapter}</span>
               <select
@@ -147,33 +141,22 @@ export function PositionControls({
                 ))}
               </select>
             </label>
+          ) : (
             <label>
-              <span>{copy.paragraphInChapter}</span>
+              <span>{copy.percentage}</span>
               <input
                 type="number"
-                min={1}
-                max={manualParagraphCount}
-                step={1}
-                value={paragraphInChapter}
+                min={0}
+                max={100}
+                step="any"
+                value={percentage}
                 onChange={(event) =>
-                  onManualParagraphChange(event.currentTarget.value)
+                  onPercentageChange(event.currentTarget.value)
                 }
               />
             </label>
-          </div>
-        ) : (
-          <label>
-            <span>{copy.percentage}</span>
-            <input
-              type="number"
-              min={0}
-              max={100}
-              step="any"
-              value={percentage}
-              onChange={(event) => onPercentageChange(event.currentTarget.value)}
-            />
-          </label>
-        )}
+          )}
+        </div>
         {manualPositionError && (
           <p className="message error" role="alert">
             {manualPositionError}
