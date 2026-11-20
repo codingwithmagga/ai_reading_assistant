@@ -24,6 +24,7 @@ import {
   translations,
 } from "./i18n";
 import { ErrorNotice } from "./ErrorNotice";
+import { AppThemeProvider } from "./AppThemeProvider";
 
 type Theme = "light" | "dark";
 type ThemePreference = "system" | Theme;
@@ -231,7 +232,8 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   }
 
   return (
-    <main className="app-shell" lang={language}>
+    <AppThemeProvider mode={theme}>
+      <main className="app-shell" lang={language}>
       <header className="app-header">
         <div>
           <h1>{copy.heading}</h1>
@@ -444,7 +446,8 @@ export function App({ updateServiceWorker }: AppProps = {}) {
           ) : null}
         </section>
       )}
-    </main>
+      </main>
+    </AppThemeProvider>
   );
 }
 
