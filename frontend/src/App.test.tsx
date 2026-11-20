@@ -277,7 +277,7 @@ describe("App", () => {
     expect(await screen.findByText(/Wartet/)).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
-    ).toHaveAttribute("value", "0");
+    ).toHaveAttribute("aria-valuenow", "0");
     expect(
       screen.queryByRole("button", { name: "Extraktion starten" }),
     ).not.toBeInTheDocument();
@@ -343,7 +343,7 @@ describe("App", () => {
     expect(await screen.findByText(/Läuft/)).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
-    ).toHaveAttribute("value", "35");
+    ).toHaveAttribute("aria-valuenow", "35");
     expect(screen.queryByLabelText("Extraktion bis")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Extraktion starten" }),

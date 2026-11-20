@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { LinearProgress } from "@mui/material";
 import {
   Book,
   Chapter,
@@ -25,6 +26,7 @@ import {
 } from "./i18n";
 import { ErrorNotice } from "./ErrorNotice";
 import { AppThemeProvider } from "./AppThemeProvider";
+import { StatusNotice } from "./StatusNotice";
 
 type Theme = "light" | "dark";
 type ThemePreference = "system" | Theme;
@@ -576,9 +578,9 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
   return (
     <div className="extraction-controls">
       {loading && (
-        <p role="status" aria-live="polite">
+        <StatusNotice loading>
           {copy.extractionCheck}
-        </p>
+        </StatusNotice>
       )}
       {error && (
         <ErrorNotice copy={copy} message={error} onDismiss={() => setError(null)} />
@@ -589,10 +591,11 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
             {copy.extractionStatus}: {copy.extractionStatuses[job.status]}
           </p>
           <div className="extraction-progress">
-            <progress
-              max={100}
+            <LinearProgress
+              variant="determinate"
               value={job.progress}
               aria-label={copy.extractionProgress}
+              role="progressbar"
             />
             <span>{job.progress}%</span>
           </div>
