@@ -161,6 +161,20 @@ class TestIntersectionObserver {
 }
 
 describe("App", () => {
+  it("deletes a book only after confirmation and refreshes the library", async () => {
+    vi.mocked(api.getBooks)
+      .mockResolvedValueOnce([book])
+      .mockResolvedValue([]);
+    vi.spyOn(api, "deleteBook").mockResolvedValue();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Buch löschen" }));
+    await waitFor(() => expect(api.deleteBook).toHaveBeenCalledWith(book.id));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(await screen.findByText("Buch wurde gelöscht.")).toBeInTheDocument();
+  });
+
   it("downloads a backup without opening or rendering its contents", async () => {
     const blob = new Blob(["backup"], { type: "application/json" });
     vi.spyOn(api, "getBackup").mockResolvedValue(blob);

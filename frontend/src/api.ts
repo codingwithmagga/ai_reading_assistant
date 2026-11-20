@@ -484,6 +484,22 @@ export function getBooks(): Promise<Book[]> {
   );
 }
 
+export async function deleteBook(bookId: string): Promise<void> {
+  const response = await fetch(
+    `/api/books/${encodeURIComponent(bookId)}`,
+    { method: "DELETE" },
+  );
+  if (!response.ok) {
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch {
+      throw responseError(undefined, response.status);
+    }
+    throw responseError(payload, response.status);
+  }
+}
+
 export function uploadBook(file: File, retryFailed = false): Promise<UploadedBook> {
   const body = new FormData();
   body.append("file", file);

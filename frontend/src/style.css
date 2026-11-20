@@ -473,6 +473,16 @@ select {
   background: var(--color-subtle);
 }
 
+.danger-button {
+  border-color: var(--color-error-border);
+  background: transparent;
+  color: var(--color-error-text);
+}
+
+.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error-border) 12%, transparent);
+}
+
 .lookup-match {
   margin-top: 1rem;
   padding-top: 1rem;

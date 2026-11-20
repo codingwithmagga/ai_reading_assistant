@@ -235,6 +235,42 @@ def test_book_library_chapters_and_content_endpoints(client: TestClient) -> None
     ]
 
 
+def test_delete_book_removes_book_and_all_related_data(client: TestClient) -> None:
+    upload_response = client.post(
+        "/books",
+        files={"file": ("sample.epub", build_test_epub(), "application/epub+zip")},
+    )
+    book_id = upload_response.json()["id"]
+
+    response = client.delete(f"/books/{book_id}")
+
+    assert response.status_code == 204
+    assert response.content == b""
+    assert client.get("/books").json() == []
+    assert client.get(f"/books/{book_id}").status_code == 404
+    with Session(client.app.state.test_engine) as session:
+        assert session.get(Book, book_id) is None
+        chapter_count = session.scalar(
+            select(func.count()).select_from(Chapter).where(Chapter.book_id == book_id)
+        )
+        paragraph_count = session.scalar(
+            select(func.count()).select_from(Paragraph).where(Paragraph.book_id == book_id)
+        )
+        job_count = session.scalar(
+            select(func.count()).select_from(Job).where(Job.book_id == book_id)
+        )
+        assert (chapter_count, paragraph_count, job_count) == (0, 0, 0)
+
+
+def test_delete_missing_book_returns_404(client: TestClient) -> None:
+    response = client.delete("/books/missing")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "book_not_found", "message": "Buch nicht gefunden."}
+    }
+
+
 def test_book_read_endpoints_return_404_for_missing_or_unrelated_ids(
     client: TestClient,
 ) -> None:
