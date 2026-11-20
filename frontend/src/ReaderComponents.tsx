@@ -386,9 +386,10 @@ export function NotesPanel({
                           {fact.chapter_title || fact.chapter_index + 1} ·{" "}
                           {copy.positionLabel} {fact.position + 1}
                         </p>
-                        <blockquote>
-                          <strong>{copy.source}:</strong> {fact.source_excerpt}
-                        </blockquote>
+                        <details className="source-excerpt">
+                          <summary>{copy.source}</summary>
+                          <blockquote>{fact.source_excerpt}</blockquote>
+                        </details>
                       </li>
                     ))}
                   </ul>
@@ -442,9 +443,10 @@ export function NotesPanel({
                       `${copy.chapter} ${event.chapter_index + 1}`}
                   </strong>
                   <p>{event.text}</p>
-                  <blockquote>
-                    <strong>{copy.source}:</strong> {event.source_excerpt}
-                  </blockquote>
+                  <details className="source-excerpt">
+                    <summary>{copy.source}</summary>
+                    <blockquote>{event.source_excerpt}</blockquote>
+                  </details>
                 </li>
               ))}
             </ul>

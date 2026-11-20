@@ -540,6 +540,19 @@ select {
 .fact-list blockquote {
   margin: 0.5rem 0;
   padding-left: 0.75rem;
+}
+
+.source-excerpt {
+  margin-top: 0.5rem;
+}
+
+.source-excerpt summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.source-excerpt blockquote {
+  margin: 0.5rem 0 0;
   border-left: 3px solid var(--color-border);
   color: var(--color-muted);
 }

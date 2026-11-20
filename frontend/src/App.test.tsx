@@ -913,9 +913,10 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(api.lookupBookEntity).toHaveBeenCalledWith(book.id, "Liora", 0);
     expect(screen.getByText("<script>not executable</script>")).toBeInTheDocument();
-    expect(
-      screen.getByText("<img src=x onerror=alert(1)>"),
-    ).toBeInTheDocument();
+    const factSource = screen.getByText("<img src=x onerror=alert(1)>");
+    expect(factSource).not.toBeVisible();
+    fireEvent.click(screen.getByText("Textbeleg"));
+    expect(factSource).toBeVisible();
     expect(document.querySelector("script, img")).toBeNull();
   });
 
@@ -1225,7 +1226,10 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Position übernehmen" }));
 
     expect(await screen.findByText("Liora finds a key.")).toBeInTheDocument();
-    expect(screen.getByText("She found a small key.")).toBeInTheDocument();
+    const recapSource = screen.getByText("She found a small key.");
+    expect(recapSource).not.toBeVisible();
+    fireEvent.click(screen.getByText("Textbeleg"));
+    expect(recapSource).toBeVisible();
     await waitFor(() => {
       expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 0);
       expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
