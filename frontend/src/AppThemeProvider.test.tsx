@@ -32,7 +32,9 @@ describe("AppThemeProvider", () => {
       </AppThemeProvider>,
     );
 
-    expect(screen.getByText("dark:#8eaa82:#171915")).toBeInTheDocument();
+    expect(
+      screen.getByText("dark:#90a4ae:hsl(220, 30%, 7%)"),
+    ).toBeInTheDocument();
   });
 
   it("creates independent light and dark palettes", () => {

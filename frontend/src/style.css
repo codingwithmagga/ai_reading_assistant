@@ -26,15 +26,15 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --color-background: #171915;
-  --color-surface: #22261f;
-  --color-text: #f3f0e8;
-  --color-muted: #c1c3ba;
-  --color-border: #51574d;
-  --color-control-border: #8e9788;
-  --color-accent: #8eaa82;
-  --color-accent-hover: #a2bc97;
-  --color-accent-text: #12160f;
+  --color-background: hsl(220, 30%, 7%);
+  --color-surface: hsl(220, 22%, 12%);
+  --color-text: #e7edf2;
+  --color-muted: #b1bbc4;
+  --color-border: #3d4852;
+  --color-control-border: #687683;
+  --color-accent: #90a4ae;
+  --color-accent-hover: #a9bbc5;
+  --color-accent-text: #0d1318;
   --color-focus: #f0b968;
   --color-error-border: #ff8a80;
   --color-error-text: #ffb4ab;

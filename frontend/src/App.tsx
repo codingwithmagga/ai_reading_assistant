@@ -99,7 +99,10 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     document.documentElement.style.colorScheme = theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#171915" : "#f5f2eb");
+      ?.setAttribute(
+        "content",
+        theme === "dark" ? "hsl(220, 30%, 7%)" : "#f5f2eb",
+      );
   }, [theme]);
 
   useEffect(() => {

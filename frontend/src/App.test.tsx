@@ -594,7 +594,7 @@ describe("App", () => {
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(
       document.querySelector('meta[name="theme-color"]'),
-    ).toHaveAttribute("content", "#171915");
+    ).toHaveAttribute("content", "hsl(220, 30%, 7%)");
 
     await selectMuiOption("Darstellung", "Hell");
     expect(window.localStorage.getItem("ui-theme")).toBe("light");
