@@ -54,38 +54,6 @@ body {
   background: var(--color-background);
 }
 
-button,
-input,
-select {
-  font: inherit;
-}
-
-button {
-  min-height: 2.75rem;
-  padding: 0.55rem 1rem;
-  border: 1px solid var(--color-accent);
-  border-radius: 0.45rem;
-  background: var(--color-accent);
-  color: var(--color-accent-text);
-  cursor: pointer;
-}
-
-button:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-}
-
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
-}
-
-button:focus-visible,
-input:focus-visible,
-select:focus-visible {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
 .app-shell {
   width: min(100% - 2rem, 68rem);
   min-height: 100vh;
@@ -93,36 +61,13 @@ select:focus-visible {
   padding: 2rem 0 4rem;
 }
 
-.app-header,
-.reader-toolbar,
-.book-card {
+.app-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-}
-
-.app-header {
   padding-bottom: 1.5rem;
   border-bottom: 1px solid var(--color-border);
-}
-
-h1,
-h2,
-h3,
-p {
-  margin-top: 0;
-}
-
-h1 {
-  margin-bottom: 0.25rem;
-  line-height: 1.2;
-}
-
-.app-header p {
-  max-width: 44rem;
-  margin-bottom: 0;
-  color: var(--color-muted);
 }
 
 .header-controls {
@@ -132,24 +77,8 @@ h1 {
 }
 
 .language-picker,
-.theme-picker,
-.reader-toolbar label {
-  display: grid;
-  gap: 0.25rem;
-}
-
-select,
-input[type="file"] {
-  max-width: 100%;
-}
-
-select {
-  min-height: 2.5rem;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: 0.4rem;
-  background: var(--color-surface);
-  color: inherit;
+.theme-picker {
+  min-width: 9rem;
 }
 
 .library,
@@ -167,10 +96,6 @@ select {
   border: 1px solid var(--color-border);
   border-radius: 0.6rem;
   background: var(--color-surface);
-}
-
-.upload-form label {
-  font-weight: 650;
 }
 
 .retry-parsing {
@@ -193,10 +118,17 @@ select {
 }
 
 .book-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
   padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
-  background: var(--color-surface);
+}
+
+.book-card-copy {
+  flex: 1 1 auto;
+  min-width: 12rem;
 }
 
 .extraction-controls {
@@ -204,10 +136,6 @@ select {
   flex: 1 1 18rem;
   gap: 0.5rem;
   min-width: 12rem;
-}
-
-.extraction-controls p {
-  margin-bottom: 0;
 }
 
 .extraction-status,
@@ -226,54 +154,39 @@ select {
   gap: 0.5rem;
 }
 
-.extraction-progress progress {
+.extraction-progress .MuiLinearProgress-root {
   flex: 1;
+}
+
+.extraction-form select,
+.manual-position-form select,
+.manual-position-form input,
+.lookup-form input,
+.lookup-form select {
   width: 100%;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--color-control-border);
+  border-radius: 0.4rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
 }
 
-.book-card h3 {
-  margin-bottom: 0.25rem;
+.extraction-form select:focus-visible,
+.manual-position-form select:focus-visible,
+.manual-position-form input:focus-visible,
+.lookup-form input:focus-visible,
+.lookup-form select:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
-.book-card p {
-  margin-bottom: 0.2rem;
-  color: var(--color-muted);
-}
-
-.empty-state,
-.message {
+.empty-state {
+  margin-top: 1.25rem;
   padding: 1rem;
   border-radius: 0.5rem;
   background: var(--color-surface);
-}
-
-.offline-notice,
-.update-notice {
-  margin: 1rem 0 0;
-  border: 1px solid var(--color-accent);
-  color: var(--color-success-text);
-}
-
-.update-notice {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.message p:last-child {
-  margin-bottom: 0.5rem;
-}
-
-.error {
-  border: 1px solid var(--color-error-border);
-  color: var(--color-error-text);
-}
-
-.success {
-  border: 1px solid var(--color-accent);
-  color: var(--color-success-text);
 }
 
 .reader-toolbar {
@@ -285,13 +198,13 @@ select {
   align-items: baseline;
   justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1rem;
   border-bottom: 1px solid var(--color-border);
 }
 
-.reader-heading p,
-.save-status,
 .chapter-position {
-  color: var(--color-muted);
+  margin: 0.5rem 0;
+  text-align: right;
 }
 
 .notes-position {
@@ -300,35 +213,20 @@ select {
   gap: 1rem;
   margin: 1rem 0;
   padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
-  background: var(--color-surface);
 }
 
-.notes-position h3,
-.manual-position-form h4 {
-  margin-bottom: 0.35rem;
-}
-
-.notes-position-status p {
-  margin-bottom: 0.5rem;
-}
-
-.export-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.manual-position-form,
-.manual-position-form label {
+.notes-position-status {
   display: grid;
-  gap: 0.5rem;
+  align-content: start;
+  gap: 0.35rem;
+  padding: 0;
 }
 
 .manual-position-form {
+  display: grid;
   align-content: start;
   justify-self: end;
+  gap: 0.75rem;
   width: min(100%, 22rem);
 }
 
@@ -338,38 +236,11 @@ select {
   gap: 0.75rem;
 }
 
-.manual-position-form select {
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 0.4rem 2.25rem 0.4rem 0.65rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: 0.4rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.manual-position-form input {
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: 0.4rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.manual-position-form .message {
-  margin: 0;
-  padding: 0.5rem;
-}
-
 .reader-scroll {
   height: min(68vh, 52rem);
   min-height: 18rem;
   overflow: auto;
   padding: clamp(1rem, 4vw, 3rem);
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
   background: var(--color-surface);
   scroll-behavior: smooth;
 }
@@ -397,11 +268,6 @@ select {
   background: var(--color-highlight);
 }
 
-.chapter-position {
-  margin: 0.5rem 0;
-  text-align: right;
-}
-
 .reader-columns {
   display: grid;
   grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
@@ -415,16 +281,7 @@ select {
 }
 
 .notes-panel {
-  padding: 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.6rem;
-  background: var(--color-surface);
-}
-
-.notes-panel summary {
-  font-size: 1.1rem;
-  font-weight: 650;
-  cursor: pointer;
+  overflow: hidden;
 }
 
 .lookup-form {
@@ -433,63 +290,22 @@ select {
   margin: 1rem 0;
 }
 
-.lookup-form label {
-  font-weight: 600;
-}
-
-.lookup-form input,
-.lookup-form select {
-  width: 100%;
-  min-height: 2.5rem;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid var(--color-control-border);
-  border-radius: 0.4rem;
-  background: var(--color-surface);
-  color: var(--color-text);
+.lookup-actions,
+.export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
 .help-text,
 .selection-context,
 .fact-metadata,
 .entity-type {
-  margin-bottom: 0;
   color: var(--color-muted);
   font-size: 0.9rem;
 }
 
-.lookup-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.secondary-button {
-  border-color: var(--color-control-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-}
-
-.secondary-button:hover:not(:disabled) {
-  background: var(--color-subtle);
-}
-
-.danger-button {
-  border-color: var(--color-error-border);
-  background: transparent;
-  color: var(--color-error-text);
-}
-
-.danger-button:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-error-border) 12%, transparent);
-}
-
-.lookup-match {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--color-border);
-  overflow-wrap: anywhere;
-}
-
+.lookup-match,
 .notes-data {
   margin-top: 1.25rem;
   padding-top: 1rem;
@@ -497,86 +313,19 @@ select {
   overflow-wrap: anywhere;
 }
 
-.notes-data h3 {
-  margin-bottom: 0.6rem;
-}
-
-.notes-data .message {
-  padding: 0.75rem;
-}
-
+.fact-list,
+.lookup-match ul,
 .character-list,
 .recap-events {
-  padding-left: 1.4rem;
-}
-
-.character-list li + li,
-.recap-events li + li {
-  margin-top: 0.6rem;
-}
-
-.recap-events p {
-  margin-bottom: 0.35rem;
-}
-
-.recap-events blockquote {
-  margin: 0.5rem 0;
-  padding-left: 0.75rem;
-  border-left: 3px solid var(--color-border);
-  color: var(--color-muted);
-}
-
-.lookup-match h3 {
-  margin-bottom: 0.2rem;
-}
-
-.lookup-match h4 {
-  margin: 1rem 0 0.4rem;
-}
-
-.lookup-match p {
-  margin-bottom: 0.5rem;
-}
-
-.fact-list,
-.lookup-match ul {
   padding-left: 1.25rem;
 }
 
-.fact-list li + li {
+.fact-list li + li,
+.lookup-match ul li + li,
+.character-list li + li,
+.recap-events li + li,
+.notes-data > ul > li + li {
   margin-top: 0.75rem;
-}
-
-.fact-list blockquote {
-  margin: 0.5rem 0;
-  padding-left: 0.75rem;
-}
-
-.error-notice {
-  position: relative;
-  padding-right: 2.75rem;
-}
-
-.error-notice summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.error-notice-content {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.error-notice-dismiss {
-  position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
-  width: 2rem;
-  min-height: 2rem;
-  padding: 0;
-  font-size: 1.25rem;
-  line-height: 1;
 }
 
 .source-excerpt {
@@ -588,46 +337,13 @@ select {
   font-weight: 600;
 }
 
-.source-excerpt blockquote {
+.source-excerpt blockquote,
+.recap-events blockquote,
+.fact-list blockquote {
   margin: 0.5rem 0 0;
+  padding-left: 0.75rem;
   border-left: 3px solid var(--color-border);
   color: var(--color-muted);
-}
-
-.error-notice {
-  position: relative;
-  padding-right: 2.75rem;
-}
-
-.error-notice summary {
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.error-notice-content {
-  display: grid;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.error-notice-dismiss {
-  position: absolute;
-  top: 0.55rem;
-  right: 0.55rem;
-  width: 2rem;
-  min-height: 2rem;
-  padding: 0;
-  font-size: 1.25rem;
-  line-height: 1;
-}
-
-.source-excerpt[open] {
-  margin-bottom: 0.75rem;
-}
-
-.fact-list li + li,
-.notes-data > ul > li + li {
-  margin-top: 1rem;
 }
 
 @media (max-width: 900px) {
@@ -649,16 +365,12 @@ select {
 
   .header-controls {
     width: 100%;
-    justify-content: flex-start;
-  }
-
-  .app-header h1 {
-    font-size: 1.45rem;
   }
 
   .language-picker,
   .theme-picker {
-    flex: 0 0 auto;
+    min-width: 0;
+    flex: 1 1 0;
   }
 
   .upload-form {
@@ -666,35 +378,23 @@ select {
     flex-direction: column;
   }
 
-  .upload-form input[type="file"] {
-    width: 100%;
-  }
-
   .book-card {
     align-items: flex-start;
-  }
-
-  .reader-toolbar {
-    align-items: flex-start;
-  }
-
-  .reader-toolbar label {
-    max-width: 58%;
-  }
-
-  .reader-toolbar select {
-    max-width: 100%;
+    flex-direction: column;
   }
 
   .reader-heading {
     align-items: flex-start;
     flex-direction: column;
-    gap: 0;
   }
 
   .notes-position,
   .manual-position-fields {
     grid-template-columns: 1fr;
+  }
+
+  .manual-position-form {
+    justify-self: stretch;
   }
 
   .reader-scroll {

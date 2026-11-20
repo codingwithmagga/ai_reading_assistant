@@ -31,6 +31,15 @@ export function createAppTheme(mode: AppThemeMode) {
     typography: {
       fontFamily:
         'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      h4: {
+        fontWeight: 700,
+      },
+      h5: {
+        fontWeight: 700,
+      },
+      h6: {
+        fontWeight: 650,
+      },
     },
     components: {
       MuiButton: {
