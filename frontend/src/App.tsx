@@ -22,6 +22,7 @@ import {
   isLanguage,
   translations,
 } from "./i18n";
+import { ErrorNotice } from "./ErrorNotice";
 
 type Theme = "light" | "dark";
 type ThemePreference = "system" | Theme;
@@ -302,7 +303,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               </button>
             </form>
             {backupError && (
-              <p className="message error" role="alert">{backupError}</p>
+              <ErrorNotice copy={copy} message={backupError} onDismiss={() => setBackupError(null)} />
             )}
             {backupMessage && (
               <p className="message success" role="status">{backupMessage}</p>
@@ -337,9 +338,11 @@ export function App({ updateServiceWorker }: AppProps = {}) {
           </form>
 
           {uploadError && (
-            <p className="message error" role="alert">
-              {copy.uploadError} {uploadError}
-            </p>
+            <ErrorNotice
+              copy={copy}
+              message={`${copy.uploadError} ${uploadError}`}
+              onDismiss={() => setUploadError(null)}
+            />
           )}
           {uploadMessage && (
             <p className="message success" role="status">
@@ -352,8 +355,11 @@ export function App({ updateServiceWorker }: AppProps = {}) {
             </p>
           )}
           {booksError && (
-            <div className="message error" role="alert">
-              <p>{booksError}</p>
+            <ErrorNotice
+              copy={copy}
+              message={booksError}
+              onDismiss={() => setBooksError(null)}
+            >
               <button
                 type="button"
                 onClick={() => void refreshBooks()}
@@ -361,7 +367,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               >
                 {copy.retry}
               </button>
-            </div>
+            </ErrorNotice>
           )}
           {!booksLoading && !booksError && books.length === 0 ? (
             <p className="empty-state">{copy.emptyLibrary}</p>
@@ -530,9 +536,7 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
         </p>
       )}
       {error && (
-        <p className="message error" role="alert">
-          {error}
-        </p>
+        <ErrorNotice copy={copy} message={error} onDismiss={() => setError(null)} />
       )}
       {job && (
         <div className="extraction-status" aria-live="polite">
@@ -548,10 +552,14 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
             <span>{job.progress}%</span>
           </div>
           {job.status === "error" && (
-            <p className="message error" role="alert">
-              {copy.extractionFailed} {getExtractionErrorMessage(job.error_code, copy)}
-              {" "}{copy.extractionErrorReference}: {job.id}
-            </p>
+            <ErrorNotice
+              copy={copy}
+              message={
+                `${copy.extractionFailed} ${getExtractionErrorMessage(job.error_code, copy)} ` +
+                `${copy.extractionErrorReference}: ${job.id}`
+              }
+              onDismiss={() => {}}
+            />
           )}
         </div>
       )}

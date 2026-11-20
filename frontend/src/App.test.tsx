@@ -1126,9 +1126,12 @@ describe("App", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Suchen" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
       "Die Suche ist fehlgeschlagen. Die Anfrage ist fehlgeschlagen.",
     );
+    fireEvent.click(screen.getByRole("button", { name: "Fehlermeldung schließen" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("loads known entities for the dropdown and chronological recap at the active notes position", async () => {

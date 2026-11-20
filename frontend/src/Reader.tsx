@@ -17,6 +17,7 @@ import {
 import { Copy, getErrorMessage } from "./i18n";
 import { downloadNotesExport } from "./notesExport";
 import { useReaderNotes } from "./useReaderNotes";
+import { ErrorNotice } from "./ErrorNotice";
 
 export interface ReaderProps {
   book: Book;
@@ -292,9 +293,11 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         <button type="button" onClick={onBack}>
           {copy.backToLibrary}
         </button>
-        <p className="message error" role="alert">
-          {readerError}
-        </p>
+        <ErrorNotice
+          copy={copy}
+          message={readerError}
+          onDismiss={() => setReaderError(null)}
+        />
         <button
           type="button"
           onClick={() => {
@@ -380,6 +383,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           setPositionMethod(value);
           setManualPositionError(null);
         }}
+        onManualPositionErrorDismiss={() => setManualPositionError(null)}
         onPercentageChange={(value) => {
           setPercentage(value);
           setManualPositionError(null);
@@ -392,10 +396,11 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
       <div className="reader-columns">
         <div className="reader-main">
           {progressError && (
-            <div className="message error" role="alert">
-              <p>
-                {copy.saveFailed} {progressError}
-              </p>
+            <ErrorNotice
+              copy={copy}
+              message={`${copy.saveFailed} ${progressError}`}
+              onDismiss={() => setProgressError(null)}
+            >
               <button
                 type="button"
                 onClick={() => {
@@ -405,7 +410,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
               >
                 {copy.retry}
               </button>
-            </div>
+            </ErrorNotice>
           )}
           {!progressError && savingProgress && (
             <p className="save-status" role="status">
@@ -438,6 +443,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           exportLoading={exportLoading}
           exportError={exportError}
           onExport={(format) => void exportNotes(format)}
+          onExportErrorDismiss={() => setExportError(null)}
           lookupTerm={notes.lookupTerm}
           lookupEntityType={notes.lookupEntityType}
           lookupEntityOptions={notes.lookupEntityOptions}
@@ -455,6 +461,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           recapLoading={notes.recapLoading}
           recapError={notes.recapError}
           onRecapRetry={notes.retryRecap}
+          onRecapErrorDismiss={notes.clearRecapError}
         />
       </div>
     </section>

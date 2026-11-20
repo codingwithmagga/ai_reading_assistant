@@ -557,6 +557,33 @@ select {
   color: var(--color-muted);
 }
 
+.error-notice {
+  position: relative;
+  padding-right: 2.75rem;
+}
+
+.error-notice summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.error-notice-content {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.error-notice-dismiss {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .source-excerpt[open] {
   margin-bottom: 0.75rem;
 }

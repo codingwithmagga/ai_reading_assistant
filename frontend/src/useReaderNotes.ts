@@ -240,6 +240,10 @@ export function useReaderNotes({
     setLookupLoading(false);
   }
 
+  function clearRecapError() {
+    setRecapError(null);
+  }
+
   function changeLookupEntityType(value: EntityType | "all") {
     setLookupEntityType(value);
   }
@@ -270,6 +274,7 @@ export function useReaderNotes({
     recap: visibleRecap,
     recapLoading,
     recapError,
+    clearRecapError,
     retryRecap: () => setRetryNotes((attempt) => attempt + 1),
   };
 }
