@@ -1,5 +1,13 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
+import {
   Book,
   Chapter,
   ChapterContent,
@@ -18,6 +26,7 @@ import { Copy, getErrorMessage } from "./i18n";
 import { downloadNotesExport } from "./notesExport";
 import { useReaderNotes } from "./useReaderNotes";
 import { ErrorNotice } from "./ErrorNotice";
+import { StatusNotice } from "./StatusNotice";
 
 export interface ReaderProps {
   book: Book;
@@ -285,38 +294,40 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   }
 
   if (readerLoading) {
-    return <p role="status">{copy.loadingReader}</p>;
+    return <StatusNotice loading>{copy.loadingReader}</StatusNotice>;
   }
   if (readerError) {
     return (
       <section className="reader">
-        <button type="button" onClick={onBack}>
+        <Button variant="outlined" onClick={onBack}>
           {copy.backToLibrary}
-        </button>
+        </Button>
         <ErrorNotice
           copy={copy}
           message={readerError}
           onDismiss={() => setReaderError(null)}
         />
-        <button
-          type="button"
+        <Button
+          variant="contained"
           onClick={() => {
             setReaderError(null);
             setRetryReader((attempt) => attempt + 1);
           }}
         >
           {copy.retry}
-        </button>
+        </Button>
       </section>
     );
   }
   if (chapters.length === 0) {
     return (
       <section className="reader">
-        <button type="button" onClick={onBack}>
+        <Button variant="outlined" onClick={onBack}>
           {copy.backToLibrary}
-        </button>
-        <p className="empty-state">{copy.noChapters}</p>
+        </Button>
+        <Typography className="empty-state" sx={{ mt: 2 }}>
+          {copy.noChapters}
+        </Typography>
       </section>
     );
   }
@@ -326,39 +337,48 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
 
   return (
     <section className="reader" aria-labelledby="reader-heading">
-      <div className="reader-toolbar">
-        <button type="button" onClick={onBack}>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        justifyContent="space-between"
+        alignItems={{ xs: "stretch", sm: "center" }}
+        spacing={1.5}
+        className="reader-toolbar"
+      >
+        <Button variant="outlined" onClick={onBack}>
           {copy.backToLibrary}
-        </button>
-        <label>
-          <span>{copy.selectChapter}</span>
-          <select
-            aria-label={copy.selectChapter}
-            value={selectedChapterId ?? ""}
-            onChange={(event) => {
-              const nextChapter = chapters.find(
-                (chapter) => chapter.id === event.currentTarget.value,
-              );
-              if (nextChapter) {
-                changeChapter(nextChapter);
-              }
-            }}
-          >
-            {chapters.map((chapter) => (
-              <option key={chapter.id} value={chapter.id}>
-                {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="reader-heading">
-        <h2 id="reader-heading">{book.title}</h2>
-        <p>
+        </Button>
+        <TextField
+          select
+          size="small"
+          label={copy.selectChapter}
+          value={selectedChapterId ?? ""}
+          onChange={(event) => {
+            const nextChapter = chapters.find(
+              (chapter) => chapter.id === event.target.value,
+            );
+            if (nextChapter) {
+              changeChapter(nextChapter);
+            }
+          }}
+          SelectProps={{ native: true }}
+          sx={{ minWidth: { sm: 260 } }}
+        >
+          {chapters.map((chapter) => (
+            <option key={chapter.id} value={chapter.id}>
+              {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
+            </option>
+          ))}
+        </TextField>
+      </Stack>
+      <Box className="reader-heading">
+        <Typography component="h2" variant="h5" id="reader-heading">
+          {book.title}
+        </Typography>
+        <Typography color="text.secondary">
           {copy.readingPosition}: {currentPosition === null ? "—" : currentPosition + 1}{" "}
           {copy.positionOf} {totalPositions + 1}
-        </p>
-      </div>
+        </Typography>
+      </Box>
 
       <PositionControls
         activeNotesPosition={activeNotesPosition}
@@ -401,23 +421,26 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
               message={`${copy.saveFailed} ${progressError}`}
               onDismiss={() => setProgressError(null)}
             >
-              <button
-                type="button"
+              <Button
+                size="small"
+                variant="outlined"
                 onClick={() => {
                   setProgressError(null);
                   setRetrySave((attempt) => attempt + 1);
                 }}
               >
                 {copy.retry}
-              </button>
+              </Button>
             </ErrorNotice>
           )}
           {!progressError && savingProgress && (
-            <p className="save-status" role="status">
+            <StatusNotice loading>
               {copy.savePending}
-            </p>
+            </StatusNotice>
           )}
-          <div
+          <Paper
+            component="div"
+            variant="outlined"
             className="reader-scroll"
             ref={scrollContainer}
             tabIndex={0}
@@ -431,10 +454,10 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
               currentPosition={currentPosition}
               copy={copy}
             />
-          </div>
-          <p className="chapter-position">
+          </Paper>
+          <Typography className="chapter-position" color="text.secondary">
             {activeChapter?.title || `${copy.chapter} ${(activeChapter?.index ?? 0) + 1}`}
-          </p>
+          </Typography>
         </div>
 
         <NotesPanel

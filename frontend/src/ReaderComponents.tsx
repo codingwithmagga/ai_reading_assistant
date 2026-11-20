@@ -1,5 +1,11 @@
 import { FormEventHandler } from "react";
 import {
+  Button,
+  Card,
+  CardContent,
+  Typography,
+} from "@mui/material";
+import {
   Chapter,
   ChapterContent,
   EntityListItem,
@@ -31,11 +37,12 @@ export function ReaderContent({
 
   return (
     <article>
-      <h3>
+      <Typography component="h3" variant="h6">
         {chapterContent.title || `${copy.chapter} ${chapterContent.index + 1}`}
-      </h3>
+      </Typography>
       {chapterContent.paragraphs.map((paragraph) => (
-        <p
+        <Typography
+          component="p"
           key={paragraph.id}
           id={`paragraph-${paragraph.position}`}
           data-reading-position={paragraph.position}
@@ -44,7 +51,7 @@ export function ReaderContent({
           }
         >
           {paragraph.text}
-        </p>
+        </Typography>
       ))}
     </article>
   );
@@ -87,23 +94,30 @@ export function PositionControls({
     activeNotesPosition === null ? "—" : activeNotesPosition + 1;
 
   return (
-    <section className="notes-position" aria-labelledby="notes-position-heading">
-      <div className="notes-position-status">
-        <h3 id="notes-position-heading">{copy.notesPosition}</h3>
-        <p role="status">
+    <Card
+      component="section"
+      variant="outlined"
+      className="notes-position"
+      aria-labelledby="notes-position-heading"
+    >
+      <CardContent className="notes-position-status">
+        <Typography component="h3" variant="h6" id="notes-position-heading">
+          {copy.notesPosition}
+        </Typography>
+        <Typography role="status" color="text.secondary">
           {manualPosition === null
             ? copy.readerPositionActive
             : copy.manualPositionActive}
-        </p>
-        <p>
+        </Typography>
+        <Typography>
           {manualPositionDisplay} {copy.positionOf} {totalPositions + 1}
-        </p>
+        </Typography>
         {manualPosition !== null && (
-          <button type="button" onClick={onFollowReader}>
+          <Button size="small" variant="outlined" onClick={onFollowReader}>
             {copy.followReader}
-          </button>
+          </Button>
         )}
-      </div>
+      </CardContent>
       <form
         className="manual-position-form"
         noValidate
@@ -169,7 +183,7 @@ export function PositionControls({
         )}
         <button type="submit">{copy.applyPosition}</button>
       </form>
-    </section>
+    </Card>
   );
 }
 
