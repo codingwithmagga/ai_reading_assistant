@@ -473,6 +473,16 @@ select {
   background: var(--color-subtle);
 }
 
+.danger-button {
+  border-color: var(--color-error-border);
+  background: transparent;
+  color: var(--color-error-text);
+}
+
+.danger-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-error-border) 12%, transparent);
+}
+
 .lookup-match {
   margin-top: 1rem;
   padding-top: 1rem;
@@ -540,6 +550,33 @@ select {
 .fact-list blockquote {
   margin: 0.5rem 0;
   padding-left: 0.75rem;
+}
+
+.error-notice {
+  position: relative;
+  padding-right: 2.75rem;
+}
+
+.error-notice summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.error-notice-content {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.error-notice-dismiss {
+  position: absolute;
+  top: 0.55rem;
+  right: 0.55rem;
+  width: 2rem;
+  min-height: 2rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .source-excerpt {

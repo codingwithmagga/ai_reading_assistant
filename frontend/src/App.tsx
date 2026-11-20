@@ -7,6 +7,7 @@ import {
   getBookJobs,
   getBooks,
   getChapters,
+  deleteBook,
   restoreBackup,
   startExtractionJob,
   uploadBook,
@@ -61,6 +62,9 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   const [backupBusy, setBackupBusy] = useState(false);
   const [backupError, setBackupError] = useState<string | null>(null);
   const [backupMessage, setBackupMessage] = useState<string | null>(null);
+  const [deletingBookId, setDeletingBookId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const copy = translations[language];
@@ -137,6 +141,24 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   useEffect(() => {
     void refreshBooks();
   }, [refreshBooks]);
+
+  async function removeBook(book: Book) {
+    if (!window.confirm(copy.deleteBookConfirm)) {
+      return;
+    }
+    setDeletingBookId(book.id);
+    setDeleteError(null);
+    setDeleteMessage(null);
+    try {
+      await deleteBook(book.id);
+      setDeleteMessage(copy.deleteBookSuccess);
+      await refreshBooks();
+    } catch (error) {
+      setDeleteError(`${copy.deleteBookFailed} ${getErrorMessage(error, copy)}`);
+    } finally {
+      setDeletingBookId(null);
+    }
+  }
 
   async function submitUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -349,6 +371,18 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               {uploadMessage}
             </p>
           )}
+          {deleteError && (
+            <ErrorNotice
+              copy={copy}
+              message={deleteError}
+              onDismiss={() => setDeleteError(null)}
+            />
+          )}
+          {deleteMessage && (
+            <p className="message success" role="status">
+              {deleteMessage}
+            </p>
+          )}
           {booksLoading && (
             <p role="status" aria-live="polite">
               {books.length > 0 ? copy.refreshingBooks : copy.loadingBooks}
@@ -395,6 +429,14 @@ export function App({ updateServiceWorker }: AppProps = {}) {
                     disabled={book.status === "error" || backupBusy}
                   >
                     {copy.openBook}
+                  </button>
+                  <button
+                    type="button"
+                    className="danger-button"
+                    onClick={() => void removeBook(book)}
+                    disabled={deletingBookId !== null || backupBusy || uploading}
+                  >
+                    {deletingBookId === book.id ? copy.deletingBook : copy.deleteBook}
                   </button>
                 </li>
               ))}

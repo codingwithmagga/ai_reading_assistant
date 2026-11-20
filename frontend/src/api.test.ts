@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ApiError,
+  deleteBook,
   getBookEntities,
   getBookJobs,
   getBookNotesExport,
@@ -21,6 +22,23 @@ afterEach(() => {
 });
 
 describe("notes API client", () => {
+  it("deletes a book with DELETE and validates failures", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(deleteBook("book/one")).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenCalledWith("/api/books/book%2Fone", { method: "DELETE" });
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ detail: { code: "book_not_found", message: "Buch nicht gefunden." } }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    ));
+    await expect(deleteBook("missing")).rejects.toMatchObject({
+      code: "book_not_found",
+    });
+  });
   it("downloads a backup without interpreting its contents", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response('{"version":1}'));
     vi.stubGlobal("fetch", fetchMock);

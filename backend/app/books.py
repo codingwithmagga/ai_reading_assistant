@@ -47,6 +47,14 @@ def list_books(session: Session = Depends(get_session)) -> list[Book]:
     return list(session.scalars(select(Book).order_by(Book.created_at.desc(), Book.id)))
 
 
+@router.delete("/{book_id}", status_code=204)
+def delete_book(book_id: str, session: Session = Depends(get_session)) -> Response:
+    book = _require_book(session, book_id)
+    session.delete(book)
+    session.commit()
+    return Response(status_code=204)
+
+
 @router.post("", response_model=UploadResponse, status_code=201)
 def upload_book(
     response: Response,

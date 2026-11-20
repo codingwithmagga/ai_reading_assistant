@@ -49,6 +49,11 @@ export const translations = {
     retry: "Erneut versuchen",
     emptyLibrary: "Noch keine Bücher. Lade ein DRM-freies EPUB hoch.",
     openBook: "Lesen",
+    deleteBook: "Buch löschen",
+    deleteBookConfirm: "Buch inklusive aller Extraktionen und Notizen löschen?",
+    deleteBookSuccess: "Buch wurde gelöscht.",
+    deleteBookFailed: "Das Buch konnte nicht gelöscht werden.",
+    deletingBook: "Wird gelöscht …",
     author: "Autor",
     status: "Status",
     statuses: {
@@ -208,6 +213,11 @@ export const translations = {
     retry: "Try again",
     emptyLibrary: "No books yet. Upload a DRM-free EPUB to get started.",
     openBook: "Read",
+    deleteBook: "Delete book",
+    deleteBookConfirm: "Delete the book including all extraction data and notes?",
+    deleteBookSuccess: "The book was deleted.",
+    deleteBookFailed: "The book could not be deleted.",
+    deletingBook: "Deleting …",
     author: "Author",
     status: "Status",
     statuses: {

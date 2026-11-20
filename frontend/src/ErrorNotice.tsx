@@ -15,12 +15,15 @@ export function ErrorNotice({
   title?: string;
 }) {
   const [visible, setVisible] = useState(true);
+
   useEffect(() => {
     setVisible(true);
   }, [message]);
+
   if (!visible) {
     return null;
   }
+
   return (
     <details className="message error error-notice" open role="alert">
       <summary>{title ?? copy.errorTitle}</summary>
