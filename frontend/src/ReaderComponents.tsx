@@ -8,6 +8,7 @@ import {
   RecapResponse,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
+import { ErrorNotice } from "./ErrorNotice";
 
 export function ReaderContent({
   chapterContent,
@@ -60,6 +61,7 @@ export function PositionControls({
   onFollowReader,
   onManualChapterChange,
   onManualPositionMethodChange,
+  onManualPositionErrorDismiss,
   onPercentageChange,
   percentage,
   positionMethod,
@@ -75,6 +77,7 @@ export function PositionControls({
   onFollowReader: () => void;
   onManualChapterChange: (chapterId: string) => void;
   onManualPositionMethodChange: (value: "chapter" | "percentage") => void;
+  onManualPositionErrorDismiss: () => void;
   onPercentageChange: (value: string) => void;
   percentage: string;
   positionMethod: "chapter" | "percentage";
@@ -158,9 +161,11 @@ export function PositionControls({
           )}
         </div>
         {manualPositionError && (
-          <p className="message error" role="alert">
-            {manualPositionError}
-          </p>
+          <ErrorNotice
+            copy={copy}
+            message={manualPositionError}
+            onDismiss={onManualPositionErrorDismiss}
+          />
         )}
         <button type="submit">{copy.applyPosition}</button>
       </form>
@@ -174,6 +179,7 @@ interface NotesPanelProps {
   exportLoading: boolean;
   exportError: string | null;
   onExport: (format: "json" | "markdown") => void;
+  onExportErrorDismiss: () => void;
   lookupTerm: string;
   lookupEntityType: EntityType | "all";
   lookupEntityOptions: EntityListItem[];
@@ -191,6 +197,7 @@ interface NotesPanelProps {
   recapLoading: boolean;
   recapError: string | null;
   onRecapRetry: () => void;
+  onRecapErrorDismiss: () => void;
 }
 
 export function NotesPanel({
@@ -199,6 +206,7 @@ export function NotesPanel({
   exportLoading,
   exportError,
   onExport,
+  onExportErrorDismiss,
   lookupTerm,
   lookupEntityType,
   lookupEntityOptions,
@@ -216,6 +224,7 @@ export function NotesPanel({
   recapLoading,
   recapError,
   onRecapRetry,
+  onRecapErrorDismiss,
 }: NotesPanelProps) {
   const filteredEntityOptions =
     lookupEntityType === "all"
@@ -253,9 +262,11 @@ export function NotesPanel({
           </div>
           {exportLoading && <p role="status">{copy.exportingNotes}</p>}
           {exportError && (
-            <p className="message error" role="alert">
-              {copy.exportFailed} {exportError}
-            </p>
+            <ErrorNotice
+              copy={copy}
+              message={`${copy.exportFailed} ${exportError}`}
+              onDismiss={onExportErrorDismiss}
+            />
           )}
         </section>
         <form className="lookup-form" onSubmit={onLookupSubmit}>
@@ -342,10 +353,11 @@ export function NotesPanel({
           </div>
         </form>
         {lookupError && (
-          <div className="message error" role="alert">
-            <p>
-              {copy.searchFailed} {lookupError}
-            </p>
+          <ErrorNotice
+            copy={copy}
+            message={`${copy.searchFailed} ${lookupError}`}
+            onDismiss={onLookupClear}
+          >
             <button
               type="button"
               onClick={onLookupRetry}
@@ -353,7 +365,7 @@ export function NotesPanel({
             >
               {copy.retry}
             </button>
-          </div>
+          </ErrorNotice>
         )}
         {lookupLoading && <p role="status">{copy.searchLoading}</p>}
         {lookupResponse && lookupResponse.matches.length === 0 && (
@@ -426,14 +438,15 @@ export function NotesPanel({
           {recapLoading ? (
             <p role="status">{copy.loadingRecap}</p>
           ) : recapError ? (
-            <div className="message error" role="alert">
-              <p>
-                {copy.notesLoadFailed} {recapError}
-              </p>
+            <ErrorNotice
+              copy={copy}
+              message={`${copy.notesLoadFailed} ${recapError}`}
+              onDismiss={onRecapErrorDismiss}
+            >
               <button type="button" onClick={onRecapRetry}>
                 {copy.retry}
               </button>
-            </div>
+            </ErrorNotice>
           ) : recap && recap.events.length > 0 ? (
             <ul>
               {recap.events.map((event) => (
