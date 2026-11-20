@@ -23,6 +23,7 @@ import {
   isLanguage,
   translations,
 } from "./i18n";
+import { ErrorNotice } from "./ErrorNotice";
 
 type Theme = "light" | "dark";
 type ThemePreference = "system" | Theme;
