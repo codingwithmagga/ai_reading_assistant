@@ -13,7 +13,6 @@ import {
   MenuItem,
   Select,
   Stack,
-  TextField,
   Typography,
 } from "@mui/material";
 import {
@@ -352,12 +351,20 @@ export function App({ updateServiceWorker }: AppProps = {}) {
               {backupBusy ? copy.backupWorking : copy.backupDownload}
             </Button>
             <form className="upload-form" onSubmit={submitBackup}>
-              <TextField
+              <Button
+                component="label"
+                htmlFor="backup-file"
+                variant="outlined"
+                disabled={backupBusy || uploading}
+              >
+                {copy.backupFile}
+              </Button>
+              <input
                 id="backup-file"
                 type="file"
-                label={copy.backupFile}
-                size="small"
-                inputProps={{ accept: ".json,application/json" }}
+                accept=".json,application/json"
+                aria-label={copy.backupFile}
+                hidden
                 onChange={(event) =>
                   setBackupFile(
                     (event.target as HTMLInputElement).files?.[0] ?? null,
@@ -378,12 +385,20 @@ export function App({ updateServiceWorker }: AppProps = {}) {
             </CardContent>
           </Card>
           <form className="upload-form" onSubmit={submitUpload}>
-            <TextField
+            <Button
+              component="label"
+              htmlFor="book-file"
+              variant="outlined"
+              disabled={uploading || backupBusy}
+            >
+              {copy.chooseFile}
+            </Button>
+            <input
               id="book-file"
               type="file"
-              label={copy.chooseFile}
-              size="small"
-              inputProps={{ accept: ".epub,application/epub+zip" }}
+              accept=".epub,application/epub+zip"
+              aria-label={copy.chooseFile}
+              hidden
               onChange={(event) =>
                 setSelectedFile(
                   (event.target as HTMLInputElement).files?.[0] ?? null,
