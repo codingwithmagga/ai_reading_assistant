@@ -543,7 +543,7 @@ select {
 }
 
 .source-excerpt {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
 }
 
 .source-excerpt summary {
@@ -555,6 +555,15 @@ select {
   margin: 0.5rem 0 0;
   border-left: 3px solid var(--color-border);
   color: var(--color-muted);
+}
+
+.source-excerpt[open] {
+  margin-bottom: 0.75rem;
+}
+
+.fact-list li + li,
+.notes-data > ul > li + li {
+  margin-top: 1rem;
 }
 
 @media (max-width: 900px) {
