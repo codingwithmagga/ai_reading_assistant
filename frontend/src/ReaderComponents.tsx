@@ -1,10 +1,16 @@
 import { FormEventHandler } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Button,
   Card,
   CardContent,
+  Stack,
+  TextField,
   Typography,
 } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {
   Chapter,
   ChapterContent,
@@ -123,57 +129,58 @@ export function PositionControls({
         noValidate
         onSubmit={onApplyManualPosition}
       >
-        <h4>{copy.manualPosition}</h4>
-        <div className="manual-position-fields">
-          <label>
-            <span>{copy.positionMethod}</span>
-            <select
+        <Typography component="h4" variant="subtitle1">
+          {copy.manualPosition}
+        </Typography>
+        <Stack spacing={1.5} className="manual-position-fields">
+          <TextField
+            select
+            size="small"
+            label={copy.positionMethod}
               value={positionMethod}
               onChange={(event) => {
                 if (
-                  event.currentTarget.value === "chapter" ||
-                  event.currentTarget.value === "percentage"
+                  event.target.value === "chapter" ||
+                  event.target.value === "percentage"
                 ) {
-                  onManualPositionMethodChange(event.currentTarget.value);
+                  onManualPositionMethodChange(event.target.value);
                 }
               }}
+            SelectProps={{ native: true }}
             >
               <option value="chapter">{copy.byChapter}</option>
               <option value="percentage">{copy.byPercentage}</option>
-            </select>
-          </label>
+          </TextField>
           {positionMethod === "chapter" ? (
-            <label>
-              <span>{copy.positionChapter}</span>
-              <select
+            <TextField
+              select
+              size="small"
+              label={copy.positionChapter}
                 value={manualChapterId}
                 onChange={(event) => {
-                  onManualChapterChange(event.currentTarget.value);
+                  onManualChapterChange(event.target.value);
                 }}
+              SelectProps={{ native: true }}
               >
                 {chapters.map((chapter) => (
                   <option key={chapter.id} value={chapter.id}>
                     {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
                   </option>
                 ))}
-              </select>
-            </label>
+            </TextField>
           ) : (
-            <label>
-              <span>{copy.percentage}</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                step="any"
-                value={percentage}
-                onChange={(event) =>
-                  onPercentageChange(event.currentTarget.value)
-                }
-              />
-            </label>
+            <TextField
+              size="small"
+              label={copy.percentage}
+              type="number"
+              inputProps={{ min: 0, max: 100, step: "any" }}
+              value={percentage}
+              onChange={(event) =>
+                onPercentageChange(event.target.value)
+              }
+            />
           )}
-        </div>
+        </Stack>
         {manualPositionError && (
           <ErrorNotice
             copy={copy}
@@ -181,7 +188,9 @@ export function PositionControls({
             onDismiss={onManualPositionErrorDismiss}
           />
         )}
-        <button type="submit">{copy.applyPosition}</button>
+        <Button type="submit" variant="contained">
+          {copy.applyPosition}
+        </Button>
       </form>
     </Card>
   );
@@ -248,33 +257,48 @@ export function NotesPanel({
         );
 
   return (
-    <aside className="notes-panel" aria-label={copy.notesPanel}>
-      <details open>
-        <summary>{copy.notesPanel}</summary>
+    <Card
+      component="aside"
+      variant="outlined"
+      className="notes-panel"
+      aria-label={copy.notesPanel}
+    >
+      <Accordion defaultExpanded disableGutters elevation={0}>
+        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+          <Typography component="span" variant="subtitle1" fontWeight={650}>
+            {copy.notesPanel}
+          </Typography>
+        </AccordionSummary>
+        <AccordionDetails>
         <section className="notes-data" aria-labelledby="export-notes-heading">
-          <h3 id="export-notes-heading">{copy.exportNotes}</h3>
-          <p>
+          <Typography component="h3" variant="h6" id="export-notes-heading">
+            {copy.exportNotes}
+          </Typography>
+          <Typography>
             {copy.exportPosition}:{" "}
             {activeNotesPosition === null ? "—" : activeNotesPosition + 1}
-          </p>
-          <div className="export-actions">
-            <button
-              type="button"
+          </Typography>
+          <Stack direction="row" spacing={1} flexWrap="wrap" className="export-actions">
+            <Button
+              variant="contained"
               onClick={() => onExport("json")}
               disabled={activeNotesPosition === null || exportLoading}
             >
               {copy.exportJson}
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
+            </Button>
+            <Button
+              variant="outlined"
               onClick={() => onExport("markdown")}
               disabled={activeNotesPosition === null || exportLoading}
             >
               {copy.exportMarkdown}
-            </button>
-          </div>
-          {exportLoading && <p role="status">{copy.exportingNotes}</p>}
+            </Button>
+          </Stack>
+          {exportLoading && (
+            <Typography role="status" sx={{ mt: 1 }}>
+              {copy.exportingNotes}
+            </Typography>
+          )}
           {exportError && (
             <ErrorNotice
               copy={copy}
@@ -284,10 +308,12 @@ export function NotesPanel({
           )}
         </section>
         <form className="lookup-form" onSubmit={onLookupSubmit}>
-          <label htmlFor="entity-lookup">{copy.searchEntity}</label>
-          <p id="lookup-help" className="help-text">
+          <Typography component="label" htmlFor="entity-lookup" fontWeight={600}>
+            {copy.searchEntity}
+          </Typography>
+          <Typography id="lookup-help" className="help-text">
             {copy.exactMatchHelp}
-          </p>
+          </Typography>
           <label htmlFor="entity-type-filter">{copy.entityTypeFilter}</label>
           <select
             id="entity-type-filter"
@@ -337,9 +363,11 @@ export function NotesPanel({
               )),
             ])}
           </select>
-          <input
+          <TextField
             id="entity-lookup"
             type="search"
+            size="small"
+            fullWidth
             value={lookupTerm}
             aria-describedby="lookup-help"
             onChange={(event) => onLookupTermChange(event.currentTarget.value)}
@@ -352,19 +380,18 @@ export function NotesPanel({
               )}
             </p>
           )}
-          <div className="lookup-actions">
-            <button type="submit" disabled={lookupLoading}>
+          <Stack direction="row" spacing={1} flexWrap="wrap" className="lookup-actions">
+            <Button type="submit" variant="contained" disabled={lookupLoading}>
               {lookupLoading ? copy.searchLoading : copy.search}
-            </button>
-            <button
-              type="button"
-              className="secondary-button"
+            </Button>
+            <Button
+              variant="outlined"
               onClick={onLookupClear}
               disabled={!lookupTerm && !lookupResponse && !lookupError}
             >
               {copy.clearSearch}
-            </button>
-          </div>
+            </Button>
+          </Stack>
         </form>
         {lookupError && (
           <ErrorNotice
@@ -372,20 +399,23 @@ export function NotesPanel({
             message={`${copy.searchFailed} ${lookupError}`}
             onDismiss={onLookupClear}
           >
-            <button
-              type="button"
+            <Button
+              size="small"
+              variant="outlined"
               onClick={onLookupRetry}
               disabled={lookupLoading}
             >
               {copy.retry}
-            </button>
+            </Button>
           </ErrorNotice>
         )}
-        {lookupLoading && <p role="status">{copy.searchLoading}</p>}
+        {lookupLoading && (
+          <Typography role="status">{copy.searchLoading}</Typography>
+        )}
         {lookupResponse && lookupResponse.matches.length === 0 && (
-          <p className="empty-state" role="status">
+          <Typography className="empty-state" role="status">
             {copy.noSearchMatches}
-          </p>
+          </Typography>
         )}
         {lookupResponse && lookupResponse.matches.length > 0 && (
           <div className="lookup-results" aria-live="polite">
@@ -448,18 +478,20 @@ export function NotesPanel({
           aria-live="polite"
           aria-busy={recapLoading}
         >
-          <h3 id="recap-heading">{copy.recapTitle}</h3>
+          <Typography component="h3" variant="h6" id="recap-heading">
+            {copy.recapTitle}
+          </Typography>
           {recapLoading ? (
-            <p role="status">{copy.loadingRecap}</p>
+            <Typography role="status">{copy.loadingRecap}</Typography>
           ) : recapError ? (
             <ErrorNotice
               copy={copy}
               message={`${copy.notesLoadFailed} ${recapError}`}
               onDismiss={onRecapErrorDismiss}
             >
-              <button type="button" onClick={onRecapRetry}>
+              <Button size="small" variant="outlined" onClick={onRecapRetry}>
                 {copy.retry}
-              </button>
+              </Button>
             </ErrorNotice>
           ) : recap && recap.events.length > 0 ? (
             <ul>
@@ -478,10 +510,11 @@ export function NotesPanel({
               ))}
             </ul>
           ) : (
-            <p className="empty-state">{copy.noRecapEvents}</p>
+            <Typography className="empty-state">{copy.noRecapEvents}</Typography>
           )}
         </section>
-      </details>
-    </aside>
+        </AccordionDetails>
+      </Accordion>
+    </Card>
   );
 }
