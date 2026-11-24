@@ -1,7 +1,8 @@
+import re
 from collections import defaultdict
 from uuid import NAMESPACE_URL, uuid5
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.extraction_schemas import (
@@ -25,6 +26,10 @@ def known_entities_at_position(
     session: Session,
     book_id: str,
     position: int,
+    *,
+    block_text: str = "",
+    entity_limit: int = 30,
+    main_entity_limit: int = 8,
 ) -> list[KnownEntity]:
     entities = list(
         session.scalars(
@@ -50,14 +55,86 @@ def known_entities_at_position(
     for alias in aliases:
         aliases_by_entity[alias.entity_id].append(alias.alias)
 
+    def aliases_for_entity(entity_id: str) -> list[str]:
+        return aliases_by_entity[entity_id]
+    normalized_block = " ".join(block_text.split()).casefold()
+
+    mentioned_ids = {
+        entity.id
+        for entity in entities
+        if _mentions(normalized_block, entity.canonical_name)
+        or any(_mentions(normalized_block, alias) for alias in aliases_for_entity(entity.id))
+    }
+
+    fact_counts = dict(
+        session.execute(
+            select(Fact.entity_id, func.count(Fact.id))
+            .where(
+                Fact.book_id == book_id,
+                Fact.position <= position,
+            )
+            .group_by(Fact.entity_id)
+        ).all()
+    )
+    main_ids = {
+        entity.id
+        for entity in sorted(
+            (entity for entity in entities if entity.type == "person"),
+            key=lambda entity: (
+                -fact_counts.get(entity.id, 0),
+                entity.first_position,
+                entity.canonical_name,
+                entity.id,
+            ),
+        )[:main_entity_limit]
+    }
+
+    selected_ids = mentioned_ids | main_ids
+    if len(selected_ids) < entity_limit:
+        for entity in entities:
+            if entity.id not in selected_ids:
+                selected_ids.add(entity.id)
+            if len(selected_ids) >= entity_limit:
+                break
+    else:
+        ranked_mentioned = [
+            entity for entity in entities if entity.id in mentioned_ids
+        ]
+        ranked_main = [
+            entity for entity in entities if entity.id in main_ids
+        ]
+        selected_entities = {entity.id: entity for entity in ranked_mentioned + ranked_main}
+        if len(selected_entities) > entity_limit:
+            selected_entities = {
+                entity.id: entity
+                for entity in (ranked_mentioned + ranked_main)[:entity_limit]
+            }
+        selected_ids = set(selected_entities)
+
+    selected_entities = [entity for entity in entities if entity.id in selected_ids]
+    selected_entities.sort(
+        key=lambda entity: (
+            entity.first_position,
+            entity.canonical_name,
+            entity.id,
+        )
+    )
     return [
         KnownEntity(
             canonical_name=entity.canonical_name,
             entity_type=EntityType(entity.type),
             aliases=aliases_by_entity[entity.id],
         )
-        for entity in entities
+        for entity in selected_entities
     ]
+
+
+def _mentions(block_text: str, name: str) -> bool:
+    normalized_name = " ".join(name.split()).casefold()
+    if not normalized_name:
+        return False
+    escaped_name = re.escape(normalized_name)
+    return re.search(rf"(?<!\w){escaped_name}(?!\w)", block_text) is not None
 
 
 def persist_block_extraction(

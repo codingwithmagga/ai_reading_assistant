@@ -115,6 +115,13 @@ or alias to be known by the relevant paragraph. Invalid model responses are
 retried within the configured attempt limit; failures leave completed blocks
 intact and report an extraction error.
 
+Extraction context is bounded per block: entities or aliases mentioned in the
+supplied block are retained, followed by a small deterministic set of principal
+persons ranked by already extracted fact count. The limits are
+`EXTRACTION_CONTEXT_ENTITY_LIMIT` (default 30) and
+`EXTRACTION_CONTEXT_MAIN_ENTITY_LIMIT` (default 8). Selection never includes an
+entity or alias introduced after the block's first paragraph.
+
 Query endpoints enforce the reading position on the server. For example, the
 recap returns supported event facts and characters introduced through position
 42:

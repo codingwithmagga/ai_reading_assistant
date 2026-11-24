@@ -729,3 +729,66 @@ def test_known_entity_context_excludes_entities_and_aliases_from_later_positions
     assert len(context) == 1
     assert context[0].canonical_name == "Marta"
     assert context[0].aliases == ["die Wirtin"]
+
+
+def test_known_entity_context_limits_irrelevant_entities_but_keeps_alias_and_main_hits(
+    session: Session,
+) -> None:
+    book = _create_parsed_book(session)
+    marta = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Marta",
+        first_position=0,
+    )
+    marta.aliases.append(EntityAlias(alias="die Wirtin", first_position=1))
+    dorf = Entity(book_id=book.id, type="place", canonical_name="Dorf", first_position=1)
+    main = Entity(book_id=book.id, type="person", canonical_name="Nora", first_position=1)
+    irrelevant = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Felix",
+        first_position=1,
+    )
+    session.add_all([marta, dorf, main, irrelevant])
+    session.flush()
+    session.add_all(
+        [
+            Fact(
+                book_id=book.id,
+                entity_id=main.id,
+                text="Nora ist bekannt.",
+                position=1,
+                chapter_id=book.chapters[0].id,
+                source_excerpt="Nora",
+                kind="event",
+            ),
+            Fact(
+                book_id=book.id,
+                entity_id=main.id,
+                text="Nora ist wichtig.",
+                position=1,
+                chapter_id=book.chapters[0].id,
+                source_excerpt="Nora",
+                kind="description",
+            ),
+        ]
+    )
+    session.commit()
+
+    context = known_entities_at_position(
+        session,
+        book.id,
+        1,
+        block_text="Die Wirtin betritt das Dorf.",
+        entity_limit=3,
+        main_entity_limit=1,
+    )
+
+    names = {entity.canonical_name for entity in context}
+    assert names == {"Marta", "Dorf", "Nora"}
+    assert len(context) == 3
+    assert len([marta, dorf, main, irrelevant]) == 4
+    assert len(context) / 4 == 0.75
+    marta_context = next(entity for entity in context if entity.canonical_name == "Marta")
+    assert marta_context.aliases == ["die Wirtin"]
