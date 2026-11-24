@@ -239,6 +239,14 @@ curl http://localhost:8080/api/health
 docker compose down
 ```
 
+### CI
+
+GitHub Actions runs backend and frontend checks for pull requests and pushes
+to `main`. It also builds both container images and starts an isolated Compose
+stack, waits for the containers' health checks, verifies
+`/api/health`, and removes the stack afterward. This smoke test uses no
+OpenAI key, private book data, or extraction.
+
 ## Configuration and privacy
 
 Store local settings in `.env`; `.env` is not versioned. `.env.example`
