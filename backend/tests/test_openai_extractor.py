@@ -90,7 +90,7 @@ def test_openai_responses_request_uses_strict_schema_and_only_supplied_text() ->
     output_schema = text_format["schema"]
     assert output_schema["required"] == ["entities", "aliases", "facts", "relationships"]
     assert output_schema["additionalProperties"] is False
-    assert "first_mention_ref" not in output_schema["$defs"]["EntityExtraction"]["properties"]
+    assert "first_mention_ref" in output_schema["$defs"]["EntityExtraction"]["properties"]
 
 
 def test_unknown_model_reference_is_repaired_instead_of_retried() -> None:
