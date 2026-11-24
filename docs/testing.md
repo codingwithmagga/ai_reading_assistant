@@ -28,9 +28,13 @@ use an appropriate validation method instead.
 The backend uses pytest and Ruff. From `backend/`:
 
 ```bash
-python -m pytest
-python -m ruff check .
+uv sync --locked --extra dev
+uv run pytest
+uv run ruff check .
 ```
+
+Verify lockfile consistency with `uv lock --check` after dependency changes.
+The Docker build and CI use the same `uv.lock` resolution.
 
 Tests live in `backend/tests/`. Prefer plain `assert`, small focused fixtures,
 and parametrized tests for equivalent cases. Cover edge cases, expected
