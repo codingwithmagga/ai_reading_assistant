@@ -44,7 +44,8 @@ lint, and build commands.
   matching `origin/<branch-name>`, not `origin/main`.
 - Keep changes on that feature branch; do not merge locally or push directly
   to `main`.
-- CI is pull-request-only. The repository owner merges through the GitHub UI
-  after checks pass.
+- CI runs backend, frontend, image-build, and Compose-smoke checks for pull
+  requests and pushes to `main`. The repository owner merges through the GitHub
+  UI after checks pass.
 - Describe the purpose, behavior, and relevant test results in the pull
   request.
