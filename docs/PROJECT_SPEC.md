@@ -154,6 +154,13 @@ Extraction prompt rules (in summary): use only the supplied text; do not
 speculate about later events; avoid value judgments; keep facts concise and
 evidence-based. Output language is configurable (default: German).
 
+For extraction, paragraph references are model input and must be resolved and
+validated server-side against the supplied block text. Repeated names or
+mentions do not prove that a later fact was already known. Missing or ambiguous
+evidence is omitted; existing stored data is not silently re-positioned or
+reclassified as verified. Resumable checkpoints and backups remain subject to
+block-setting compatibility checks.
+
 ## 7a. Query API
 
 - `GET /books/{id}/lookup?q=Marta&position=1234`: finds an entity by

@@ -1,5 +1,6 @@
 import re
 from collections import defaultdict
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Annotated
 
@@ -240,47 +241,173 @@ def validate_chapter_references(
         raise ValueError("\n".join(issues))
 
     repaired = result.model_copy(deep=True)
-    fallback_ref = paragraphs[0].reference if paragraphs else None
-
-    for entity in repaired.entities:
-        if entity.first_mention_ref not in allowed_refs:
-            entity.first_mention_ref = _resolve_reference(
-                current_ref=entity.first_mention_ref,
-                evidence=[entity.canonical_name],
-                paragraphs=paragraphs,
-                fallback_ref=fallback_ref,
-            )
-
+    repaired.entities = _resolve_unique_items(
+        repaired.entities,
+        allowed_refs,
+        paragraphs,
+        lambda item: item.canonical_name,
+        "first_mention_ref",
+    )
+    kept_aliases = []
     for alias in repaired.aliases:
-        if alias.paragraph_ref not in allowed_refs:
-            alias.paragraph_ref = _resolve_reference(
-                current_ref=alias.paragraph_ref,
-                evidence=[alias.alias],
-                paragraphs=paragraphs,
-                fallback_ref=fallback_ref,
+        alias_match = _find_unique_evidence(alias.alias, paragraphs)
+        owner_match = _find_unique_evidence(alias.entity_name, paragraphs)
+        if alias_match is not None:
+            alias.paragraph_ref = alias_match.reference
+            kept_aliases.append(alias)
+        elif owner_match is not None:
+            alias.paragraph_ref = owner_match.reference
+            kept_aliases.append(alias)
+        elif alias.paragraph_ref in allowed_refs:
+            current = next(
+                paragraph
+                for paragraph in paragraphs
+                if paragraph.reference == alias.paragraph_ref
             )
+            if (
+                _normalized_text(alias.alias) in _normalized_text(current.text)
+                or _normalized_text(alias.entity_name) in _normalized_text(current.text)
+            ):
+                kept_aliases.append(alias)
+    repaired.aliases = kept_aliases
 
+    kept_facts = []
     for fact in repaired.facts:
-        fact.paragraph_ref = _resolve_reference(
-            current_ref=fact.paragraph_ref,
-            evidence=[fact.source_excerpt, fact.text, fact.entity_name],
-            paragraphs=paragraphs,
-            fallback_ref=fallback_ref,
-        )
+        resolved = _resolve_fact_reference(fact, allowed_refs, paragraphs)
+        if resolved is not None:
+            kept_facts.append(resolved)
+    repaired.facts = kept_facts
 
+    kept_relationships = []
     for relationship in repaired.relationships:
-        relationship.paragraph_ref = _resolve_later_relationship_reference(
-            current_ref=relationship.paragraph_ref,
-            evidence=[relationship.entity_a_name, relationship.entity_b_name],
-            paragraphs=paragraphs,
-            fallback_ref=fallback_ref,
+        resolved = _resolve_relationship_reference(
+            relationship,
+            allowed_refs,
+            paragraphs,
         )
-
+        if resolved is not None:
+            kept_relationships.append(resolved)
+    repaired.relationships = kept_relationships
     return repaired
 
 
 def _normalize_whitespace(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
+
+
+def _normalized_text(value: str) -> str:
+    return _normalize_whitespace(value).casefold()
+
+
+def _find_unique_evidence(
+    evidence: str,
+    paragraphs: list[ChapterParagraph],
+) -> ChapterParagraph | None:
+    needle = _normalized_text(evidence)
+    if not needle:
+        return None
+    matches = [
+        paragraph
+        for paragraph in paragraphs
+        if needle in _normalized_text(paragraph.text)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def _resolve_unique_items(
+    items: list,
+    allowed_refs: set[str],
+    paragraphs: list[ChapterParagraph],
+    evidence_for: Callable[[object], str],
+    reference_field: str,
+) -> list:
+    kept = []
+    for item in items:
+        evidence = evidence_for(item)
+        current_ref = getattr(item, reference_field)
+        matched = _find_unique_evidence(evidence, paragraphs)
+        if matched is not None:
+            setattr(item, reference_field, matched.reference)
+            kept.append(item)
+        elif current_ref in allowed_refs:
+            current_paragraph = next(
+                paragraph
+                for paragraph in paragraphs
+                if paragraph.reference == current_ref
+            )
+            if (
+                paragraphs[0].reference == current_ref
+                and _normalized_text(evidence) in _normalized_text(current_paragraph.text)
+            ):
+                kept.append(item)
+    return kept
+
+
+def _resolve_fact_reference(
+    fact: FactExtraction,
+    allowed_refs: set[str],
+    paragraphs: list[ChapterParagraph],
+) -> FactExtraction | None:
+    source_match = _find_unique_evidence(fact.source_excerpt, paragraphs)
+    if source_match is not None:
+        fact.paragraph_ref = source_match.reference
+        return fact
+    if "..." in fact.source_excerpt:
+        segments = [
+            segment.strip()
+            for segment in fact.source_excerpt.split("...")
+            if segment.strip()
+        ]
+        matches: list[ChapterParagraph] = []
+        for segment in segments:
+            segment_match = _find_unique_evidence(segment, paragraphs)
+            if segment_match is not None:
+                matches.append(segment_match)
+        if len({paragraph.reference for paragraph in matches}) == 1:
+            fact.paragraph_ref = matches[0].reference
+            return fact
+    text_match = _find_unique_evidence(fact.text, paragraphs)
+    if text_match is not None:
+        fact.paragraph_ref = text_match.reference
+        return fact
+    return None
+
+
+def _resolve_relationship_reference(
+    relationship: RelationshipExtraction,
+    allowed_refs: set[str],
+    paragraphs: list[ChapterParagraph],
+) -> RelationshipExtraction | None:
+    matched_positions: list[int] = []
+    for paragraph in paragraphs:
+        text = _normalized_text(paragraph.text)
+        for index, evidence in enumerate(
+            (relationship.entity_a_name, relationship.entity_b_name)
+        ):
+            if _normalized_text(evidence) in text:
+                matched_positions.append(paragraphs.index(paragraph))
+    if matched_positions:
+        relationship.paragraph_ref = paragraphs[max(matched_positions)].reference
+        return relationship
+    if relationship.paragraph_ref not in allowed_refs:
+        return None
+    current = next(
+        (
+            paragraph
+            for paragraph in paragraphs
+            if paragraph.reference == relationship.paragraph_ref
+        ),
+        None,
+    )
+    if current is None:
+        return None
+    text = _normalized_text(current.text)
+    if (
+        _normalized_text(relationship.entity_a_name) in text
+        and _normalized_text(relationship.entity_b_name) in text
+    ):
+        return relationship
+    return None
 
 
 def _resolve_reference(

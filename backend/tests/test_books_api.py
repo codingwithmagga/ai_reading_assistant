@@ -34,8 +34,8 @@ def test_upload_persists_book_chapters_and_ordered_paragraphs(client: TestClient
         assert [paragraph.position for paragraph in book.paragraphs] == [0, 1, 2]
         assert [paragraph.text for paragraph in book.paragraphs] == [
             "Kapitel Eins",
-            "Erster Absatz.",
-            "Zweiter Absatz.",
+            "Marta betritt den Raum.",
+            "Marta, die Wirtin, spricht den Gast an.",
         ]
         job = session.scalar(select(Job).where(Job.book_id == book.id))
         assert job is not None
@@ -230,8 +230,8 @@ def test_book_library_chapters_and_content_endpoints(client: TestClient) -> None
     assert [paragraph["position"] for paragraph in content["paragraphs"]] == [0, 1, 2]
     assert [paragraph["text"] for paragraph in content["paragraphs"]] == [
         "Kapitel Eins",
-        "Erster Absatz.",
-        "Zweiter Absatz.",
+        "Marta betritt den Raum.",
+        "Marta, die Wirtin, spricht den Gast an.",
     ]
 
 

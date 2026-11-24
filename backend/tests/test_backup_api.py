@@ -80,14 +80,14 @@ def test_backup_roundtrip_preserves_resume_and_spoiler_boundary(
         for entity in client.get(
             f"/books/{book_id}/entities", params={"position": 0}
         ).json()
-    ] == ["Marta"]
+    ] == []
     assert client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 1}
-    ).json()["matches"]
+    ).json()["matches"] == []
     match = client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 2}
     ).json()["matches"][0]
-    assert [fact["position"] for fact in match["facts"]] == [0, 0]
+    assert [fact["position"] for fact in match["facts"]] == [1, 2]
     with Session(client.app.state.test_engine) as session:
         job = session.scalar(select(Job).where(Job.book_id == book_id, Job.type == "extraction"))
         assert job.status == "completed"
@@ -284,10 +284,10 @@ def test_restore_failed_job_resumes_from_checkpoint(
         assert resumed.input_tokens == 3
     assert calls == [
         "Kapitel Eins",
-        "Erster Absatz.",
+        "Marta betritt den Raum.",
         "Kapitel Eins",
-        "Erster Absatz.",
-        "Zweiter Absatz.",
+        "Marta betritt den Raum.",
+        "Marta, die Wirtin, spricht den Gast an.",
     ]
 
 
@@ -414,7 +414,7 @@ def test_extraction_whitespace_evidence_and_completed_job_survive_settings_chang
     class WhitespaceExtractor(FakeExtractor):
         def extract_with_usage(self, **kwargs):
             result = super().extract_with_usage(**kwargs)
-            result.extraction.facts[0].source_excerpt = "ERSTER   ABSATZ."
+            result.extraction.facts[0].source_excerpt = "Marta   betritt den Raum."
             return result
 
     with Session(client.app.state.test_engine) as session:
@@ -428,7 +428,7 @@ def test_extraction_whitespace_evidence_and_completed_job_survive_settings_chang
     match = client.get(
         f"/books/{book_id}/lookup", params={"q": "die Wirtin", "position": 2}
     ).json()["matches"][0]
-    assert match["facts"][0]["source_excerpt"] == "ERSTER   ABSATZ."
+    assert match["facts"][0]["source_excerpt"] == "Marta   betritt den Raum."
 
 
 @pytest.mark.parametrize("mutation", ["excerpt", "checkpoint", "duplicate_fact", "boolean_version"])

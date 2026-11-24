@@ -49,14 +49,14 @@ class FakeExtractor:
                     entity_name="Marta",
                     text="Marta betritt den Raum.",
                     paragraph_ref="p1",
-                    source_excerpt="Erster Absatz.",
+                    source_excerpt="Marta betritt den Raum.",
                     kind=FactKind.DESCRIPTION,
                 ),
                 FactExtraction(
                     entity_name="Marta",
                     text="Marta spricht den Gast an.",
                     paragraph_ref="p2",
-                    source_excerpt="Zweiter Absatz.",
+                    source_excerpt="Marta, die Wirtin, spricht den Gast an.",
                     kind=FactKind.EVENT,
                 ),
             ],
@@ -106,11 +106,9 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"position": 1},
     )
     assert before_introduction.status_code == at_introduction.status_code == 200
-    assert [entity["canonical_name"] for entity in before_introduction.json()] == ["Marta"]
+    assert [entity["canonical_name"] for entity in before_introduction.json()] == []
     assert [entity["canonical_name"] for entity in at_introduction.json()] == ["Marta"]
-    assert at_introduction.json()[0]["aliases"] == [
-        {"alias": "die Wirtin", "first_position": 0}
-    ]
+    assert at_introduction.json()[0]["aliases"] == []
 
     before_alias = client.get(
         f"/books/{book_id}/lookup",
@@ -121,11 +119,11 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"q": "die Wirtin", "position": 2},
     )
     assert before_alias.status_code == at_alias.status_code == 200
-    assert len(before_alias.json()["matches"]) == 1
+    assert len(before_alias.json()["matches"]) == 0
     assert len(at_alias.json()["matches"]) == 1
     assert [
         fact["position"] for fact in at_alias.json()["matches"][0]["facts"]
-    ] == [0, 0]
+    ] == [1, 2]
 
     before_event = client.get(
         f"/books/{book_id}/recap",
@@ -136,9 +134,7 @@ def test_upload_extract_and_query_flow_uses_database_positions_and_spoiler_filte
         params={"position": 2},
     )
     assert before_event.status_code == at_event.status_code == 200
-    assert [event["text"] for event in before_event.json()["events"]] == [
-        "Marta spricht den Gast an."
-    ]
+    assert [event["text"] for event in before_event.json()["events"]] == []
     assert [event["text"] for event in at_event.json()["events"]] == [
         "Marta spricht den Gast an."
     ]

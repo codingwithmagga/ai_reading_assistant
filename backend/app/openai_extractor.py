@@ -16,6 +16,7 @@ from app.extraction_schemas import (
     ChapterParagraph,
     KnownEntity,
     normalize_extraction,
+    validate_chapter_references,
 )
 
 
@@ -155,6 +156,7 @@ class OpenAIChapterExtractor:
             try:
                 result = ChapterExtraction.model_validate_json(response.output_text)
                 result = normalize_extraction(result, paragraphs, known_entities)
+                result = validate_chapter_references(result, paragraphs)
                 return ExtractionResponse(
                     extraction=result,
                     input_tokens=input_tokens,
@@ -200,15 +202,6 @@ def _validation_feedback(error: ValidationError) -> str:
 
 def _strict_json_schema(schema: Mapping[str, object]) -> dict[str, object]:
     normalized = {key: value for key, value in schema.items() if key != "default"}
-    for reference_field in ("first_mention_ref", "paragraph_ref"):
-        properties = normalized.get("properties")
-        if isinstance(properties, dict):
-            properties.pop(reference_field, None)
-            required = normalized.get("required")
-            if isinstance(required, list):
-                normalized["required"] = [
-                    value for value in required if value != reference_field
-                ]
     properties = normalized.get("properties")
     if normalized.get("type") == "object" and isinstance(properties, dict):
         normalized["required"] = list(properties)

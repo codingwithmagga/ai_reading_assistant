@@ -36,7 +36,11 @@ def build_test_epub(identifier: str = "api-test") -> bytes:
           <head/><docTitle><text>API Testbuch</text></docTitle><navMap/>
           </ncx>""",
         "OEBPS/chapter.xhtml": b"""<html xmlns="http://www.w3.org/1999/xhtml">
-          <body><h1>Kapitel Eins</h1><p>Erster Absatz.</p><p>Zweiter Absatz.</p></body>
+          <body>
+            <h1>Kapitel Eins</h1>
+            <p>Marta betritt den Raum.</p>
+            <p>Marta, die Wirtin, spricht den Gast an.</p>
+          </body>
           </html>""",
     }
     output = BytesIO()
