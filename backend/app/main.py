@@ -22,7 +22,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         tempfile.tempdir = previous_temp_dir
 
 
-app = FastAPI(title="Spoilerfreier Lesebegleiter", lifespan=lifespan)
+app = FastAPI(
+    title="Spoilerfreier Lesebegleiter",
+    lifespan=lifespan,
+    root_path="/api",
+)
 app.include_router(backup_router)
 app.include_router(books_router)
 app.include_router(book_queries_router)
