@@ -1,48 +1,35 @@
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Book,
-  Chapter,
-  ExtractionJob,
-  getBackup,
-  getBookJobs,
   getBooks,
-  getChapters,
   deleteBook,
-  restoreBackup,
-  startExtractionJob,
-  uploadBook,
 } from "./api";
 import { Reader } from "./Reader";
 import {
-  Copy,
   Language,
   getErrorMessage,
-  getExtractionErrorMessage,
   getSavedLanguage,
-  getStatusLabel,
   isLanguage,
   translations,
 } from "./i18n";
-import { ErrorNotice } from "./ErrorNotice";
-
+import { UploadSection } from "./UploadSection";
+import { BackupSection } from "./BackupSection";
+import { LibraryView } from "./LibraryView";
 type Theme = "light" | "dark";
 type ThemePreference = "system" | Theme;
 
 interface AppProps {
   updateServiceWorker?: () => Promise<void>;
 }
-
 function getThemePreference(): ThemePreference {
   const savedTheme = window.localStorage.getItem("ui-theme");
   return savedTheme === "light" || savedTheme === "dark" ? savedTheme : "system";
 }
-
 function getSystemTheme(): Theme {
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
 }
-
 export function App({ updateServiceWorker }: AppProps = {}) {
   const [language, setLanguage] = useState<Language>(getSavedLanguage);
   const [themePreference, setThemePreference] =
@@ -53,15 +40,7 @@ export function App({ updateServiceWorker }: AppProps = {}) {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [booksLoading, setBooksLoading] = useState(true);
   const [booksError, setBooksError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadMessage, setUploadMessage] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [retryFailed, setRetryFailed] = useState(false);
-  const [backupFile, setBackupFile] = useState<File | null>(null);
   const [backupBusy, setBackupBusy] = useState(false);
-  const [backupError, setBackupError] = useState<string | null>(null);
-  const [backupMessage, setBackupMessage] = useState<string | null>(null);
   const [deletingBookId, setDeletingBookId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteMessage, setDeleteMessage] = useState<string | null>(null);
@@ -160,75 +139,6 @@ export function App({ updateServiceWorker }: AppProps = {}) {
     }
   }
 
-  async function submitUpload(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedFile || uploading) {
-      return;
-    }
-    const form = event.currentTarget;
-    setUploading(true);
-    setUploadError(null);
-    setUploadMessage(null);
-    try {
-      const uploadedBook = await uploadBook(selectedFile, retryFailed);
-      if (uploadedBook.status === "error" && uploadedBook.error) {
-        setUploadError(copy.previousParsingFailed);
-        return;
-      }
-      setUploadMessage(
-        uploadedBook.reused ? copy.duplicateSuccess : copy.uploadSuccess,
-      );
-      setSelectedFile(null);
-      setRetryFailed(false);
-      form.reset();
-      await refreshBooks();
-    } catch (error) {
-      setUploadError(getErrorMessage(error, copy));
-    } finally {
-      setUploading(false);
-    }
-  }
-
-  async function downloadBackup() {
-    setBackupBusy(true);
-    setBackupError(null);
-    setBackupMessage(null);
-    try {
-      const blob = await getBackup();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "reading-assistant-backup.json";
-      link.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      setBackupError(`${copy.backupDownloadFailed} ${getErrorMessage(error, copy)}`);
-    } finally {
-      setBackupBusy(false);
-    }
-  }
-
-  async function submitBackup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!backupFile || backupBusy || !window.confirm(copy.backupConfirm)) {
-      return;
-    }
-    const form = event.currentTarget;
-    setBackupBusy(true);
-    setBackupError(null);
-    setBackupMessage(null);
-    try {
-      await restoreBackup(backupFile);
-      setBackupFile(null);
-      form.reset();
-      setBackupMessage(copy.backupSuccess);
-      await refreshBooks();
-    } catch (error) {
-      setBackupError(`${copy.backupRestoreFailed} ${getErrorMessage(error, copy)}`);
-    } finally {
-      setBackupBusy(false);
-    }
-  }
 
   return (
     <main className="app-shell" lang={language}>
@@ -301,355 +211,34 @@ export function App({ updateServiceWorker }: AppProps = {}) {
       ) : (
         <section aria-labelledby="library-heading" className="library">
           <h2 id="library-heading">{copy.library}</h2>
-          <section aria-labelledby="backup-heading">
-            <h3 id="backup-heading">{copy.backupTitle}</h3>
-            <p>{copy.backupHelp}</p>
-            <button
-              type="button"
-              onClick={() => void downloadBackup()}
-              disabled={backupBusy || uploading}
-            >
-              {backupBusy ? copy.backupWorking : copy.backupDownload}
-            </button>
-            <form className="upload-form" onSubmit={submitBackup}>
-              <label htmlFor="backup-file">{copy.backupFile}</label>
-              <input
-                id="backup-file"
-                type="file"
-                accept=".json,application/json"
-                onChange={(event) => setBackupFile(event.currentTarget.files?.[0] ?? null)}
-                disabled={backupBusy || uploading}
-              />
-              <button type="submit" disabled={!backupFile || backupBusy || uploading}>
-                {copy.backupRestore}
-              </button>
-            </form>
-            {backupError && (
-              <ErrorNotice copy={copy} message={backupError} onDismiss={() => setBackupError(null)} />
-            )}
-            {backupMessage && (
-              <p className="message success" role="status">{backupMessage}</p>
-            )}
-          </section>
-          <form className="upload-form" onSubmit={submitUpload}>
-            <label htmlFor="book-file">{copy.chooseFile}</label>
-            <input
-              id="book-file"
-              type="file"
-              accept=".epub,application/epub+zip"
-              onChange={(event) =>
-                setSelectedFile(event.currentTarget.files?.[0] ?? null)
-              }
-              disabled={uploading || backupBusy}
-            />
-            <label className="retry-parsing">
-              <input
-                type="checkbox"
-                checked={retryFailed}
-                onChange={(event) => setRetryFailed(event.currentTarget.checked)}
-                disabled={uploading || backupBusy}
-              />
-              {copy.retryFailedParsing}
-            </label>
-            <button type="submit" disabled={!selectedFile || uploading || backupBusy}>
-              {uploading ? copy.uploading : copy.upload}
-            </button>
-            <span className="file-name">
-              {selectedFile?.name ?? copy.noFile}
-            </span>
-          </form>
-
-          {uploadError && (
-            <ErrorNotice
-              copy={copy}
-              message={`${copy.uploadError} ${uploadError}`}
-              onDismiss={() => setUploadError(null)}
-            />
-          )}
-          {uploadMessage && (
-            <p className="message success" role="status">
-              {uploadMessage}
-            </p>
-          )}
-          {deleteError && (
-            <ErrorNotice
-              copy={copy}
-              message={deleteError}
-              onDismiss={() => setDeleteError(null)}
-            />
-          )}
-          {deleteMessage && (
-            <p className="message success" role="status">
-              {deleteMessage}
-            </p>
-          )}
-          {booksLoading && (
-            <p role="status" aria-live="polite">
-              {books.length > 0 ? copy.refreshingBooks : copy.loadingBooks}
-            </p>
-          )}
-          {booksError && (
-            <ErrorNotice
-              copy={copy}
-              message={booksError}
-              onDismiss={() => setBooksError(null)}
-            >
-              <button
-                type="button"
-                onClick={() => void refreshBooks()}
-                disabled={booksLoading}
-              >
-                {copy.retry}
-              </button>
-            </ErrorNotice>
-          )}
-          {!booksLoading && !booksError && books.length === 0 ? (
-            <p className="empty-state">{copy.emptyLibrary}</p>
-          ) : books.length > 0 ? (
-            <ul className="book-list" aria-busy={booksLoading}>
-              {books.map((book) => (
-                <li className="book-card" key={book.id}>
-                  <div className="book-card-copy">
-                    <h3>{book.title}</h3>
-                    {book.author && (
-                      <p>
-                        {copy.author}: {book.author}
-                      </p>
-                    )}
-                    <p>
-                      {copy.status}: {getStatusLabel(book.status, copy)}
-                    </p>
-                  </div>
-                  {["parsed", "extracting", "error", "ready"].includes(
-                    book.status,
-                  ) && <ExtractionControls book={book} copy={copy} />}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedBook(book)}
-                    disabled={book.status === "error" || backupBusy}
-                  >
-                    {copy.openBook}
-                  </button>
-                  <button
-                    type="button"
-                    className="danger-button"
-                    onClick={() => void removeBook(book)}
-                    disabled={deletingBookId !== null || backupBusy || uploading}
-                  >
-                    {deletingBookId === book.id ? copy.deletingBook : copy.deleteBook}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          <BackupSection
+            copy={copy}
+            disabled={backupBusy}
+            onRestored={() => refreshBooks()}
+            onBusyChange={setBackupBusy}
+          />
+          <UploadSection
+            copy={copy}
+            disabled={backupBusy}
+            onUploaded={() => refreshBooks()}
+          />
+          <LibraryView
+            copy={copy}
+            books={books}
+            loading={booksLoading}
+            error={booksError}
+            deletingBookId={deletingBookId}
+            deleteError={deleteError}
+            deleteMessage={deleteMessage}
+            backupBusy={backupBusy}
+            uploading={false}
+            onRetry={() => void refreshBooks()}
+            onDismissError={() => setBooksError(null)}
+            onOpen={setSelectedBook}
+            onDelete={(book) => void removeBook(book)}
+          />
         </section>
       )}
     </main>
-  );
-}
-
-interface ExtractionControlsProps {
-  book: Book;
-  copy: Copy;
-}
-
-function ExtractionControls({ book, copy }: ExtractionControlsProps) {
-  const [chapters, setChapters] = useState<Chapter[] | null>(null);
-  const [job, setJob] = useState<ExtractionJob | null>(null);
-  const [chapterLimit, setChapterLimit] = useState("all");
-  const [chapterStart, setChapterStart] = useState("0");
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const startingRef = useRef(false);
-  const isActive = job?.status === "pending" || job?.status === "running";
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    Promise.all([getChapters(book.id), getBookJobs(book.id)])
-      .then(([bookChapters, jobs]) => {
-        if (!active) {
-          return;
-        }
-        const extractionJob = jobs.find((item) => item.type === "extraction") ?? null;
-        setChapters(bookChapters);
-        setJob(extractionJob);
-        setChapterStart(String(extractionJob?.min_chapter_index ?? 0));
-        setChapterLimit(
-          extractionJob !== null &&
-            extractionJob.status !== "completed" &&
-            extractionJob.max_chapter_index !== null
-            ? String(extractionJob.max_chapter_index)
-            : "all",
-        );
-        setError(null);
-      })
-      .catch(() => {
-        if (active) {
-          setError(copy.extractionStatusFailed);
-        }
-      })
-      .finally(() => {
-        if (active) {
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [book.id, copy]);
-
-  useEffect(() => {
-    if (!isActive) {
-      return;
-    }
-
-    let active = true;
-    const poll = async () => {
-      try {
-        const jobs = await getBookJobs(book.id);
-        if (active) {
-          const extractionJob =
-            jobs.find((item) => item.type === "extraction") ?? null;
-          setJob(extractionJob);
-          if (extractionJob?.status === "completed") {
-            setChapterLimit("all");
-          }
-          setError(null);
-        }
-      } catch {
-        if (active) {
-          setError(copy.extractionStatusFailed);
-        }
-      }
-    };
-    const interval = window.setInterval(() => void poll(), 1000);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, [book.id, copy, isActive]);
-
-  async function submitExtraction(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (startingRef.current || !chapters?.length) {
-      return;
-    }
-
-    startingRef.current = true;
-    setStarting(true);
-    setError(null);
-    const maxChapterIndex =
-      chapterLimit === "all" ? null : Number(chapterLimit);
-    try {
-      setJob(await startExtractionJob(book.id, maxChapterIndex, Number(chapterStart)));
-    } catch (requestError) {
-      setError(
-        `${copy.extractionRequestFailed} ${getErrorMessage(requestError, copy)}`,
-      );
-    } finally {
-      startingRef.current = false;
-      setStarting(false);
-    }
-  }
-
-  const canStart =
-    !loading &&
-    !isActive &&
-    Boolean(chapters?.length) &&
-    (book.status === "parsed" ||
-      job?.status === "error" ||
-      job?.status === "completed");
-  const submitLabel = starting
-    ? copy.extractionCheck
-    : job?.status === "error"
-      ? copy.retryExtraction
-      : job?.status === "completed"
-        ? copy.continueExtraction
-        : copy.startExtraction;
-
-  return (
-    <div className="extraction-controls">
-      {loading && (
-        <p role="status" aria-live="polite">
-          {copy.extractionCheck}
-        </p>
-      )}
-      {error && (
-        <ErrorNotice copy={copy} message={error} onDismiss={() => setError(null)} />
-      )}
-      {job && (
-        <div className="extraction-status" aria-live="polite">
-          <p>
-            {copy.extractionStatus}: {copy.extractionStatuses[job.status]}
-          </p>
-          <div className="extraction-progress">
-            <progress
-              max={100}
-              value={job.progress}
-              aria-label={copy.extractionProgress}
-            />
-            <span>{job.progress}%</span>
-          </div>
-          {job.status === "error" && (
-            <ErrorNotice
-              copy={copy}
-              message={
-                `${copy.extractionFailed} ${getExtractionErrorMessage(job.error_code, copy)} ` +
-                `${copy.extractionErrorReference}: ${job.id}`
-              }
-              onDismiss={() => {}}
-            />
-          )}
-        </div>
-      )}
-      {canStart && chapters && (
-        <form className="extraction-form" onSubmit={submitExtraction}>
-          <label htmlFor={`extraction-start-${book.id}`}>{copy.extractionFrom}</label>
-          <select
-            id={`extraction-start-${book.id}`}
-            value={chapterStart}
-            onChange={(event) => {
-              const start = event.currentTarget.value;
-              setChapterStart(start);
-              if (chapterLimit !== "all" && Number(chapterLimit) < Number(start)) {
-                setChapterLimit("all");
-              }
-            }}
-            disabled={starting}
-          >
-            {chapters.map((chapter) => (
-              <option key={chapter.id} value={chapter.index}>
-                {chapter.title ?? `${copy.chapter} ${chapter.index + 1}`}
-              </option>
-            ))}
-          </select>
-          <label htmlFor={`extraction-limit-${book.id}`}>
-            {copy.extractionThrough}
-          </label>
-          <select
-            id={`extraction-limit-${book.id}`}
-            value={chapterLimit}
-            onChange={(event) => setChapterLimit(event.currentTarget.value)}
-            disabled={starting}
-          >
-            <option value="all">{copy.allChapters}</option>
-            {chapters
-              .filter((chapter) => chapter.index >= Number(chapterStart))
-              .map((chapter) => (
-                <option key={chapter.id} value={chapter.index}>
-                  {chapter.title ?? `${copy.chapter} ${chapter.index + 1}`}
-                </option>
-              ))}
-          </select>
-          <p>{copy.extractionRangeWarning}</p>
-          <button type="submit" disabled={starting}>
-            {submitLabel}
-          </button>
-        </form>
-      )}
-    </div>
   );
 }
