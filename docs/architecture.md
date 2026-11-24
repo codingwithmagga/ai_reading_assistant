@@ -19,7 +19,9 @@ to help contributors navigate the code.
   jobs, and reading progress are stored in SQLite.
 - **External AI:** The OpenAI client is used for extraction only. The source
   EPUB is parsed locally; extraction sends only the approved text block and
-  known-entity context required for that operation.
+  known-entity context required for that operation. All Responses API requests
+  set `store=False`; provider-side processing and retention remain subject to
+  the provider's current terms.
 
 ## Backend responsibilities
 

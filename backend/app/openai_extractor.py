@@ -61,6 +61,7 @@ class ResponsesAPI(Protocol):
         model: str,
         input: ResponseInputParam,
         text: ResponseFormatTextJSONSchemaConfigParam,
+        store: bool,
     ) -> ResponseWithText: ...
 
 
@@ -74,8 +75,14 @@ class _OpenAIResponsesAdapter:
         model: str,
         input: ResponseInputParam,
         text: ResponseFormatTextJSONSchemaConfigParam,
+        store: bool,
     ) -> ResponseWithText:
-        return self._client.responses.create(model=model, input=input, text={"format": text})
+        return self._client.responses.create(
+            model=model,
+            input=input,
+            text={"format": text},
+            store=store,
+        )
 
 
 class OpenAIChapterExtractor:
@@ -148,6 +155,7 @@ class OpenAIChapterExtractor:
                 model=self._settings.openai_model,
                 input=response_input,
                 text=text_format,
+                store=False,
             )
             usage = response.usage
             if usage is not None:

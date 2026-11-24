@@ -349,7 +349,10 @@ to `en`) to request another output language independently of the UI language.
   Mitigation: strict prompt, required source excerpts, spot-check well-known
   books, and omit uncertain facts.
 - **External AI service:** approved chapter/text blocks are sent to the OpenAI
-  API for extraction. Do not put EPUBs or secrets in the repository; keep the
+  API for extraction. Every Responses API request explicitly sets
+  `store=False`; this does not guarantee zero data retention or no other
+  provider-side processing. Review the provider's current retention and
+  data-handling terms. Do not put EPUBs or secrets in the repository; keep the
   API key exclusively in `.env`.
 - **Character confusion and duplicates:** alias management and resolution;
   manual merging in the UI may be added later.

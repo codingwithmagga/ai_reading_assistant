@@ -80,6 +80,7 @@ def test_openai_responses_request_uses_strict_schema_and_only_supplied_text() ->
     assert result.entities == []
     request = responses.requests[0]
     assert request["model"] == "gpt-test"
+    assert request["store"] is False
     assert request["input"][1]["content"].find("Marta kommt herein.") >= 0
     user_payload = json.loads(request["input"][1]["content"])
     assert user_payload["output_language"] == "de"
