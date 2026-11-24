@@ -4,7 +4,7 @@
 
 - Git
 - Docker with Docker Compose for the recommended full-stack workflow
-- For local checks: Python 3.12+ and Node.js 22+
+- For local checks: Python 3.12+, `uv`, and Node.js 22+
 
 ## Run the application
 
@@ -18,7 +18,7 @@ docker compose up --build
 The backend code directory is bind-mounted in development, and Uvicorn uses
 reload mode. Most Python source changes do not require rebuilding or
 reinstalling dependencies. Dependency changes in `pyproject.toml` rebuild the
-cached Docker dependency layer; Docker also caches pip downloads.
+cached Docker dependency layer; Docker caches downloaded `uv` packages.
 
 The application is available at <http://localhost:8080>. To stop it:
 
@@ -29,6 +29,29 @@ docker compose down
 For environment variables and privacy details, see the root
 [README](../README.md) and `.env.example`. Keep local secrets in `.env`, which
 must not be committed.
+
+## Backend dependencies
+
+The backend uses `uv` and a committed `uv.lock` lockfile. From `backend/`:
+
+```bash
+uv sync --locked --extra dev
+uv run pytest
+uv run ruff check .
+```
+
+After changing runtime or development dependencies in `pyproject.toml`, update
+the lockfile and review the resulting dependency changes:
+
+```bash
+cd backend
+uv lock
+git diff --stat uv.lock pyproject.toml
+```
+
+Commit `pyproject.toml` and `uv.lock` together. Use `uv lock --check` to verify
+that the manifest and lockfile agree. The Docker build and CI install the same
+locked resolution; CI does not resolve dependencies from version ranges alone.
 
 ## Local checks
 
