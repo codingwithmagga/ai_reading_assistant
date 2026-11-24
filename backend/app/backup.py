@@ -207,21 +207,17 @@ def _validate_book(session: Session, data: BackupBook, book: Book) -> None:
         entity = entities.get(fact.entity_id)
         paragraph = paragraphs.get(fact.position)
         chapter = chapters.get(fact.chapter_index)
-        chapter_paragraphs = [
-            item.text
-            for item in paragraphs.values()
-            if chapter is not None and item.chapter_id == chapter.id
-        ]
+        evidence_in_position = (
+            paragraph is not None
+            and _normalize(fact.source_excerpt) in _normalize(paragraph.text)
+        )
         if (
             entity is None
             or paragraph is None
             or chapter is None
             or paragraph.chapter_id != chapter.id
             or fact.position < entity.first_position
-            or not any(
-                _normalize(fact.source_excerpt) in _normalize(text)
-                for text in chapter_paragraphs
-            )
+            or not evidence_in_position
         ):
             raise ValueError("Invalid fact")
     for relation in data.relationships:

@@ -21,7 +21,11 @@ development guidelines are in
 Docker and Docker Compose are required. Optionally, copy `.env.example` to
 `.env` and add an OpenAI API key. Extraction requires a key and sends only the
 text paragraphs and known-entity context supplied to the extractor for each
-request to the OpenAI Responses API, not the EPUB file. The model, output
+request to the OpenAI Responses API, not the EPUB file. Requests explicitly set
+`store=false` so this application does not request provider-side response
+storage. This is not a guarantee of zero data retention or no other data
+processing; OpenAI's current retention, abuse-monitoring, and data-handling
+terms apply. The model, output
 language, timeout, and number of validation attempts are configurable in `.env`.
 The AI output language defaults to German and can be changed with
 `APP_OUTPUT_LANGUAGE` (for example, `APP_OUTPUT_LANGUAGE=en`). The interface
@@ -114,6 +118,13 @@ The extraction prompt and server-side validation require each referenced entity
 or alias to be known by the relevant paragraph. Invalid model responses are
 retried within the configured attempt limit; failures leave completed blocks
 intact and report an extraction error.
+
+Extraction context is bounded per block: entities or aliases mentioned in the
+supplied block are retained, followed by a small deterministic set of principal
+persons ranked by already extracted fact count. The limits are
+`EXTRACTION_CONTEXT_ENTITY_LIMIT` (default 30) and
+`EXTRACTION_CONTEXT_MAIN_ENTITY_LIMIT` (default 8). Selection never includes an
+entity or alias introduced after the block's first paragraph.
 
 Query endpoints enforce the reading position on the server. For example, the
 recap returns supported event facts and characters introduced through position
@@ -239,6 +250,14 @@ curl http://localhost:8080/api/health
 docker compose down
 ```
 
+### CI
+
+GitHub Actions runs backend and frontend checks for pull requests and pushes
+to `main`. It also builds both container images and starts an isolated Compose
+stack, waits for the containers' health checks, verifies
+`/api/health`, and removes the stack afterward. This smoke test uses no
+OpenAI key, private book data, or extraction.
+
 ## Configuration and privacy
 
 Store local settings in `.env`; `.env` is not versioned. `.env.example`
@@ -246,6 +265,11 @@ contains only non-secret sample values. Books and extracted content are
 intended for private use with a personally owned copy and must not be made
 public. The self-hosted MVP has no authentication; see the access requirements
 in the [project specification](./docs/PROJECT_SPEC.md). For AI extraction,
-only the text paragraphs and entity context supplied to the extractor are sent
-to OpenAI; the EPUB file itself is not transmitted. The app can start without
+only the text paragraphs and known-entity context supplied to the extractor are
+sent to OpenAI; the EPUB file itself is not transmitted. Every Responses API
+request sets `store=false`. This setting prevents an application-requested
+stored response, but it does not guarantee zero data retention or that no other
+processing occurs. Provider-side retention and data-handling rules may change;
+review OpenAI's current documentation and terms before processing private text.
+The app can start without
 `OPENAI_API_KEY`, but extraction requests fail with a configuration error.

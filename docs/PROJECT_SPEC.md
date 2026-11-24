@@ -154,6 +154,13 @@ Extraction prompt rules (in summary): use only the supplied text; do not
 speculate about later events; avoid value judgments; keep facts concise and
 evidence-based. Output language is configurable (default: German).
 
+For extraction, paragraph references are model input and must be resolved and
+validated server-side against the supplied block text. Repeated names or
+mentions do not prove that a later fact was already known. Missing or ambiguous
+evidence is omitted; existing stored data is not silently re-positioned or
+reclassified as verified. Resumable checkpoints and backups remain subject to
+block-setting compatibility checks.
+
 ## 7a. Query API
 
 - `GET /books/{id}/lookup?q=Marta&position=1234`: finds an entity by
@@ -342,7 +349,10 @@ to `en`) to request another output language independently of the UI language.
   Mitigation: strict prompt, required source excerpts, spot-check well-known
   books, and omit uncertain facts.
 - **External AI service:** approved chapter/text blocks are sent to the OpenAI
-  API for extraction. Do not put EPUBs or secrets in the repository; keep the
+  API for extraction. Every Responses API request explicitly sets
+  `store=False`; this does not guarantee zero data retention or no other
+  provider-side processing. Review the provider's current retention and
+  data-handling terms. Do not put EPUBs or secrets in the repository; keep the
   API key exclusively in `.env`.
 - **Character confusion and duplicates:** alias management and resolution;
   manual merging in the UI may be added later.

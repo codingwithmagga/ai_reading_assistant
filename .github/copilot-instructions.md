@@ -99,8 +99,9 @@
   push it with `git push --set-upstream origin <branch-name>` so it tracks its
   own matching `origin/<branch-name>`. Never leave a feature branch tracking
   `origin/main`.
-- CI is pull-request-only. Push completed work to its matching feature branch
-  and prepare a pull request description; do not merge branches locally or
-  push commits directly to `main`. The repository owner merges through the
-  GitHub UI after checks pass.
+- CI runs on pull requests and pushes to `main`, including backend, frontend,
+  container-build, and isolated Compose-smoke checks. Push completed work to
+  its matching feature branch and prepare a pull request description; do not
+  merge branches locally or push commits directly to `main`. The repository
+  owner merges through the GitHub UI after checks pass.
 - Verify phase acceptance criteria with tests before starting later phase work.

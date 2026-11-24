@@ -380,6 +380,9 @@ def _process_chapters(
                         session,
                         book.id,
                         block[0].position - 1,
+                        block_text=" ".join(paragraph.text for paragraph in block),
+                        entity_limit=settings.extraction_context_entity_limit,
+                        main_entity_limit=settings.extraction_context_main_entity_limit,
                     ),
                 )
                 persist_block_extraction(

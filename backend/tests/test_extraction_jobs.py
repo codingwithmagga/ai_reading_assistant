@@ -163,7 +163,7 @@ def _create_parsed_book(session: Session) -> Book:
     second = Chapter(book=book, index=1, start_position=3, end_position=3, title="Zweites")
     for chapter, position, text in (
         (first, 0, "Marta öffnet die Tür."),
-        (first, 1, "Marta begrüßt den Gast."),
+        (first, 1, "Marta, die Wirtin, begrüßt den Gast im Dorf."),
         (first, 2, "Marta reicht Tee."),
         (second, 3, "Marta schließt die Schenke."),
     ):
@@ -235,7 +235,7 @@ def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: 
     assert completed.output_tokens == 9
     assert book.status == "ready"
     assert [[paragraph.text for paragraph in call["paragraphs"]] for call in extractor.calls] == [
-        ["Marta öffnet die Tür.", "Marta begrüßt den Gast."],
+        ["Marta öffnet die Tür.", "Marta, die Wirtin, begrüßt den Gast im Dorf."],
         ["Marta reicht Tee."],
         ["Marta schließt die Schenke."],
     ]
@@ -266,7 +266,7 @@ def test_job_processes_chapters_and_blocks_in_order_with_prior_context(session: 
         session.scalars(select(EntityAlias).where(EntityAlias.entity_id == entities[0].id))
     )
     assert len(aliases) == 1
-    assert aliases[0].first_position == 0
+    assert aliases[0].first_position == 1
 
 
 def test_job_can_stop_at_a_chapter_and_continue_without_reprocessing(
@@ -474,13 +474,13 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
         )
     )
     assert entities["Marta"].first_position == 0
-    assert entities["Dorf"].first_position == 0
+    assert entities["Dorf"].first_position == 1
     stored_alias = session.scalar(
         select(EntityAlias).where(EntityAlias.entity_id == entities["Marta"].id)
     )
     assert stored_alias is not None
     assert stored_alias.alias == "die Wirtin"
-    assert stored_alias.first_position == 0
+    assert stored_alias.first_position == 1
     stored_fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
     assert stored_fact is not None
     assert stored_fact.entity_id == entities["Marta"].id
@@ -492,12 +492,82 @@ def test_extraction_results_are_resolved_and_saved_at_server_positions(session: 
     assert stored_relationship is not None
     assert stored_relationship.entity_a_id == entities["Marta"].id
     assert stored_relationship.entity_b_id == entities["Dorf"].id
-    assert stored_relationship.position == 0
+    assert stored_relationship.position == 1
     second_block_entities = extractor.calls[1]["known_entities"]
     assert {entity.canonical_name for entity in second_block_entities} == {"Marta", "Dorf"}
     assert next(
         entity for entity in second_block_entities if entity.canonical_name == "Marta"
     ).aliases == ["die Wirtin"]
+
+
+def test_late_block_items_use_their_own_paragraph_positions(session: Session) -> None:
+    book = Book(title="Late facts", source_hash="d" * 64, status="parsed")
+    chapter = Chapter(book=book, index=0, start_position=0, end_position=24, title="Late")
+    for position in range(25):
+        text = "Allgemeiner Absatz."
+        if position == 23:
+            text = "Nora wird die spätere Anführerin."
+        if position == 24:
+            text = "Nora verbindet sich mit dem Hafen."
+        book.paragraphs.append(Paragraph(chapter=chapter, position=position, text=text))
+    session.add(book)
+    session.commit()
+    job = create_extraction_job(session, book.id)
+    extraction = ChapterExtraction(
+        entities=[
+            EntityExtraction(
+                canonical_name="Nora",
+                entity_type=EntityType.PERSON,
+                first_mention_ref="p23",
+            )
+        ],
+        aliases=[
+            AliasExtraction(
+                entity_name="Nora",
+                alias="die Anführerin",
+                paragraph_ref="p23",
+            )
+        ],
+        facts=[
+            FactExtraction(
+                entity_name="Nora",
+                text="Nora hat eine Verbindung zum Hafen.",
+                paragraph_ref="p24",
+                source_excerpt="Nora verbindet sich mit dem Hafen.",
+                kind="event",
+            )
+        ],
+        relationships=[],
+    )
+    extractor = QueuedExtractor(
+        [
+            extraction,
+            ChapterExtraction(entities=[], aliases=[], facts=[], relationships=[]),
+        ]
+    )
+
+    completed = _run(
+        session,
+        job,
+        extractor,
+        settings=Settings(
+            _env_file=None,
+            extraction_max_paragraphs_per_block=25,
+            extraction_max_block_characters=20_000,
+            openai_max_attempts=1,
+        ),
+    )
+
+    assert completed.status == "completed"
+    entity = session.scalar(select(Entity).where(Entity.book_id == book.id))
+    alias = session.scalar(select(EntityAlias).where(EntityAlias.entity_id == entity.id))
+    fact = session.scalar(select(Fact).where(Fact.book_id == book.id))
+    assert entity is not None
+    assert entity.first_position == 23
+    assert alias is not None
+    assert alias.first_position == 23
+    assert fact is not None
+    assert fact.position == 24
 
 
 def test_fact_and_entity_share_block_position(session: Session) -> None:
@@ -659,3 +729,66 @@ def test_known_entity_context_excludes_entities_and_aliases_from_later_positions
     assert len(context) == 1
     assert context[0].canonical_name == "Marta"
     assert context[0].aliases == ["die Wirtin"]
+
+
+def test_known_entity_context_limits_irrelevant_entities_but_keeps_alias_and_main_hits(
+    session: Session,
+) -> None:
+    book = _create_parsed_book(session)
+    marta = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Marta",
+        first_position=0,
+    )
+    marta.aliases.append(EntityAlias(alias="die Wirtin", first_position=1))
+    dorf = Entity(book_id=book.id, type="place", canonical_name="Dorf", first_position=1)
+    main = Entity(book_id=book.id, type="person", canonical_name="Nora", first_position=1)
+    irrelevant = Entity(
+        book_id=book.id,
+        type="person",
+        canonical_name="Felix",
+        first_position=1,
+    )
+    session.add_all([marta, dorf, main, irrelevant])
+    session.flush()
+    session.add_all(
+        [
+            Fact(
+                book_id=book.id,
+                entity_id=main.id,
+                text="Nora ist bekannt.",
+                position=1,
+                chapter_id=book.chapters[0].id,
+                source_excerpt="Nora",
+                kind="event",
+            ),
+            Fact(
+                book_id=book.id,
+                entity_id=main.id,
+                text="Nora ist wichtig.",
+                position=1,
+                chapter_id=book.chapters[0].id,
+                source_excerpt="Nora",
+                kind="description",
+            ),
+        ]
+    )
+    session.commit()
+
+    context = known_entities_at_position(
+        session,
+        book.id,
+        1,
+        block_text="Die Wirtin betritt das Dorf.",
+        entity_limit=3,
+        main_entity_limit=1,
+    )
+
+    names = {entity.canonical_name for entity in context}
+    assert names == {"Marta", "Dorf", "Nora"}
+    assert len(context) == 3
+    assert len([marta, dorf, main, irrelevant]) == 4
+    assert len(context) / 4 == 0.75
+    marta_context = next(entity for entity in context if entity.canonical_name == "Marta")
+    assert marta_context.aliases == ["die Wirtin"]

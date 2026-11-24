@@ -19,7 +19,9 @@ to help contributors navigate the code.
   jobs, and reading progress are stored in SQLite.
 - **External AI:** The OpenAI client is used for extraction only. The source
   EPUB is parsed locally; extraction sends only the approved text block and
-  known-entity context required for that operation.
+  known-entity context required for that operation. All Responses API requests
+  set `store=False`; provider-side processing and retention remain subject to
+  the provider's current terms.
 
 ## Backend responsibilities
 
@@ -50,9 +52,24 @@ Text separated by HTML line breaks is also parsed in reading order.
 ## Frontend responsibilities
 
 - `src/App.tsx` handles the library, upload, language selection, and view
-  selection, including extraction start/resume controls and job progress.
+  selection.
+- `src/LibraryView.tsx` renders the library state and book actions.
+- `src/UploadSection.tsx` owns EPUB upload state and retry parsing.
+- `src/BackupSection.tsx` owns backup download and restore state.
+- `src/ExtractionControls.tsx` handles extraction range selection, start/resume
+  actions, job status, polling, and safe extraction error display.
 - `src/Reader.tsx` handles chapter display, saved/manual reading positions,
   lookup, characters, and recap.
+- `src/useManualPosition.ts` owns chapter/percentage position selection and
+  position-bounded notes export.
+- `src/useReadingProgress.ts` owns intersection tracking, save debouncing,
+  queued progress persistence, and restore scrolling.
+- `src/useReaderNotes.ts` owns lookup, entity-list, and recap requests for the
+  active reading position.
+- `src/apiTypes.ts` holds frontend API data types.
+- `src/api/apiRequest.ts`, `src/api/apiValidation.ts`, and the domain modules
+  under `src/api/` own HTTP transport, runtime validation, and grouped backend
+  requests. `src/api.ts` remains the compatibility barrel.
 - `src/api.ts` defines typed backend requests and responses.
 - `src/notesExport.ts` formats validated export data as JSON or Markdown and
   triggers local downloads.

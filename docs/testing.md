@@ -28,9 +28,13 @@ use an appropriate validation method instead.
 The backend uses pytest and Ruff. From `backend/`:
 
 ```bash
-python -m pytest
-python -m ruff check .
+uv sync --locked --extra dev
+uv run pytest
+uv run ruff check .
 ```
+
+Verify lockfile consistency with `uv lock --check` after dependency changes.
+The Docker build and CI use the same `uv.lock` resolution.
 
 Tests live in `backend/tests/`. Prefer plain `assert`, small focused fixtures,
 and parametrized tests for equivalent cases. Cover edge cases, expected
@@ -92,5 +96,8 @@ runtime response validation cannot regress.
 
 ## CI
 
-GitHub Actions runs the backend and frontend checks on pull requests. The
-workflow is defined in `.github/workflows/ci.yml`.
+GitHub Actions runs backend and frontend checks for pull requests and pushes
+to `main`. It also builds both container images and starts an isolated Compose
+stack on an ephemeral host port, checks `/api/health`, and removes the stack.
+The smoke test does not set an OpenAI key and does not upload private books or
+start extraction. The workflow is defined in `.github/workflows/ci.yml`.
