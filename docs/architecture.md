@@ -35,6 +35,11 @@ to help contributors navigate the code.
   backup and atomic restore, validating book hashes, layouts, and references;
   its schemas are in `app/backup_schemas.py`.
 - `app/epub_parser.py` parses EPUB input into ordered chapters and paragraphs.
+  It uses EPUB 3 navigation or EPUB 2 NCX targets for chapter titles and
+  boundaries only when they resolve unambiguously to the spine and document
+  anchors; otherwise it records a safe fallback to one chapter per readable
+  spine document. All spine text and its order are retained, and parsing does
+  not call the AI service.
 - `app/extraction_jobs.py`, `app/openai_extractor.py`,
   `app/extraction_schemas.py`, and `app/extraction_prompt.py` implement
   extraction orchestration, model interaction, validation, and prompts.
@@ -48,6 +53,11 @@ existing boundaries; extract a layer only when it solves a concrete problem.
 The upload retry option atomically claims only empty failed-parsing records;
 it never re-parses books with existing text, progress, or extraction data.
 Text separated by HTML line breaks is also parsed in reading order.
+Navigation-derived chapter boundaries apply to newly parsed books. Re-uploading
+an identical EPUB reuses its stored book rather than changing existing reading
+positions or extraction checkpoints. Backups still require an exact chapter
+and paragraph layout match, so restoring across parser versions with different
+navigation boundaries is rejected instead of silently remapping saved data.
 
 ## Frontend responsibilities
 
