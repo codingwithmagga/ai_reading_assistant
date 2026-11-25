@@ -160,6 +160,18 @@ class TestIntersectionObserver {
   }
 }
 
+async function selectMuiOption(
+  labelName: string,
+  optionName: string,
+) {
+  fireEvent.mouseDown(
+    screen.getByRole("combobox", { name: labelName }),
+  );
+  fireEvent.click(
+    await screen.findByRole("option", { name: optionName }),
+  );
+}
+
 describe("App", () => {
   it("deletes a book only after confirmation and refreshes the library", async () => {
     vi.mocked(api.getBooks)
@@ -267,8 +279,9 @@ describe("App", () => {
 
     render(<App />);
 
-    const extractionLimit = await screen.findByLabelText("Extraktion bis");
-    fireEvent.change(extractionLimit, { target: { value: "1" } });
+    fireEvent.change(await screen.findByLabelText("Extraktion bis"), {
+      target: { value: "1" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Extraktion starten" }));
 
     await waitFor(() => {
@@ -277,7 +290,7 @@ describe("App", () => {
     expect(await screen.findByText(/Wartet/)).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
-    ).toHaveAttribute("value", "0");
+    ).toHaveAttribute("aria-valuenow", "0");
     expect(
       screen.queryByRole("button", { name: "Extraktion starten" }),
     ).not.toBeInTheDocument();
@@ -291,9 +304,12 @@ describe("App", () => {
       { id: "c2", book_id: book.id, index: 2, title: "Nachwort", start_position: 2, end_position: 2 },
     ]);
     render(<App />);
-    const start = await screen.findByLabelText("Extraktion ab");
-    fireEvent.change(start, { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Extraktion bis"), { target: { value: "1" } });
+    fireEvent.change(await screen.findByLabelText("Extraktion ab"), {
+      target: { value: "1" },
+    });
+    fireEvent.change(await screen.findByLabelText("Extraktion bis"), {
+      target: { value: "1" },
+    });
     expect(screen.getByText(/Vorhandene Notizen bleiben/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Extraktion starten" }));
     await waitFor(() => expect(api.startExtractionJob).toHaveBeenCalledWith(book.id, 1, 1));
@@ -313,8 +329,9 @@ describe("App", () => {
       }]);
 
       render(<App />);
-      await screen.findByLabelText("Extraktion ab");
-      fireEvent.change(screen.getByLabelText("Extraktion bis"), { target: { value: "1" } });
+      fireEvent.change(await screen.findByLabelText("Extraktion bis"), {
+        target: { value: "1" },
+      });
       fireEvent.click(screen.getByRole("button", {
         name: status === "error" ? "Extraktion erneut versuchen" : "Extraktion fortsetzen",
       }));
@@ -343,7 +360,7 @@ describe("App", () => {
     expect(await screen.findByText(/Läuft/)).toBeInTheDocument();
     expect(
       screen.getByRole("progressbar", { name: "Extraktionsfortschritt" }),
-    ).toHaveAttribute("value", "35");
+    ).toHaveAttribute("aria-valuenow", "35");
     expect(screen.queryByLabelText("Extraktion bis")).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Extraktion starten" }),
@@ -566,20 +583,20 @@ describe("App", () => {
     expect(api.getChapters).toHaveBeenCalledTimes(3);
   });
 
-  it("follows the system theme until a user choice is saved", () => {
+  it("follows the system theme until a user choice is saved", async () => {
     const { unmount } = render(<App />);
     const themePicker = screen.getByRole("combobox", { name: "Darstellung" });
 
-    expect(themePicker).toHaveValue("system");
+    expect(themePicker).toHaveTextContent("System");
     expect(document.documentElement.dataset.theme).toBe("light");
 
     act(() => systemThemeListener?.({ matches: true } as MediaQueryListEvent));
     expect(document.documentElement.dataset.theme).toBe("dark");
     expect(
       document.querySelector('meta[name="theme-color"]'),
-    ).toHaveAttribute("content", "#171915");
+    ).toHaveAttribute("content", "hsl(220, 30%, 7%)");
 
-    fireEvent.change(themePicker, { target: { value: "light" } });
+    await selectMuiOption("Darstellung", "Hell");
     expect(window.localStorage.getItem("ui-theme")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
 
@@ -588,9 +605,9 @@ describe("App", () => {
 
     unmount();
     render(<App />);
-    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
-      "light",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Darstellung" }),
+    ).toHaveTextContent("Hell");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 
@@ -599,9 +616,9 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("combobox", { name: "Darstellung" })).toHaveValue(
-      "dark",
-    );
+    expect(
+      screen.getByRole("combobox", { name: "Darstellung" }),
+    ).toHaveTextContent("Dunkel");
     expect(document.documentElement.dataset.theme).toBe("dark");
   });
 
@@ -643,9 +660,7 @@ describe("App", () => {
     render(<App />);
     expect(await screen.findByRole("heading", { name: "Test Book" })).toBeVisible();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), {
-      target: { value: "en" },
-    });
+    await selectMuiOption("Sprache", "English");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "The request failed.",
@@ -674,7 +689,7 @@ describe("App", () => {
     expect(updateServiceWorker).toHaveBeenCalledOnce();
   });
 
-  it("defaults to German and persists the selected interface language", () => {
+  it("defaults to German and persists the selected interface language", async () => {
     const { unmount } = render(<App />);
 
     expect(
@@ -682,9 +697,7 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/aktuellen Leseposition/)).toBeInTheDocument();
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Sprache" }), {
-      target: { value: "en" },
-    });
+    await selectMuiOption("Sprache", "English");
 
     expect(
       screen.getByRole("heading", { name: "Spoiler-Free Reading Assistant" }),
