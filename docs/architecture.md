@@ -76,6 +76,9 @@ navigation boundaries is rejected instead of silently remapping saved data.
   queued progress persistence, and restore scrolling.
 - `src/useReaderNotes.ts` owns lookup, entity-list, and recap requests for the
   active reading position.
+- The reader offers a chapter-overview view. Its backend response is position
+  filtered and grouped by chapter; the frontend switches to the source passage
+  before jumping to an overview fact.
 - `src/apiTypes.ts` holds frontend API data types.
 - `src/api/apiRequest.ts`, `src/api/apiValidation.ts`, and the domain modules
   under `src/api/` own HTTP transport, runtime validation, and grouped backend

@@ -4,7 +4,9 @@ import {
   EntityListItem,
   EntityLookupResponse,
   RecapResponse,
+  ChapterOverviewResponse,
   getBookEntities,
+  getChapterOverview,
   getBookRecap,
   lookupBookEntity,
 } from "./api";
@@ -40,6 +42,12 @@ export function useReaderNotes({
   const [recapPosition, setRecapPosition] = useState<number | null>(null);
   const [recapLoading, setRecapLoading] = useState(false);
   const [recapError, setRecapError] = useState<string | null>(null);
+  const [chapterOverview, setChapterOverview] =
+    useState<ChapterOverviewResponse | null>(null);
+  const [chapterOverviewPosition, setChapterOverviewPosition] =
+    useState<number | null>(null);
+  const [chapterOverviewLoading, setChapterOverviewLoading] = useState(false);
+  const [chapterOverviewError, setChapterOverviewError] = useState<string | null>(null);
   const [retryNotes, setRetryNotes] = useState(0);
   const lookupRequestId = useRef(0);
   const notesRequestId = useRef(0);
@@ -51,6 +59,7 @@ export function useReaderNotes({
         [
           PromiseSettledResult<EntityListItem[]>,
           PromiseSettledResult<RecapResponse>,
+          PromiseSettledResult<ChapterOverviewResponse>,
         ]
       >
     >(),
@@ -62,6 +71,8 @@ export function useReaderNotes({
   activeLookupPositionRef.current = activeLookupPosition;
 
   const visibleRecap = recapPosition === position ? recap : null;
+  const visibleChapterOverview =
+    chapterOverviewPosition === position ? chapterOverview : null;
 
   useEffect(() => {
     copyRef.current = copy;
@@ -87,6 +98,10 @@ export function useReaderNotes({
       setRecapPosition(null);
       setRecapError(null);
       setRecapLoading(false);
+      setChapterOverview(null);
+      setChapterOverviewPosition(null);
+      setChapterOverviewError(null);
+      setChapterOverviewLoading(false);
       return () => {
         active = false;
       };
@@ -98,6 +113,10 @@ export function useReaderNotes({
     setRecapPosition(null);
     setRecapLoading(true);
     setRecapError(null);
+    setChapterOverview(null);
+    setChapterOverviewPosition(null);
+    setChapterOverviewLoading(true);
+    setChapterOverviewError(null);
 
     const timer = window.setTimeout(() => {
       let request = notesInFlight.current.get(key);
@@ -105,6 +124,7 @@ export function useReaderNotes({
         request = Promise.allSettled([
           getBookEntities(bookId, requestPosition),
           getBookRecap(bookId, requestPosition),
+          getChapterOverview(bookId, requestPosition),
         ]);
         notesInFlight.current.set(key, request);
         void request.then(() => {
@@ -114,7 +134,7 @@ export function useReaderNotes({
         });
       }
 
-      void request.then(([entitiesResult, recapResult]) => {
+      void request.then(([entitiesResult, recapResult, overviewResult]) => {
         if (!active || requestId !== notesRequestId.current) {
           return;
         }
@@ -129,7 +149,16 @@ export function useReaderNotes({
         } else {
           setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
         }
+        if (overviewResult.status === "fulfilled") {
+          setChapterOverview(overviewResult.value);
+          setChapterOverviewPosition(requestPosition);
+        } else {
+          setChapterOverviewError(
+            getErrorMessage(overviewResult.reason, copyRef.current),
+          );
+        }
         setRecapLoading(false);
+        setChapterOverviewLoading(false);
       });
     }, 250);
 
@@ -244,6 +273,10 @@ export function useReaderNotes({
     setRecapError(null);
   }
 
+  function clearChapterOverviewError() {
+    setChapterOverviewError(null);
+  }
+
   function changeLookupEntityType(value: EntityType | "all") {
     setLookupEntityType(value);
   }
@@ -276,5 +309,10 @@ export function useReaderNotes({
     recapError,
     clearRecapError,
     retryRecap: () => setRetryNotes((attempt) => attempt + 1),
+    chapterOverview: visibleChapterOverview,
+    chapterOverviewLoading,
+    chapterOverviewError,
+    clearChapterOverviewError,
+    retryChapterOverview: () => setRetryNotes((attempt) => attempt + 1),
   };
 }

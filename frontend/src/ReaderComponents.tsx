@@ -18,6 +18,7 @@ import {
   EntityLookupResponse,
   EntityType,
   RecapResponse,
+  ChapterOverviewResponse,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
 import { ErrorNotice } from "./ErrorNotice";
@@ -60,6 +61,99 @@ export function ReaderContent({
         </Typography>
       ))}
     </article>
+  );
+}
+
+export function ChapterOverview({
+  copy,
+  overview,
+  loading,
+  error,
+  onRetry,
+  onErrorDismiss,
+  onJumpToSource,
+}: {
+  copy: Copy;
+  overview: ChapterOverviewResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onErrorDismiss: () => void;
+  onJumpToSource: (chapterId: string, position: number) => void;
+}) {
+  if (loading) {
+    return <Typography role="status">{copy.loadingChapterOverview}</Typography>;
+  }
+  if (error) {
+    return (
+      <ErrorNotice
+        copy={copy}
+        message={`${copy.notesLoadFailed} ${error}`}
+        onDismiss={onErrorDismiss}
+      >
+        <Button size="small" variant="outlined" onClick={onRetry}>
+          {copy.retry}
+        </Button>
+      </ErrorNotice>
+    );
+  }
+  if (!overview || overview.chapters.length === 0) {
+    return <Typography className="empty-state">{copy.noChapterOverview}</Typography>;
+  }
+
+  return (
+    <div className="chapter-overview" aria-live="polite">
+      {overview.chapters.map((chapter) => (
+        <Card component="article" variant="outlined" key={chapter.id}>
+          <CardContent>
+            <Typography component="h2" variant="h6">
+              {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
+            </Typography>
+            <Typography color="text.secondary" className="chapter-overview-status">
+              {copy.overviewPositionPrefix} {overview.position + 1}
+            </Typography>
+            <ul className="chapter-overview-facts">
+              {chapter.facts.map((fact) => (
+                <li key={fact.id}>
+                  <p>
+                    <strong>{fact.entity.canonical_name}:</strong> {fact.text}
+                  </p>
+                  <Typography component="p" variant="body2" color="text.secondary">
+                    {fact.kind} · {copy.positionLabel} {fact.position + 1}
+                  </Typography>
+                  <details className="source-excerpt">
+                    <summary>{copy.source}</summary>
+                    <blockquote>{fact.source_excerpt}</blockquote>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => onJumpToSource(chapter.id, fact.position)}
+                    >
+                      {copy.jumpToSource}
+                    </Button>
+                  </details>
+                </li>
+              ))}
+            </ul>
+            {chapter.relationships.length > 0 && (
+              <>
+                <Typography component="h3" variant="subtitle1">
+                  {copy.relationships}
+                </Typography>
+                <ul>
+                  {chapter.relationships.map((relationship) => (
+                    <li key={relationship.id}>
+                      {relationship.entity_a.canonical_name} {relationship.label}{" "}
+                      {relationship.entity_b.canonical_name}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
 

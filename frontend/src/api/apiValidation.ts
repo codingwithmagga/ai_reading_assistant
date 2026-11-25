@@ -17,6 +17,9 @@ import type {
   EntityLookupResponse,
   RecapEvent,
   RecapResponse,
+  ChapterOverviewFact,
+  ChapterOverviewChapter,
+  ChapterOverviewResponse,
   NotesExportEntity,
   NotesExportResponse,
 } from "../apiTypes";
@@ -150,6 +153,26 @@ export function isRecapResponse(value: unknown): value is RecapResponse {
   return isRecord(value) && isNonNegativeInteger(value.position) &&
     isArrayOf(value.events, isRecapEvent) &&
     isArrayOf(value.characters, isEntityListItem);
+}
+function isChapterOverviewFact(value: unknown): value is ChapterOverviewFact {
+  return isRecord(value) && isString(value.id) && isString(value.text) &&
+    isFactKind(value.kind) && isNonNegativeInteger(value.position) &&
+    isString(value.source_excerpt) && isLookupEntitySummary(value.entity);
+}
+function isChapterOverviewChapter(value: unknown): value is ChapterOverviewChapter {
+  return isRecord(value) && isString(value.id) &&
+    isNonNegativeInteger(value.index) && isNullableString(value.title) &&
+    isNonNegativeInteger(value.start_position) &&
+    isNonNegativeInteger(value.end_position) &&
+    value.start_position <= value.end_position &&
+    isArrayOf(value.facts, isChapterOverviewFact) &&
+    isArrayOf(value.relationships, isLookupRelationship);
+}
+export function isChapterOverviewResponse(
+  value: unknown,
+): value is ChapterOverviewResponse {
+  return isRecord(value) && isNonNegativeInteger(value.position) &&
+    isArrayOf(value.chapters, isChapterOverviewChapter);
 }
 export function isNotesExportResponse(value: unknown): value is NotesExportResponse {
   function isNotesExportEntity(entity: unknown): entity is NotesExportEntity {

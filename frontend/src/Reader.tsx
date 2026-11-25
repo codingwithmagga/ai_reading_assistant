@@ -18,6 +18,7 @@ import {
   saveReadingProgress,
 } from "./api";
 import {
+  ChapterOverview,
   NotesPanel,
   PositionControls,
   ReaderContent,
@@ -57,6 +58,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [readerView, setReaderView] = useState<"reader" | "overview">("reader");
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -364,6 +366,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         <Button variant="outlined" onClick={onBack}>
           {copy.backToLibrary}
         </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant={readerView === "reader" ? "contained" : "outlined"}
+            onClick={() => setReaderView("reader")}
+          >
+            {copy.readerView}
+          </Button>
+          <Button
+            variant={readerView === "overview" ? "contained" : "outlined"}
+            onClick={() => setReaderView("overview")}
+          >
+            {copy.chapterOverview}
+          </Button>
+        </Stack>
         <TextField
           select
           size="small"
@@ -430,6 +446,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         totalPositions={totalPositions}
       />
 
+      {readerView === "overview" ? (
+        <ChapterOverview
+          copy={copy}
+          overview={notes.chapterOverview}
+          loading={notes.chapterOverviewLoading}
+          error={notes.chapterOverviewError}
+          onRetry={notes.retryChapterOverview}
+          onErrorDismiss={notes.clearChapterOverviewError}
+          onJumpToSource={(chapterId, position) => {
+            setReaderView("reader");
+            jumpToSource(chapterId, position);
+          }}
+        />
+      ) : (
       <div className="reader-columns">
         <div className="reader-main">
           {progressError && (
@@ -505,6 +535,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           onJumpToSource={jumpToSource}
         />
       </div>
+      )}
     </section>
   );
 }

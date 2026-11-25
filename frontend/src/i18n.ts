@@ -159,6 +159,11 @@ export const translations = {
     recapTitle: "Was bisher geschah",
     noRecapEvents: "Bis zu dieser Position sind keine Ereignisse bekannt.",
     loadingRecap: "Rückblick wird geladen …",
+    chapterOverview: "Kapitelübersicht",
+    readerView: "Leser",
+    loadingChapterOverview: "Kapitelübersicht wird geladen …",
+    noChapterOverview: "Bis zu dieser Position gibt es keine Kapitelübersicht.",
+    overviewPositionPrefix: "Stand bei Leseposition",
     notesLoadFailed: "Notizen konnten nicht geladen werden.",
     entityTypes: {
       person: "Person",
@@ -326,6 +331,11 @@ export const translations = {
     recapTitle: "What has happened so far",
     noRecapEvents: "No events are known up to this position.",
     loadingRecap: "Loading recap …",
+    chapterOverview: "Chapter overview",
+    readerView: "Reader",
+    loadingChapterOverview: "Loading chapter overview …",
+    noChapterOverview: "No chapter overview is available up to this position.",
+    overviewPositionPrefix: "Reading position",
     notesLoadFailed: "Notes could not be loaded.",
     entityTypes: {
       person: "Person",

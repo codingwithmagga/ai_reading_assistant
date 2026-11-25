@@ -130,6 +130,30 @@ export interface RecapResponse {
   characters: EntityListItem[];
 }
 
+export interface ChapterOverviewFact {
+  id: string;
+  text: string;
+  kind: FactKind;
+  position: number;
+  source_excerpt: string;
+  entity: LookupEntitySummary;
+}
+
+export interface ChapterOverviewChapter {
+  id: string;
+  index: number;
+  title: string | null;
+  start_position: number;
+  end_position: number;
+  facts: ChapterOverviewFact[];
+  relationships: LookupRelationship[];
+}
+
+export interface ChapterOverviewResponse {
+  position: number;
+  chapters: ChapterOverviewChapter[];
+}
+
 export interface NotesExportEntity extends LookupEntitySummary {
   aliases: EntityAlias[];
   facts: LookupFact[];

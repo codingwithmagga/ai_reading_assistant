@@ -12,12 +12,16 @@ from app.lookup import (
     get_entity_relationships,
     get_facts_for_entities,
     get_relationships_for_entities,
+    list_chapter_overview_facts,
     list_entities_at_position,
     list_recap_events,
     validate_reading_position,
 )
 from app.models import Book, Entity, EntityAlias
 from app.schemas import (
+    ChapterOverviewChapterResponse,
+    ChapterOverviewFactResponse,
+    ChapterOverviewResponse,
     EntityAliasResponse,
     EntityListItemResponse,
     EntityLookupMatchResponse,
@@ -136,6 +140,83 @@ def lookup_book_entity(
             )
         )
     return EntityLookupResponse(query=q, position=position, matches=matches)
+
+
+@router.get(
+    "/{book_id}/chapter-overview",
+    response_model=ChapterOverviewResponse,
+)
+def get_chapter_overview(
+    book_id: str,
+    position: int = Query(),
+    session: Session = Depends(get_session),
+) -> ChapterOverviewResponse:
+    _require_book(session, book_id)
+    _validate_reading_position(session, book_id, position)
+
+    chapters_by_id: dict[str, ChapterOverviewChapterResponse] = {}
+    for fact, chapter, entity in list_chapter_overview_facts(
+        session,
+        book_id=book_id,
+        position=position,
+    ):
+        overview_chapter = chapters_by_id.get(chapter.id)
+        if overview_chapter is None:
+            overview_chapter = ChapterOverviewChapterResponse(
+                id=chapter.id,
+                index=chapter.index,
+                title=chapter.title,
+                start_position=chapter.start_position,
+                end_position=chapter.end_position,
+                facts=[],
+                relationships=[],
+            )
+            chapters_by_id[chapter.id] = overview_chapter
+        overview_chapter.facts.append(
+            ChapterOverviewFactResponse(
+                id=fact.id,
+                text=fact.text,
+                kind=fact.kind,
+                position=fact.position,
+                source_excerpt=fact.source_excerpt,
+                entity=_entity_summary(entity),
+            )
+        )
+
+    entities = list_entities_at_position(
+        session,
+        book_id=book_id,
+        position=position,
+    )
+    relationships = get_relationships_for_entities(
+        session,
+        book_id=book_id,
+        entity_ids=[entity.id for entity, _ in entities],
+        position=position,
+    )
+    for relationship, entity_a, entity_b in relationships:
+        chapter = next(
+            (
+                item
+                for item in chapters_by_id.values()
+                if item.start_position <= relationship.position <= item.end_position
+            ),
+            None,
+        )
+        if chapter is None:
+            continue
+        chapter.relationships.append(
+            LookupRelationshipResponse(
+                id=relationship.id,
+                entity_a=_entity_summary(entity_a),
+                entity_b=_entity_summary(entity_b),
+                label=relationship.label,
+                position=relationship.position,
+            )
+        )
+
+    chapters = sorted(chapters_by_id.values(), key=lambda item: item.index)
+    return ChapterOverviewResponse(position=position, chapters=chapters)
 
 
 @router.get(

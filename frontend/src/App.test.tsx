@@ -90,6 +90,10 @@ beforeEach(() => {
     events: [],
     characters: [],
   });
+  vi.spyOn(api, "getChapterOverview").mockResolvedValue({
+    position: 0,
+    chapters: [],
+  });
   vi.spyOn(api, "getBookNotesExport").mockResolvedValue({
     book_id: book.id,
     title: book.title,
@@ -1268,10 +1272,42 @@ describe("App", () => {
         },
       ],
     });
+    vi.mocked(api.getChapterOverview).mockResolvedValue({
+      position: 0,
+      chapters: [
+        {
+          id: "chapter-1",
+          index: 0,
+          title: "First chapter",
+          start_position: 0,
+          end_position: 1,
+          facts: [
+            {
+              id: "fact-1",
+              text: "Liora finds a key.",
+              kind: "event",
+              position: 1,
+              source_excerpt: "She found a small key.",
+              entity: {
+                id: "liora",
+                type: "person",
+                canonical_name: "Liora",
+                first_position: 0,
+              },
+            },
+          ],
+          relationships: [],
+        },
+      ],
+    });
 
     render(<App />);
     fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
     await screen.findByLabelText("Bekannten Eintrag auswählen");
+    fireEvent.click(screen.getByRole("button", { name: "Kapitelübersicht" }));
+    expect(await screen.findByRole("heading", { name: "First chapter" })).toBeInTheDocument();
+    expect(screen.getByText("Liora:", { exact: false })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Leser" }));
     expect(screen.getByLabelText("Eintragstyp")).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Eintragstyp"), {
       target: { value: "person" },
