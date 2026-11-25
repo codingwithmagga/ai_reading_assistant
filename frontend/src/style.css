@@ -159,8 +159,6 @@ body {
 }
 
 .extraction-form select,
-.manual-position-form select,
-.manual-position-form input,
 .lookup-form input,
 .lookup-form select {
   width: 100%;
@@ -174,8 +172,6 @@ body {
 }
 
 .extraction-form select:focus-visible,
-.manual-position-form select:focus-visible,
-.manual-position-form input:focus-visible,
 .lookup-form input:focus-visible,
 .lookup-form select:focus-visible {
   outline: 3px solid var(--color-focus);
