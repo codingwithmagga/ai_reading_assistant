@@ -87,7 +87,12 @@ Monorepo structure:
 
 ## 5. Position model
 
-- Split the book into `chapters` (in EPUB spine order) and `paragraphs`.
+- Read documents in EPUB spine order. When EPUB 3 navigation or an EPUB 2 NCX
+  table of contents resolves unambiguously to spine documents and paragraph
+  anchors, use its labels and targets to set chapter titles and boundaries,
+  including multiple targets in one document. Otherwise fall back to one
+  chapter per readable spine document. Retain all spine text in reading order.
+- Split the book into `chapters` and `paragraphs`.
 - Give each paragraph a global, contiguous `position` (integer, 0..n).
   Chapter boundaries are ranges within these positions.
 - Page numbers vary by edition and are not used as primary keys. Instead:
@@ -122,9 +127,13 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
 
 ## 7. Processing pipeline
 
-1. **Upload and parsing:** Unpack EPUB, read spine, clean HTML into text, and
-   store chapters and paragraphs with positions. Reject malformed or
-   DRM-protected files with a clear message.
+1. **Upload and parsing:** Unpack EPUB, read the spine, and locally inspect
+   EPUB 3 navigation or EPUB 2 NCX data to refine chapter titles and boundaries
+   when all targets resolve unambiguously. Missing, invalid, or ambiguous
+   navigation falls back to spine-based chapters and is recorded in backend
+   diagnostics. Clean HTML into text and store all spine paragraphs with
+   contiguous positions. This parsing step makes no AI calls. Reject malformed
+   or DRM-protected files with a clear message.
 2. **Chapter-by-chapter extraction (sequential):**
    - Model input: chapter text (split into ordered blocks if needed) plus a
      compact list of previously known entities and aliases.
@@ -239,6 +248,12 @@ block-setting compatibility checks.
   submitting. Invalid data/version is rejected with HTTP 422, missing or
   mismatched books and active jobs with HTTP 409, and oversized backups with
   HTTP 413. No partial restore is performed.
+- A parser update can change the chapter layout of a newly uploaded copy of an
+  EPUB. Existing books are reused by source hash and are not automatically
+  reparsed, so their saved positions and extraction checkpoints are not
+  silently remapped. Restoring a backup against a freshly parsed copy with a
+  different layout is rejected with `backup_layout_mismatch`; a migration
+  would need to explicitly preserve or remap positions and checkpoints.
 - Download and upload share a JSON size limit of `EPUB_MAX_UPLOAD_MB` minus
   64 KiB, reserving room for normal multipart framing under the proxy's
   request limit. Oversized multipart headers may still exceed the proxy limit.

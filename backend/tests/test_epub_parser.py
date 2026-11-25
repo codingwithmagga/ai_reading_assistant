@@ -51,6 +51,45 @@ def build_epub() -> bytes:
     return output.getvalue()
 
 
+def rewrite_epub(content: bytes, replacements: dict[str, bytes]) -> bytes:
+    output = BytesIO()
+    with ZipFile(BytesIO(content)) as source, ZipFile(
+        output,
+        mode="w",
+        compression=ZIP_DEFLATED,
+    ) as target:
+        for item in source.infolist():
+            target.writestr(
+                item.filename,
+                replacements.get(item.filename, source.read(item.filename)),
+            )
+    return output.getvalue()
+
+
+def build_navigation_epub(
+    *,
+    navigation: bytes | None = None,
+    ncx: bytes | None = None,
+) -> bytes:
+    chapter = b"""<?xml version="1.0" encoding="utf-8"?>
+    <html xmlns="http://www.w3.org/1999/xhtml">
+      <body>
+        <h1>Dokumenttitel</h1>
+        <p>Auftakt.</p>
+        <h2><span id="first">Erster Abschnitt</span></h2>
+        <p>Text eins.</p>
+        <h2 id="second">Zweiter Abschnitt</h2>
+        <p>Text zwei.</p>
+      </body>
+    </html>"""
+    replacements = {"EPUB/Text/zwei.xhtml": chapter}
+    if navigation is not None:
+        replacements["EPUB/nav.xhtml"] = navigation
+    if ncx is not None:
+        replacements["EPUB/toc.ncx"] = ncx
+    return rewrite_epub(build_epub(), replacements)
+
+
 def add_encryption_metadata(content: bytes) -> bytes:
     output = BytesIO()
     with ZipFile(BytesIO(content)) as source, ZipFile(
@@ -97,6 +136,140 @@ def test_parser_follows_spine_and_assigns_contiguous_positions() -> None:
         (1, "Verschachtelter Absatz."),
     ]
     assert parsed.paragraph_count == 5
+
+
+def test_parser_uses_nested_epub_navigation_and_splits_spine_documents() -> None:
+    navigation = b"""<?xml version="1.0" encoding="utf-8"?>
+    <html xmlns="http://www.w3.org/1999/xhtml"
+          xmlns:epub="http://www.idpf.org/2007/ops">
+      <body><nav epub:type="toc"><ol>
+        <li><a href="Text/zwei.xhtml">Erster Teil</a><ol>
+          <li><a href="Text/zwei.xhtml#first">Abschnitt Eins</a></li>
+          <li><a href="Text/zwei.xhtml#second">Abschnitt Zwei</a></li>
+        </ol></li>
+        <li><a href="Text/eins.xhtml">Schluss</a></li>
+      </ol></nav></body>
+    </html>"""
+
+    parsed = parse_epub(build_navigation_epub(navigation=navigation))
+
+    assert [
+        (chapter.title, chapter.start_position, chapter.end_position)
+        for chapter in parsed.chapters
+    ] == [
+        ("Erster Teil", 0, 1),
+        ("Abschnitt Eins", 2, 3),
+        ("Abschnitt Zwei", 4, 5),
+        ("Schluss", 6, 7),
+    ]
+    assert [paragraph for chapter in parsed.chapters for paragraph in chapter.paragraphs] == [
+        "Dokumenttitel",
+        "Auftakt.",
+        "Erster Abschnitt",
+        "Text eins.",
+        "Zweiter Abschnitt",
+        "Text zwei.",
+        "Erstes Kapitel",
+        "Verschachtelter Absatz.",
+    ]
+
+
+def test_parser_reads_epub2_ncx_when_epub3_navigation_is_unavailable() -> None:
+    ncx = b"""<?xml version="1.0" encoding="utf-8"?>
+    <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/">
+      <navMap>
+        <navPoint><navLabel><text>Teil Eins</text></navLabel>
+          <content src="Text/zwei.xhtml"/>
+          <navPoint><navLabel><text>Kapitel Eins</text></navLabel>
+            <content src="Text/zwei.xhtml#first"/>
+          </navPoint>
+        </navPoint>
+      </navMap>
+    </ncx>"""
+    with ZipFile(BytesIO(build_epub())) as archive:
+        package = archive.read("EPUB/content.opf").replace(b' properties="nav"', b"")
+    content = build_navigation_epub(ncx=ncx)
+    content = rewrite_epub(content, {"EPUB/content.opf": package})
+
+    parsed = parse_epub(content)
+
+    assert [
+        (chapter.title, chapter.start_position, chapter.end_position)
+        for chapter in parsed.chapters
+    ] == [
+        ("Teil Eins", 0, 1),
+        ("Kapitel Eins", 2, 5),
+        ("Erstes Kapitel", 6, 7),
+    ]
+
+
+def test_parser_falls_back_to_spine_when_navigation_target_is_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    navigation = b"""<?xml version="1.0" encoding="utf-8"?>
+    <html xmlns="http://www.w3.org/1999/xhtml"
+          xmlns:epub="http://www.idpf.org/2007/ops">
+      <body><nav epub:type="toc"><ol>
+        <li><a href="Text/zwei.xhtml#missing">Nicht aufloesbar</a></li>
+      </ol></nav></body>
+    </html>"""
+
+    messages = []
+    monkeypatch.setattr(
+        "app.epub_parser.logger.info",
+        lambda message, *args: messages.append(message % args),
+    )
+    parsed = parse_epub(build_navigation_epub(navigation=navigation))
+
+    assert [chapter.title for chapter in parsed.chapters] == [
+        "Dokumenttitel",
+        "Erstes Kapitel",
+    ]
+    assert any("unresolvable_fragment" in message for message in messages)
+
+
+def test_parser_falls_back_to_spine_when_navigation_fragment_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    navigation = b"""<html xmlns:epub="http://www.idpf.org/2007/ops">
+      <body><nav epub:type="toc"><ol>
+        <li><a href="Text/zwei.xhtml#first">Abschnitt</a></li>
+      </ol></nav></body>
+    </html>"""
+    content = build_navigation_epub(navigation=navigation)
+    with ZipFile(BytesIO(content)) as archive:
+        chapter = archive.read("EPUB/Text/zwei.xhtml").replace(
+            b'id="second"',
+            b'id="first"',
+        )
+    content = rewrite_epub(content, {"EPUB/Text/zwei.xhtml": chapter})
+
+    messages = []
+    monkeypatch.setattr(
+        "app.epub_parser.logger.info",
+        lambda message, *args: messages.append(message % args),
+    )
+    parsed = parse_epub(content)
+
+    assert [chapter.title for chapter in parsed.chapters] == [
+        "Dokumenttitel",
+        "Erstes Kapitel",
+    ]
+    assert any("ambiguous_fragment" in message for message in messages)
+
+
+def test_parser_falls_back_to_spine_when_ncx_is_malformed() -> None:
+    with ZipFile(BytesIO(build_epub())) as archive:
+        package = archive.read("EPUB/content.opf").replace(b' properties="nav"', b"")
+    content = build_navigation_epub(ncx=b"<ncx")
+    content = rewrite_epub(content, {"EPUB/content.opf": package})
+
+    parsed = parse_epub(content)
+
+    assert [chapter.title for chapter in parsed.chapters] == [
+        "Dokumenttitel",
+        "Erstes Kapitel",
+    ]
 
 
 def test_parser_extracts_direct_text_and_breaks_in_reading_order() -> None:
