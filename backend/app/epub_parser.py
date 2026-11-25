@@ -35,6 +35,7 @@ class ParsedChapter:
     start_position: int
     end_position: int
     paragraphs: tuple[str, ...]
+    rich_text: tuple[list[dict[str, object]] | None, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class _SpineDocument:
     title: str
     paragraphs: tuple[str, ...]
     anchors: dict[str, tuple[int, ...]]
+    rich_text: tuple[list[dict[str, object]] | None, ...] | None = None
 
 
 def parse_epub(
@@ -137,7 +139,7 @@ def parse_epub(
 
         soup = BeautifulSoup(item.get_content(), "lxml")
         body = soup.body or soup
-        paragraphs, anchors = _extract_paragraphs_and_anchors(body)
+        paragraphs, rich_text, anchors = _extract_paragraphs_and_anchors(body)
         if not paragraphs:
             continue
 
@@ -147,6 +149,7 @@ def parse_epub(
                 title=_bounded_metadata(_chapter_title(body, item.get_name()), 500) or "",
                 paragraphs=tuple(paragraphs),
                 anchors={name: tuple(positions) for name, positions in anchors.items()},
+                rich_text=tuple(rich_text),
             )
         )
 
@@ -423,6 +426,9 @@ def _chapters_from_navigation(
                     start_position=next_position,
                     end_position=chapter_end,
                     paragraphs=paragraphs,
+                    rich_text=document.rich_text[start:end]
+                    if document.rich_text is not None
+                    else None,
                 )
             )
             next_position = chapter_end + 1
@@ -441,6 +447,7 @@ def _chapters_from_spine(spine_documents: list[_SpineDocument]) -> list[ParsedCh
                 start_position=next_position,
                 end_position=chapter_end,
                 paragraphs=document.paragraphs,
+                rich_text=document.rich_text,
             )
         )
         next_position = chapter_end + 1
@@ -533,8 +540,9 @@ def _bounded_metadata(value: str | None, limit: int) -> str | None:
 
 def _extract_paragraphs_and_anchors(
     body: Tag | BeautifulSoup,
-) -> tuple[list[str], dict[str, list[int]]]:
+) -> tuple[list[str], list[list[dict[str, object]] | None], dict[str, list[int]]]:
     paragraphs: list[str] = []
+    rich_text: list[list[dict[str, object]] | None] = []
     fragments: list[str] = []
     anchors: dict[str, list[int]] = {}
 
@@ -542,6 +550,7 @@ def _extract_paragraphs_and_anchors(
         text = _normalize_text(" ".join(fragments))
         if text:
             paragraphs.append(text)
+            rich_text.append(None)
         fragments.clear()
 
     def record_anchors(element: Tag, paragraph_index: int | None = None) -> None:
@@ -572,9 +581,16 @@ def _extract_paragraphs_and_anchors(
             record_anchors(element)
             for descendant in element.find_all(True):
                 record_anchors(descendant, paragraph_index)
-            text = _normalize_text(element.get_text(" ", strip=True))
+            inline_segments = _extract_inline_segments(element)
+            if inline_segments is not None:
+                text = _normalize_text(
+                    "".join(str(segment["text"]) for segment in inline_segments)
+                )
+            else:
+                text = _normalize_text(element.get_text(" ", strip=True))
             if text:
                 paragraphs.append(text)
+                rich_text.append(inline_segments)
             return
         if element.name == "div":
             flush()
@@ -587,7 +603,90 @@ def _extract_paragraphs_and_anchors(
 
     visit(body)
     flush()
-    return paragraphs, anchors
+    return paragraphs, rich_text, anchors
+
+
+def _extract_inline_segments(element: Tag) -> list[dict[str, object]] | None:
+    segments: list[dict[str, object]] = []
+
+    def style_for(tag_name: str) -> dict[str, bool]:
+        styles: dict[str, bool] = {}
+        if tag_name in {"b", "strong"}:
+            styles["bold"] = True
+        if tag_name in {"i", "em"}:
+            styles["italic"] = True
+        if tag_name == "u":
+            styles["underline"] = True
+        if tag_name in {"s", "del", "strike"}:
+            styles["strike"] = True
+        if tag_name in {"code", "tt"}:
+            styles["code"] = True
+        if tag_name == "sub":
+            styles["sub"] = True
+        if tag_name == "sup":
+            styles["sup"] = True
+        return styles
+
+    def visit(node: Tag | NavigableString, styles: dict[str, bool]) -> None:
+        if isinstance(node, Comment):
+            return
+        if isinstance(node, NavigableString):
+            text = _WHITESPACE.sub(" ", str(node))
+            if text:
+                append_segment(text, styles)
+            return
+        if node.name in {"script", "style", "img", "svg", "iframe", "object", "form"}:
+            return
+        if node.name == "br":
+            append_segment(" ", styles)
+            return
+
+        next_styles = styles | style_for(node.name)
+        for child in node.children:
+            if isinstance(child, (Tag, NavigableString)):
+                visit(child, next_styles)
+
+    def append_segment(text: str, styles: dict[str, bool]) -> None:
+        segment = {"text": text, **styles}
+        if segments:
+            previous = segments[-1]
+            previous_styles = {
+                key: value
+                for key, value in previous.items()
+                if key != "text"
+            }
+            if previous_styles == styles:
+                previous["text"] = f"{previous['text']}{text}"
+                return
+        segments.append(segment)
+
+    visit(element, {})
+    if not segments:
+        return None
+
+    normalized: list[dict[str, object]] = []
+    any_formatting = False
+    for segment in segments:
+        text = _WHITESPACE.sub(" ", str(segment["text"]))
+        if not text:
+            continue
+        rich_segment: dict[str, object] = {"text": text}
+        for key in ("bold", "italic", "underline", "strike", "code", "sub", "sup"):
+            if segment.get(key) is True:
+                rich_segment[key] = True
+                any_formatting = True
+        normalized.append(rich_segment)
+
+    if normalized:
+        normalized[0]["text"] = str(normalized[0]["text"]).lstrip()
+        normalized[-1]["text"] = str(normalized[-1]["text"]).rstrip()
+        normalized = [
+            segment
+            for segment in normalized
+            if str(segment["text"])
+        ]
+
+    return normalized if any_formatting else None
 
 
 def _normalize_text(text: str) -> str:

@@ -90,8 +90,9 @@ navigation boundaries is rejected instead of silently remapping saved data.
   the reader's spoiler-filtered notes export.
 - `src/i18n.ts` contains UI translations and localized error helpers.
 
-Keep HTTP details in the API client where practical, and present book text as
-text rather than executable HTML.
+Keep HTTP details in the API client where practical. Present paragraph text
+from bounded rich-text segment data or plain-text fallback; never render
+executable EPUB HTML.
 
 Parsed books can start extraction through the library. Job progress is polled
 while pending or running; jobs use inclusive chapter start and end bounds and

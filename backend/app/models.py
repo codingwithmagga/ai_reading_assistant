@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlalchemy import (
+    JSON,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -130,6 +131,7 @@ class Paragraph(Base):
     )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
+    rich_text: Mapped[list[dict[str, object]] | None] = mapped_column(JSON, nullable=True)
 
     book: Mapped[Book] = relationship(back_populates="paragraphs")
     chapter: Mapped[Chapter] = relationship(back_populates="paragraphs")

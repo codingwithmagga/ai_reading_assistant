@@ -237,7 +237,8 @@ block-setting compatibility checks.
   through that chapter, inclusive; omit or pass `null` for no end limit)
 - `GET /books/{id}/chapters`
 - `GET /books/{id}/content/{chapter_id}` (chapter metadata and ordered
-  paragraphs; clients render book content as text, not executable HTML)
+  paragraphs; paragraphs include plain text plus bounded safe rich-text
+  segments for approved inline formatting, never executable HTML)
 - `GET /books/{id}/progress` (saved position or `null`)
 - `PUT /books/{id}/progress` (persist a position belonging to a stored
   paragraph)
@@ -284,8 +285,9 @@ block-setting compatibility checks.
 Views:
 
 1. **Library:** books, upload, and processing status.
-2. **Reader:** render stored chapter paragraphs as text, navigate chapters,
-   track the current paragraph, and persist/restore reading progress.
+2. **Reader:** render stored chapter paragraphs with safe plain-text fallback
+   and approved inline formatting, navigate chapters, track the current
+   paragraph, and persist/restore reading progress.
 3. **Notes panel** (sidebar or mobile bottom sheet): search field, list of
    characters/places seen so far, detail view with facts, relationships, and
    chapter references. Selected reader text can be looked up directly. The

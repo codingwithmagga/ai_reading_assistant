@@ -33,6 +33,17 @@ class ChapterResponse(BaseModel):
     end_position: int
 
 
+class RichTextSegment(BaseModel):
+    text: str
+    bold: bool = False
+    italic: bool = False
+    underline: bool = False
+    strike: bool = False
+    code: bool = False
+    sub: bool = False
+    sup: bool = False
+
+
 class ParagraphResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,6 +51,7 @@ class ParagraphResponse(BaseModel):
     chapter_id: str
     position: int
     text: str
+    rich_text: list[RichTextSegment] | None = None
 
 
 class ChapterContentResponse(ChapterResponse):

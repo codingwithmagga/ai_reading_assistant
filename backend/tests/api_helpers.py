@@ -39,7 +39,7 @@ def build_test_epub(identifier: str = "api-test") -> bytes:
           <body>
             <h1>Kapitel Eins</h1>
             <p>Marta betritt den Raum.</p>
-            <p>Marta, die Wirtin, spricht den Gast an.</p>
+            <p><strong>Marta, die Wirtin</strong>, spricht den Gast an.</p>
           </body>
           </html>""",
     }
