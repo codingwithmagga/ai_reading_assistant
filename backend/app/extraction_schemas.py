@@ -99,16 +99,21 @@ def normalize_extraction(
     known_entities: list[KnownEntity],
 ) -> ChapterExtraction:
     normalized = result.model_copy(deep=True)
-    candidates: dict[str, tuple[str, EntityType]] = {}
+    candidates: dict[str, list[tuple[str, EntityType]]] = {}
     known_names = set()
+
+    def add_candidate(name: str, candidate: tuple[str, EntityType]) -> None:
+        key = normalize_entity_name(name)
+        if candidate not in candidates.setdefault(key, []):
+            candidates[key].append(candidate)
 
     for known in known_entities:
         canonical = known.canonical_name
         known_names.add(normalize_entity_name(canonical))
-        candidates[normalize_entity_name(canonical)] = (canonical, known.entity_type)
+        add_candidate(canonical, (canonical, known.entity_type))
         for alias in known.aliases:
             known_names.add(normalize_entity_name(alias))
-            candidates[normalize_entity_name(alias)] = (canonical, known.entity_type)
+            add_candidate(alias, (canonical, known.entity_type))
 
     kept_entities = []
     for entity in normalized.entities:
@@ -122,9 +127,9 @@ def normalize_extraction(
     normalized.entities = kept_entities
 
     for entity in normalized.entities:
-        candidates[normalize_entity_name(entity.canonical_name)] = (
+        add_candidate(
             entity.canonical_name,
-            entity.entity_type,
+            (entity.canonical_name, entity.entity_type),
         )
 
     def resolve_name(name: str) -> tuple[str, EntityType] | None:
@@ -138,10 +143,16 @@ def normalize_extraction(
         return None
 
     merge_targets: dict[str, tuple[str, EntityType]] = {}
+    kept_aliases = []
     for alias in normalized.aliases:
         owner = resolve_name(alias.entity_name)
         target = resolve_name(alias.alias)
-        if owner is None or target is None or owner[0] == target[0]:
+        if owner is None:
+            continue
+        if target is None or owner[0] == target[0]:
+            kept_aliases.append(alias)
+            continue
+        if owner[1] != target[1]:
             continue
         owner_known = normalize_entity_name(owner[0]) in known_names
         target_known = normalize_entity_name(target[0]) in known_names
@@ -158,7 +169,10 @@ def normalize_extraction(
         owner_type = canonical[1]
         target_name = alternate_name[0]
         merge_targets[normalize_entity_name(target_name)] = (owner_name, owner_type)
-        candidates[normalize_entity_name(target_name)] = (owner_name, owner_type)
+        candidates[normalize_entity_name(target_name)] = [(owner_name, owner_type)]
+        kept_aliases.append(alias)
+
+    normalized.aliases = kept_aliases
 
     if merge_targets:
         normalized.entities = [
@@ -205,27 +219,12 @@ def normalize_extraction(
 
 def _resolve_known_name(
     name: str,
-    candidates: dict[str, tuple[str, EntityType]],
+    candidates: dict[str, list[tuple[str, EntityType]]],
 ) -> tuple[str, EntityType] | None:
     normalized_name = normalize_entity_name(name)
-    exact = candidates.get(normalized_name)
-    if exact is not None:
-        return exact
-
-    words = normalized_name.split()
-    if not words:
-        return None
-    matches: dict[str, tuple[str, EntityType]] = {}
-    for candidate_name, value in candidates.items():
-        candidate_words = candidate_name.split()
-        if any(
-            word == candidate_word
-            for word in words
-            for candidate_word in candidate_words
-        ):
-            matches[normalize_entity_name(value[0])] = value
+    matches = candidates.get(normalized_name, [])
     if len(matches) == 1:
-        return next(iter(matches.values()))
+        return matches[0]
     return None
 
 
