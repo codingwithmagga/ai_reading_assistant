@@ -37,6 +37,10 @@ def test_upload_persists_book_chapters_and_ordered_paragraphs(client: TestClient
             "Marta betritt den Raum.",
             "Marta, die Wirtin, spricht den Gast an.",
         ]
+        assert book.paragraphs[2].rich_text == [
+            {"text": "Marta, die Wirtin", "bold": True},
+            {"text": ", spricht den Gast an."},
+        ]
         job = session.scalar(select(Job).where(Job.book_id == book.id))
         assert job is not None
         assert job.status == "completed"
@@ -233,6 +237,9 @@ def test_book_library_chapters_and_content_endpoints(client: TestClient) -> None
         "Marta betritt den Raum.",
         "Marta, die Wirtin, spricht den Gast an.",
     ]
+    assert content["paragraphs"][2]["rich_text"][0]["text"] == "Marta, die Wirtin"
+    assert content["paragraphs"][2]["rich_text"][0]["bold"] is True
+    assert content["paragraphs"][2]["rich_text"][1]["text"] == ", spricht den Gast an."
 
 
 def test_delete_book_removes_book_and_all_related_data(client: TestClient) -> None:

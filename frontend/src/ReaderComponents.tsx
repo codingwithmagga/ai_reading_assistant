@@ -1,4 +1,4 @@
-import { FormEventHandler } from "react";
+import { FormEventHandler, ReactNode } from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -18,9 +18,36 @@ import {
   EntityLookupResponse,
   EntityType,
   ChapterOverviewResponse,
+  RichTextSegment,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
 import { ErrorNotice } from "./ErrorNotice";
+
+function RichTextSegmentView({ segment }: { segment: RichTextSegment }) {
+  let content: ReactNode = segment.text;
+  if (segment.sup) {
+    content = <sup>{content}</sup>;
+  }
+  if (segment.sub) {
+    content = <sub>{content}</sub>;
+  }
+  if (segment.code) {
+    content = <code>{content}</code>;
+  }
+  if (segment.strike) {
+    content = <s>{content}</s>;
+  }
+  if (segment.underline) {
+    content = <u>{content}</u>;
+  }
+  if (segment.italic) {
+    content = <em>{content}</em>;
+  }
+  if (segment.bold) {
+    content = <strong>{content}</strong>;
+  }
+  return <>{content}</>;
+}
 
 export function ReaderContent({
   chapterContent,
@@ -56,7 +83,14 @@ export function ReaderContent({
             currentPosition === paragraph.position ? "location" : undefined
           }
         >
-          {paragraph.text}
+          {paragraph.rich_text?.length
+            ? paragraph.rich_text.map((segment, index) => (
+                <RichTextSegmentView
+                  key={`${paragraph.id}-${index}`}
+                  segment={segment}
+                />
+              ))
+            : paragraph.text}
         </Typography>
       ))}
     </article>

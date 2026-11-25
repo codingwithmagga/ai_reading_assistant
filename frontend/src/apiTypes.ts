@@ -47,6 +47,18 @@ export interface Paragraph {
   chapter_id: string;
   position: number;
   text: string;
+  rich_text?: RichTextSegment[] | null;
+}
+
+export interface RichTextSegment {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
+  strike?: boolean;
+  code?: boolean;
+  sub?: boolean;
+  sup?: boolean;
 }
 
 export interface ChapterContent extends Chapter {

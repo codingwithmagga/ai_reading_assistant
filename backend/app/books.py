@@ -188,6 +188,9 @@ def upload_book(
                     chapter=chapter,
                     position=parsed_chapter.start_position + offset,
                     text=text,
+                    rich_text=parsed_chapter.rich_text[offset]
+                    if parsed_chapter.rich_text is not None
+                    else None,
                 )
             )
 

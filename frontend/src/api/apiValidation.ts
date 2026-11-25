@@ -5,6 +5,7 @@ import type {
   Chapter,
   ChapterContent,
   Paragraph,
+  RichTextSegment,
   ReadingProgress,
   EntityType,
   FactKind,
@@ -34,6 +35,19 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 function isString(value: unknown): value is string {
   return typeof value === "string";
+}
+function isOptionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === "boolean";
+}
+function isRichTextSegment(value: unknown): value is RichTextSegment {
+  return isRecord(value) && isString(value.text) &&
+    isOptionalBoolean(value.bold) &&
+    isOptionalBoolean(value.italic) &&
+    isOptionalBoolean(value.underline) &&
+    isOptionalBoolean(value.strike) &&
+    isOptionalBoolean(value.code) &&
+    isOptionalBoolean(value.sub) &&
+    isOptionalBoolean(value.sup);
 }
 function isNullableString(value: unknown): value is string | null {
   return value === null || isString(value);
@@ -85,7 +99,10 @@ export function isChapter(value: unknown): value is Chapter & Record<string, unk
 }
 export function isParagraph(value: unknown): value is Paragraph {
   return isRecord(value) && isString(value.id) && isString(value.chapter_id) &&
-    isNonNegativeInteger(value.position) && isString(value.text);
+    isNonNegativeInteger(value.position) && isString(value.text) &&
+    (value.rich_text === undefined || value.rich_text === null ||
+      (Array.isArray(value.rich_text) &&
+        value.rich_text.every(isRichTextSegment)));
 }
 export function isChapterContent(value: unknown): value is ChapterContent {
   return isChapter(value) && isArrayOf(value.paragraphs, isParagraph) &&

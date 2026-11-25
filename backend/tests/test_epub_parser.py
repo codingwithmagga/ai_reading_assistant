@@ -138,6 +138,19 @@ def test_parser_follows_spine_and_assigns_contiguous_positions() -> None:
     assert parsed.paragraph_count == 5
 
 
+def test_parser_extracts_only_bounded_inline_formatting() -> None:
+    parsed = parse_epub(build_epub())
+    chapter = parsed.chapters[0]
+
+    assert chapter.rich_text is not None
+    assert chapter.rich_text[0] is None
+    assert chapter.rich_text[1] is None
+    assert chapter.rich_text[2] == [
+        {"text": "Ein Satz "},
+        {"text": "mit Formatierung.", "italic": True},
+    ]
+
+
 def test_parser_uses_nested_epub_navigation_and_splits_spine_documents() -> None:
     navigation = b"""<?xml version="1.0" encoding="utf-8"?>
     <html xmlns="http://www.w3.org/1999/xhtml"

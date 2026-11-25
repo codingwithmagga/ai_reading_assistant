@@ -37,7 +37,9 @@ is saved in the browser.
 
 The web app provides a library, EPUB upload, and an in-app reader. Reading
 progress is stored per book and restored when the book is reopened. The reader
-renders extracted paragraph text as text, not as executable HTML.
+renders approved inline formatting from bounded rich-text segments and keeps
+plain paragraph text as a safe fallback. It does not execute EPUB HTML or
+render images and footnotes in this first reader enhancement.
 The app can be installed from a supported browser over HTTPS (or on
 `localhost`). Its offline support is limited to the application shell:
 libraries, book text, and notes still require a connection to the server.
