@@ -70,6 +70,7 @@ def test_migration_creates_schema_on_empty_database(
             "input_tokens",
             "output_tokens",
             "lease_expires_at",
+            "worker_id",
         } <= {column["name"] for column in inspector.get_columns("jobs")}
         assert {index["name"] for index in inspector.get_indexes("extraction_checkpoints")} == {
             "ix_extraction_checkpoints_job_order"

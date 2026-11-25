@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime, timedelta
 from math import floor
 from typing import Protocol
+from uuid import uuid4
 
 from sqlalchemy import or_, select, update
 from sqlalchemy.exc import IntegrityError
@@ -47,6 +48,37 @@ class ChapterExtractor(Protocol):
         paragraphs: list[ChapterParagraph],
         known_entities: list[KnownEntity],
     ) -> ExtractionResponse: ...
+
+
+def recover_interrupted_extraction_jobs(session: Session) -> list[Job]:
+    now = datetime.now(UTC)
+    stale_jobs = list(
+        session.scalars(
+            select(Job).where(
+                Job.type == "extraction",
+                Job.status == "running",
+                or_(Job.lease_expires_at.is_(None), Job.lease_expires_at <= now),
+            )
+        )
+    )
+    for job in stale_jobs:
+        job.status = "pending"
+        job.lease_expires_at = None
+        job.worker_id = None
+        job.error = None
+        job.error_code = None
+        book = session.get(Book, job.book_id)
+        if book is not None:
+            book.status = "parsed"
+
+    session.commit()
+    return list(
+        session.scalars(
+            select(Job)
+            .where(Job.type == "extraction", Job.status == "pending")
+            .order_by(Job.created_at, Job.id)
+        )
+    )
 
 
 def create_extraction_job(
@@ -109,6 +141,7 @@ def create_extraction_job(
             active_job.max_chapter_index = max_chapter_index
             active_job.status = "pending"
             active_job.lease_expires_at = None
+            active_job.worker_id = None
             active_job.error = None
             active_job.error_code = None
             book.status = "parsed"
@@ -232,12 +265,8 @@ def process_extraction_job(
                 "Das ausgewählte Kapitel gehört nicht zu diesem Buch."
             )
 
-    lease_expires_at = now + timedelta(
-        seconds=max(
-            120,
-            effective_settings.openai_timeout_seconds * effective_settings.openai_max_attempts + 60,
-        )
-    )
+    lease_expires_at = now + timedelta(seconds=_lease_seconds(effective_settings))
+    worker_id = str(uuid4())
     claim = session.execute(
         update(Job)
         .where(
@@ -254,6 +283,7 @@ def process_extraction_job(
             error=None,
             error_code=None,
             lease_expires_at=lease_expires_at,
+            worker_id=worker_id,
         )
         .execution_options(synchronize_session=False)
     )
@@ -272,10 +302,31 @@ def process_extraction_job(
             chapters,
             worker,
             effective_settings,
+            worker_id,
         )
+        completed_claim = session.execute(
+            update(Job)
+            .where(
+                Job.id == job.id,
+                Job.status == "running",
+                Job.worker_id == worker_id,
+                or_(
+                    Job.lease_expires_at.is_(None),
+                    Job.lease_expires_at > datetime.now(UTC),
+                ),
+            )
+            .values(status="completed", progress=100, lease_expires_at=None, worker_id=None)
+            .execution_options(synchronize_session=False)
+        )
+        if completed_claim.rowcount != 1:
+            session.rollback()
+            raise ExtractionJobBusyError(
+                "Ein anderer Worker besitzt die Lease dieses Extraktionsjobs."
+            )
         job.status = "completed"
         job.progress = 100
         job.lease_expires_at = None
+        job.worker_id = None
         book.status = (
             "ready"
             if job.min_chapter_index == 0 and (
@@ -285,20 +336,47 @@ def process_extraction_job(
         )
         session.commit()
     except Exception as error:
+        if isinstance(error, ExtractionJobBusyError):
+            session.rollback()
+            raise
         session.rollback()
         job = session.get(Job, job_id)
         book = session.get(Book, job.book_id) if job is not None else None
         if job is not None:
+            if isinstance(error, InvalidExtractionOutputError):
+                job.input_tokens += error.input_tokens
+                job.output_tokens += error.output_tokens
+            error_claim = session.execute(
+                update(Job)
+                .where(
+                    Job.id == job.id,
+                    Job.status == "running",
+                    Job.worker_id == worker_id,
+                )
+                .values(
+                    status="error",
+                    error_code=type(error).__name__[:100],
+                    error=_safe_error_message(error),
+                    lease_expires_at=None,
+                    worker_id=None,
+                    input_tokens=job.input_tokens,
+                    output_tokens=job.output_tokens,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if error_claim.rowcount != 1:
+                session.rollback()
+                raise ExtractionJobBusyError(
+                    "Ein anderer Worker besitzt die Lease dieses Extraktionsjobs."
+                ) from error
             job.status = "error"
             job.error_code = type(error).__name__[:100]
             job.error = _safe_error_message(error)
             job.lease_expires_at = None
-            if isinstance(error, InvalidExtractionOutputError):
-                job.input_tokens += error.input_tokens
-                job.output_tokens += error.output_tokens
-        if book is not None:
-            book.status = "parsed"
-        session.commit()
+            job.worker_id = None
+            if book is not None:
+                book.status = "parsed"
+            session.commit()
         raise
 
     session.refresh(job)
@@ -312,6 +390,7 @@ def _process_chapters(
     chapters: Sequence[Chapter],
     extractor: ChapterExtractor,
     settings: Settings,
+    worker_id: str,
 ) -> None:
     paragraph_map = {
         chapter.id: list(
@@ -373,6 +452,29 @@ def _process_chapters(
                     ChapterParagraph(reference=f"p{index}", text=paragraph.text)
                     for index, paragraph in enumerate(block)
                 ]
+                lease_expires_at = datetime.now(UTC) + timedelta(
+                    seconds=_lease_seconds(settings)
+                )
+                lease_renewal = session.execute(
+                    update(Job)
+                    .where(
+                        Job.id == job.id,
+                        Job.status == "running",
+                        Job.worker_id == worker_id,
+                        or_(
+                            Job.lease_expires_at.is_(None),
+                            Job.lease_expires_at > datetime.now(UTC),
+                        ),
+                    )
+                    .values(lease_expires_at=lease_expires_at)
+                    .execution_options(synchronize_session=False)
+                )
+                if lease_renewal.rowcount != 1:
+                    session.rollback()
+                    raise ExtractionJobBusyError(
+                        "Ein anderer Worker besitzt die Lease dieses Extraktionsjobs."
+                    )
+                session.commit()
                 response = extractor.extract_with_usage(
                     chapter_title=chapter.title,
                     paragraphs=request_paragraphs,
@@ -409,12 +511,35 @@ def _process_chapters(
                 job.output_tokens += response.output_tokens
                 completed_blocks += 1
                 job.progress = floor(completed_blocks * 100 / total_blocks)
-                job.lease_expires_at = datetime.now(UTC) + timedelta(
-                    seconds=max(
-                        120,
-                        settings.openai_timeout_seconds * settings.openai_max_attempts + 60,
-                    )
+                renewed_at_completion = datetime.now(UTC) + timedelta(
+                    seconds=_lease_seconds(settings)
                 )
+                checkpoint_claim = session.execute(
+                    update(Job)
+                    .where(
+                        Job.id == job.id,
+                        Job.status == "running",
+                        Job.worker_id == worker_id,
+                        or_(
+                            Job.lease_expires_at.is_(None),
+                            Job.lease_expires_at > datetime.now(UTC),
+                        ),
+                    )
+                    .values(
+                        progress=job.progress,
+                        last_completed_chapter_index=job.last_completed_chapter_index,
+                        last_completed_block_index=job.last_completed_block_index,
+                        input_tokens=job.input_tokens,
+                        output_tokens=job.output_tokens,
+                        lease_expires_at=renewed_at_completion,
+                    )
+                    .execution_options(synchronize_session=False)
+                )
+                if checkpoint_claim.rowcount != 1:
+                    session.rollback()
+                    raise ExtractionJobBusyError(
+                        "Ein anderer Worker besitzt die Lease dieses Extraktionsjobs."
+                    )
                 session.commit()
             else:
                 if checkpoint.first_paragraph_position != block[
@@ -456,6 +581,13 @@ def _as_utc(value: datetime | None) -> datetime | None:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def _lease_seconds(settings: Settings) -> int:
+    return max(
+        120,
+        int(settings.openai_timeout_seconds * settings.openai_max_attempts + 60),
+    )
 
 
 def _safe_error_message(error: Exception) -> str:

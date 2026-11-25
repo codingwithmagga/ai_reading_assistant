@@ -539,7 +539,13 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startingRef = useRef(false);
-  const isActive = job?.status === "pending" || job?.status === "running";
+  const interrupted =
+    job?.status === "running" &&
+    job.lease_expires_at !== null &&
+    Date.parse(job.lease_expires_at) <= Date.now();
+  const isActive =
+    job?.status === "pending" ||
+    (job?.status === "running" && !interrupted);
 
   useEffect(() => {
     let active = true;
@@ -637,11 +643,14 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
     !isActive &&
     Boolean(chapters?.length) &&
     (book.status === "parsed" ||
+      interrupted ||
       job?.status === "error" ||
       job?.status === "completed");
   const submitLabel = starting
     ? copy.extractionCheck
-    : job?.status === "error"
+    : interrupted
+      ? copy.resumeInterruptedExtraction
+      : job?.status === "error"
       ? copy.retryExtraction
       : job?.status === "completed"
         ? copy.continueExtraction
@@ -660,7 +669,9 @@ function ExtractionControls({ book, copy }: ExtractionControlsProps) {
       {job && (
         <div className="extraction-status" aria-live="polite">
           <p>
-            {copy.extractionStatus}: {copy.extractionStatuses[job.status]}
+            {copy.extractionStatus}: {interrupted
+              ? copy.extractionInterrupted
+              : copy.extractionStatuses[job.status]}
           </p>
           <div className="extraction-progress">
             <LinearProgress

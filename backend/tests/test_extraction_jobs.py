@@ -14,6 +14,7 @@ from app.extraction_jobs import (
     ExtractionJobBusyError,
     create_extraction_job,
     process_extraction_job,
+    recover_interrupted_extraction_jobs,
 )
 from app.extraction_schemas import (
     AliasExtraction,
@@ -102,6 +103,8 @@ def test_changed_start_creates_new_job_without_deleting_old_data(session: Sessio
     original = create_extraction_job(session, book.id)
     with pytest.raises(RuntimeError):
         _run(session, original, FakeExtractor(fail_on_call=2))
+    session.refresh(original)
+    assert original.status == "error"
     old_checkpoint = session.scalar(
         select(ExtractionCheckpoint.id).where(ExtractionCheckpoint.job_id == original.id)
     )
@@ -372,6 +375,79 @@ def test_running_job_with_live_lease_is_not_started_twice(session: Session) -> N
 
     with pytest.raises(ExtractionJobBusyError):
         _run(session, job, FakeExtractor())
+
+
+def test_recover_interrupted_extraction_jobs_requeues_stale_and_pending(
+    session: Session,
+) -> None:
+    book = _create_parsed_book(session)
+    stale = create_extraction_job(session, book.id)
+    stale.status = "running"
+    stale.progress = 33
+    stale.last_completed_chapter_index = 0
+    stale.last_completed_block_index = 0
+    stale.lease_expires_at = datetime.now(UTC) - timedelta(minutes=5)
+    stale.worker_id = "old-worker"
+    book.status = "extracting"
+
+    live_book = Book(title="Live", source_hash="d" * 64, status="parsed")
+    live = Chapter(
+        book=live_book,
+        index=0,
+        start_position=0,
+        end_position=0,
+        title="Live",
+    )
+    live_book.paragraphs.append(
+        Paragraph(chapter=live, position=0, text="Live text.")
+    )
+    live_job = Job(
+        book_id=live_book.id,
+        type="extraction",
+        status="running",
+        progress=10,
+        lease_expires_at=datetime.now(UTC) + timedelta(minutes=5),
+        worker_id="live-worker",
+    )
+    live_book.jobs.append(live_job)
+    session.add(live_book)
+
+    pending_book = Book(title="Pending", source_hash="e" * 64, status="parsed")
+    pending = Chapter(
+        book=pending_book,
+        index=0,
+        start_position=0,
+        end_position=0,
+        title="Pending",
+    )
+    pending_book.paragraphs.append(
+        Paragraph(chapter=pending, position=0, text="Pending text.")
+    )
+    pending_job = Job(
+        book_id=pending_book.id,
+        type="extraction",
+        status="pending",
+        progress=0,
+    )
+    pending_book.jobs.append(pending_job)
+    session.add(pending_book)
+    session.commit()
+
+    recovered = recover_interrupted_extraction_jobs(session)
+
+    assert {job.id for job in recovered} == {stale.id, pending_job.id}
+    session.refresh(stale)
+    session.refresh(book)
+    session.refresh(live_job)
+    assert stale.status == "pending"
+    assert stale.lease_expires_at is None
+    assert stale.worker_id is None
+    assert stale.progress == 33
+    assert stale.last_completed_chapter_index == 0
+    assert stale.last_completed_block_index == 0
+    assert book.status == "parsed"
+    assert live_job.status == "running"
+    assert live_job.worker_id == "live-worker"
 
 
 def test_long_chapter_is_split_into_bounded_contiguous_text_blocks(session: Session) -> None:

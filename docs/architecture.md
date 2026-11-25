@@ -131,3 +131,18 @@ available from the running backend at `/api/docs`.
 
 The PWA and other roadmap items are governed by the project specification;
 do not assume a planned feature is already implemented.
+
+## Extraction crash recovery
+
+Extraction jobs use a lease for exclusive worker ownership and one atomic
+checkpoint per text block. The lease is renewed before and after model calls and
+is long enough for the configured timeout and retry budget; it must not be
+shortened to hide long-running requests. An expired or missing lease is stale
+and may be requeued. A live lease blocks a second worker.
+
+The application checks pending and stale extraction jobs during startup and
+requeues them for automatic resume. Processing still claims jobs atomically,
+each block is persisted together with its checkpoint, and a worker that loses
+its lease cannot complete or persist a later block. The API exposes
+`lease_expires_at` so clients can distinguish a live running job from an
+interrupted job whose lease has expired and offer a resume action.

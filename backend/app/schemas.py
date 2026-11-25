@@ -76,6 +76,7 @@ class JobResponse(BaseModel):
     error: str | None
     input_tokens: int
     output_tokens: int
+    lease_expires_at: datetime | None
     created_at: datetime
 
 
