@@ -140,7 +140,9 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
    - Validated JSON output (Pydantic schema): new entities, aliases, facts
      (with paragraph reference and short source excerpt), and relationships.
    - Entity resolution: match new names against existing entities and aliases
-     (exact, normalized, then model-assisted decision) to avoid duplicates.
+     only by exact normalized canonical names or documented aliases. Shared
+     individual words are not sufficient for a match. Ambiguous exact names and
+     entity-type conflicts must remain unresolved instead of guessing.
    - Calculate fact positions server-side from paragraph references; never
      accept positions invented by the model. Reject invalid references.
    - Before persistence, validate that entities and aliases are available by

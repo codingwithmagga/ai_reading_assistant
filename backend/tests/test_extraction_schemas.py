@@ -438,6 +438,7 @@ def test_normalize_extraction_uses_known_canonical_names_and_types() -> None:
         KnownEntity(
             canonical_name="HARRY POTTER",
             entity_type=EntityType.CONCEPT,
+            aliases=["Harry"],
         ),
         KnownEntity(
             canonical_name="Rubeus Hagrid",
@@ -450,6 +451,158 @@ def test_normalize_extraction_uses_known_canonical_names_and_types() -> None:
     assert normalized.entities == []
     assert normalized.facts[0].entity_name == "HARRY POTTER"
     assert normalized.facts[0].paragraph_ref == "p3"
+
+
+def test_normalize_extraction_does_not_match_shared_single_word() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Frau Keller",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            }
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Marta Keller", entity_type=EntityType.PERSON),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="Frau Keller betrat das Haus.")],
+        known,
+    )
+
+    assert [entity.canonical_name for entity in normalized.entities] == ["Frau Keller"]
+    assert normalized.entities[0].entity_type == EntityType.PERSON
+
+
+def test_normalize_extraction_keeps_different_people_with_shared_surname() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Frau Keller",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            }
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Marta Keller", entity_type=EntityType.PERSON),
+        KnownEntity(canonical_name="Lea Keller", entity_type=EntityType.PERSON),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="Frau Keller trat ein.")],
+        known,
+    )
+
+    assert [entity.canonical_name for entity in normalized.entities] == ["Frau Keller"]
+
+
+def test_normalize_extraction_resolves_only_exact_alias() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Marta",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            }
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(
+            canonical_name="Marta Keller",
+            entity_type=EntityType.PERSON,
+            aliases=["Marta"],
+        )
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta trat ein.")],
+        known,
+    )
+
+    assert normalized.entities == []
+
+
+def test_normalize_extraction_drops_cross_type_alias_merge() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "Marta Keller",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            },
+            {
+                "canonical_name": "Haus Keller",
+                "entity_type": "place",
+                "first_mention_ref": "p0",
+            },
+        ],
+        "aliases": [
+            {
+                "entity_name": "Marta Keller",
+                "alias": "Haus Keller",
+                "paragraph_ref": "p0",
+            }
+        ],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Marta Keller", entity_type=EntityType.PERSON),
+        KnownEntity(canonical_name="Haus Keller", entity_type=EntityType.PLACE),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="Marta Keller steht vor dem Haus Keller.")],
+        known,
+    )
+
+    assert normalized.entities == []
+    assert normalized.aliases == []
+
+
+def test_normalize_extraction_keeps_ambiguous_exact_name_unresolved() -> None:
+    result = ChapterExtraction.model_validate({
+        "entities": [
+            {
+                "canonical_name": "N",
+                "entity_type": "person",
+                "first_mention_ref": "p0",
+            }
+        ],
+        "aliases": [],
+        "facts": [],
+        "relationships": [],
+    })
+    known = [
+        KnownEntity(canonical_name="Nora", entity_type=EntityType.PERSON, aliases=["N"]),
+        KnownEntity(canonical_name="N", entity_type=EntityType.PLACE),
+    ]
+
+    normalized = normalize_extraction(
+        result,
+        [ChapterParagraph(reference="p0", text="N erschien.")],
+        known,
+    )
+
+    assert len(normalized.entities) == 1
+    assert normalized.entities[0].canonical_name == "N"
+    assert normalized.entities[0].entity_type == EntityType.PERSON
 
 
 def test_normalize_extraction_drops_unresolved_relationships_and_aliases() -> None:
