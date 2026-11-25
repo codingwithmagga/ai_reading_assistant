@@ -158,11 +158,18 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   }, [book.id, copy, selectedChapterId]);
 
   useEffect(() => {
+    if (
+      !chapterContent ||
+      !restorePosition ||
+      chapterContent.id !== selectedChapterId
+    ) {
+      return;
+    }
     const target = document.getElementById(`paragraph-${restorePosition}`);
     target?.scrollIntoView?.({ block: "start" });
     setRestorePosition(null);
     setReadyToTrack(true);
-  }, [chapterContent, restorePosition]);
+  }, [chapterContent, restorePosition, selectedChapterId]);
 
   useEffect(() => {
     const container = scrollContainer.current;
@@ -237,6 +244,16 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
     setRestorePosition(chapter.start_position);
     setSelectedChapterId(chapter.id);
     setManualChapterId(chapter.id);
+    setReadyToTrack(false);
+    setReaderError(null);
+  }
+
+  function jumpToSource(chapterId: string, position: number) {
+    latestPosition.current = position;
+    setCurrentPosition(position);
+    setRestorePosition(position);
+    setSelectedChapterId(chapterId);
+    setManualChapterId(chapterId);
     setReadyToTrack(false);
     setReaderError(null);
   }
@@ -485,6 +502,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           recapError={notes.recapError}
           onRecapRetry={notes.retryRecap}
           onRecapErrorDismiss={notes.clearRecapError}
+          onJumpToSource={jumpToSource}
         />
       </div>
     </section>

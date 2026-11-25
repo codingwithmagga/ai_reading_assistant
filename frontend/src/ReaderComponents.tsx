@@ -221,6 +221,7 @@ interface NotesPanelProps {
   recapError: string | null;
   onRecapRetry: () => void;
   onRecapErrorDismiss: () => void;
+  onJumpToSource: (chapterId: string, position: number) => void;
 }
 
 export function NotesPanel({
@@ -248,6 +249,7 @@ export function NotesPanel({
   recapError,
   onRecapRetry,
   onRecapErrorDismiss,
+  onJumpToSource,
 }: NotesPanelProps) {
   const filteredEntityOptions =
     lookupEntityType === "all"
@@ -445,6 +447,15 @@ export function NotesPanel({
                         <details className="source-excerpt">
                           <summary>{copy.source}</summary>
                           <blockquote>{fact.source_excerpt}</blockquote>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() =>
+                              onJumpToSource(fact.chapter_id, fact.position)
+                            }
+                          >
+                            {copy.jumpToSource}
+                          </Button>
                         </details>
                       </li>
                     ))}
@@ -505,6 +516,15 @@ export function NotesPanel({
                   <details className="source-excerpt">
                     <summary>{copy.source}</summary>
                     <blockquote>{event.source_excerpt}</blockquote>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() =>
+                        onJumpToSource(event.chapter_id, event.position)
+                      }
+                    >
+                      {copy.jumpToSource}
+                    </Button>
                   </details>
                 </li>
               ))}

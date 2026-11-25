@@ -945,6 +945,14 @@ describe("App", () => {
     fireEvent.click(screen.getByText("Textbeleg"));
     expect(factSource).toBeVisible();
     expect(document.querySelector("script, img")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zur Stelle im Buch" }),
+    );
+    expect(screen.getByText("Leseposition: 2 von 2")).toBeInTheDocument();
+    expect(screen.getByText("She notices a map.")).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
   });
 
   it("exports notes at the active notes position in JSON and Markdown", async () => {
@@ -1260,6 +1268,13 @@ describe("App", () => {
     expect(recapSource).not.toBeVisible();
     fireEvent.click(screen.getByText("Textbeleg"));
     expect(recapSource).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zur Stelle im Buch" }),
+    );
+    expect(screen.getByText("Liora finds the key.")).toHaveAttribute(
+      "aria-current",
+      "location",
+    );
     await waitFor(() => {
       expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 0);
       expect(api.getBookRecap).toHaveBeenLastCalledWith(book.id, 0);
