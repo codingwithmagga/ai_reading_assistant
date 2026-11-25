@@ -158,6 +158,10 @@ Important indexes: `(book_id, position)` on `facts`, `paragraphs`, and
    be used as context. Show
    safe, localized extraction error categories and a job reference. Diagnostic
    logs must not include book text, model output, exception messages, or keys.
+   A crashed or restarted worker is detected through a stale lease and its job
+   is requeued from the last completed checkpoint. Live leases remain protected
+   against concurrent workers, and the UI offers an explicit resume action once
+   a running lease is expired.
 4. **Quality checks:** Schema validation, retry invalid JSON, and track token
    costs per book.
 

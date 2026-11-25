@@ -34,6 +34,7 @@ const extractionJob: api.ExtractionJob = {
   input_tokens: 0,
   output_tokens: 0,
   created_at: "2026-11-11T00:00:00Z",
+  lease_expires_at: null,
 };
 
 let systemThemeListener: ((event: MediaQueryListEvent) => void) | undefined;
@@ -365,6 +366,35 @@ describe("App", () => {
     expect(
       screen.queryByRole("button", { name: "Extraktion starten" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers recovery when a running extraction lease has expired", async () => {
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 1,
+      },
+    ]);
+    vi.mocked(api.getBookJobs).mockResolvedValue([
+      {
+        ...extractionJob,
+        status: "running",
+        progress: 35,
+        lease_expires_at: "2000-01-01T00:00:00Z",
+      },
+    ]);
+
+    render(<App />);
+
+    expect(await screen.findByText(/Unterbrochen/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Extraktion wiederaufnehmen" }),
+    ).toBeInTheDocument();
   });
 
   it("explains an extraction error and retries the failed chapter limit", async () => {

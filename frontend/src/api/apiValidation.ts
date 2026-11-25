@@ -69,7 +69,9 @@ export function isExtractionJob(value: unknown): value is ExtractionJob {
     isNullableNonNegativeInteger(value.last_completed_block_index) &&
     isNullableString(value.error_code) && isNullableString(value.error) &&
     isNonNegativeInteger(value.input_tokens) &&
-    isNonNegativeInteger(value.output_tokens) && isString(value.created_at);
+    isNonNegativeInteger(value.output_tokens) &&
+    (value.lease_expires_at === null || isString(value.lease_expires_at)) &&
+    isString(value.created_at);
 }
 export function isChapter(value: unknown): value is Chapter & Record<string, unknown> {
   return isRecord(value) && isString(value.id) && isString(value.book_id) &&

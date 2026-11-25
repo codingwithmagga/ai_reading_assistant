@@ -29,6 +29,7 @@ export interface ExtractionJob {
   error: string | null;
   input_tokens: number;
   output_tokens: number;
+  lease_expires_at: string | null;
   created_at: string;
 }
 

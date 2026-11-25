@@ -82,6 +82,7 @@ describe("notes API client", () => {
       error: null,
       input_tokens: 0,
       output_tokens: 0,
+      lease_expires_at: null,
       created_at: "2026-11-11T00:00:00Z",
     };
     const fetchMock = vi.fn().mockResolvedValue(
@@ -119,6 +120,7 @@ describe("notes API client", () => {
       error: null,
       input_tokens: 10,
       output_tokens: 3,
+      lease_expires_at: null,
       created_at: "2026-11-11T00:00:00Z",
     };
     const fetchMock = vi.fn().mockResolvedValue(
