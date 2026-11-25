@@ -3,11 +3,9 @@ import {
   EntityType,
   EntityListItem,
   EntityLookupResponse,
-  RecapResponse,
   ChapterOverviewResponse,
   getBookEntities,
   getChapterOverview,
-  getBookRecap,
   lookupBookEntity,
 } from "./api";
 import { Copy, getErrorMessage } from "./i18n";
@@ -38,10 +36,6 @@ export function useReaderNotes({
   const [lookupEntityOptions, setLookupEntityOptions] = useState<
     EntityListItem[]
   >([]);
-  const [recap, setRecap] = useState<RecapResponse | null>(null);
-  const [recapPosition, setRecapPosition] = useState<number | null>(null);
-  const [recapLoading, setRecapLoading] = useState(false);
-  const [recapError, setRecapError] = useState<string | null>(null);
   const [chapterOverview, setChapterOverview] =
     useState<ChapterOverviewResponse | null>(null);
   const [chapterOverviewPosition, setChapterOverviewPosition] =
@@ -58,7 +52,6 @@ export function useReaderNotes({
       Promise<
         [
           PromiseSettledResult<EntityListItem[]>,
-          PromiseSettledResult<RecapResponse>,
           PromiseSettledResult<ChapterOverviewResponse>,
         ]
       >
@@ -70,7 +63,6 @@ export function useReaderNotes({
   const activeLookupPosition = selectedTextPosition ?? position;
   activeLookupPositionRef.current = activeLookupPosition;
 
-  const visibleRecap = recapPosition === position ? recap : null;
   const visibleChapterOverview =
     chapterOverviewPosition === position ? chapterOverview : null;
 
@@ -94,10 +86,6 @@ export function useReaderNotes({
     const requestId = ++notesRequestId.current;
     if (position === null) {
       setLookupEntityOptions([]);
-      setRecap(null);
-      setRecapPosition(null);
-      setRecapError(null);
-      setRecapLoading(false);
       setChapterOverview(null);
       setChapterOverviewPosition(null);
       setChapterOverviewError(null);
@@ -109,10 +97,6 @@ export function useReaderNotes({
 
     const requestPosition = position;
     const key = `${bookId}:${requestPosition}`;
-    setRecap(null);
-    setRecapPosition(null);
-    setRecapLoading(true);
-    setRecapError(null);
     setChapterOverview(null);
     setChapterOverviewPosition(null);
     setChapterOverviewLoading(true);
@@ -123,7 +107,6 @@ export function useReaderNotes({
       if (!request) {
         request = Promise.allSettled([
           getBookEntities(bookId, requestPosition),
-          getBookRecap(bookId, requestPosition),
           getChapterOverview(bookId, requestPosition),
         ]);
         notesInFlight.current.set(key, request);
@@ -134,7 +117,7 @@ export function useReaderNotes({
         });
       }
 
-      void request.then(([entitiesResult, recapResult, overviewResult]) => {
+      void request.then(([entitiesResult, overviewResult]) => {
         if (!active || requestId !== notesRequestId.current) {
           return;
         }
@@ -142,12 +125,6 @@ export function useReaderNotes({
           setLookupEntityOptions(entitiesResult.value);
         } else {
           setLookupEntityOptions([]);
-        }
-        if (recapResult.status === "fulfilled") {
-          setRecap(recapResult.value);
-          setRecapPosition(requestPosition);
-        } else {
-          setRecapError(getErrorMessage(recapResult.reason, copyRef.current));
         }
         if (overviewResult.status === "fulfilled") {
           setChapterOverview(overviewResult.value);
@@ -157,7 +134,6 @@ export function useReaderNotes({
             getErrorMessage(overviewResult.reason, copyRef.current),
           );
         }
-        setRecapLoading(false);
         setChapterOverviewLoading(false);
       });
     }, 250);
@@ -269,10 +245,6 @@ export function useReaderNotes({
     setLookupLoading(false);
   }
 
-  function clearRecapError() {
-    setRecapError(null);
-  }
-
   function clearChapterOverviewError() {
     setChapterOverviewError(null);
   }
@@ -304,11 +276,6 @@ export function useReaderNotes({
     changeLookupEntityName,
     retryLookup: () => void performLookup(lookupTerm, activeLookupPosition),
     captureSelectedText,
-    recap: visibleRecap,
-    recapLoading,
-    recapError,
-    clearRecapError,
-    retryRecap: () => setRetryNotes((attempt) => attempt + 1),
     chapterOverview: visibleChapterOverview,
     chapterOverviewLoading,
     chapterOverviewError,

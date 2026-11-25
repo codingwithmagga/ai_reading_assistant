@@ -19,6 +19,7 @@ import {
 } from "./api";
 import {
   ChapterOverview,
+  NotesExportPanel,
   NotesPanel,
   PositionControls,
   ReaderContent,
@@ -505,15 +506,18 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           <Typography className="chapter-position" color="text.secondary">
             {activeChapter?.title || `${copy.chapter} ${(activeChapter?.index ?? 0) + 1}`}
           </Typography>
+          <NotesExportPanel
+            copy={copy}
+            activeNotesPosition={activeNotesPosition}
+            loading={exportLoading}
+            error={exportError}
+            onExport={(format) => void exportNotes(format)}
+            onErrorDismiss={() => setExportError(null)}
+          />
         </div>
 
         <NotesPanel
           copy={copy}
-          activeNotesPosition={activeNotesPosition}
-          exportLoading={exportLoading}
-          exportError={exportError}
-          onExport={(format) => void exportNotes(format)}
-          onExportErrorDismiss={() => setExportError(null)}
           lookupTerm={notes.lookupTerm}
           lookupEntityType={notes.lookupEntityType}
           lookupEntityOptions={notes.lookupEntityOptions}
@@ -527,11 +531,6 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           onLookupRetry={notes.retryLookup}
           onLookupEntityTypeChange={notes.changeLookupEntityType}
           onLookupEntityNameChange={notes.changeLookupEntityName}
-          recap={notes.recap}
-          recapLoading={notes.recapLoading}
-          recapError={notes.recapError}
-          onRecapRetry={notes.retryRecap}
-          onRecapErrorDismiss={notes.clearRecapError}
           onJumpToSource={jumpToSource}
         />
       </div>

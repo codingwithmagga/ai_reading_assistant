@@ -266,7 +266,7 @@ body {
 
 .reader-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1rem;
 }
