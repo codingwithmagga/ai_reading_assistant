@@ -135,6 +135,7 @@ export function PositionControls({
         <Stack spacing={1.5} className="manual-position-fields">
           <TextField
             select
+            fullWidth
             size="small"
             label={copy.positionMethod}
               value={positionMethod}
@@ -154,6 +155,7 @@ export function PositionControls({
           {positionMethod === "chapter" ? (
             <TextField
               select
+              fullWidth
               size="small"
               label={copy.positionChapter}
                 value={manualChapterId}
