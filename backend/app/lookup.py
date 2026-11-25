@@ -249,3 +249,30 @@ def list_recap_events(
             .order_by(Fact.position, Entity.canonical_name, Entity.id, Fact.id)
         )
     )
+
+
+def list_chapter_overview_facts(
+    session: Session,
+    *,
+    book_id: str,
+    position: int,
+) -> list[tuple[Fact, Chapter, Entity]]:
+    return list(
+        session.execute(
+            select(Fact, Chapter, Entity)
+            .join(Chapter, Chapter.id == Fact.chapter_id)
+            .join(Entity, Entity.id == Fact.entity_id)
+            .where(
+                Fact.book_id == book_id,
+                Fact.position <= position,
+                Entity.first_position <= position,
+            )
+            .order_by(
+                Chapter.index,
+                Fact.position,
+                Entity.canonical_name,
+                Fact.kind,
+                Fact.id,
+            )
+        )
+    )

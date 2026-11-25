@@ -18,6 +18,8 @@ import {
   saveReadingProgress,
 } from "./api";
 import {
+  ChapterOverview,
+  NotesExportPanel,
   NotesPanel,
   PositionControls,
   ReaderContent,
@@ -57,6 +59,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [readerView, setReaderView] = useState<"reader" | "overview">("reader");
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -364,6 +367,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         <Button variant="outlined" onClick={onBack}>
           {copy.backToLibrary}
         </Button>
+        <Stack direction="row" spacing={1}>
+          <Button
+            variant={readerView === "reader" ? "contained" : "outlined"}
+            onClick={() => setReaderView("reader")}
+          >
+            {copy.readerView}
+          </Button>
+          <Button
+            variant={readerView === "overview" ? "contained" : "outlined"}
+            onClick={() => setReaderView("overview")}
+          >
+            {copy.chapterOverview}
+          </Button>
+        </Stack>
         <TextField
           select
           size="small"
@@ -430,6 +447,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         totalPositions={totalPositions}
       />
 
+      {readerView === "overview" ? (
+        <ChapterOverview
+          copy={copy}
+          overview={notes.chapterOverview}
+          loading={notes.chapterOverviewLoading}
+          error={notes.chapterOverviewError}
+          onRetry={notes.retryChapterOverview}
+          onErrorDismiss={notes.clearChapterOverviewError}
+          onJumpToSource={(chapterId, position) => {
+            setReaderView("reader");
+            jumpToSource(chapterId, position);
+          }}
+        />
+      ) : (
       <div className="reader-columns">
         <div className="reader-main">
           {progressError && (
@@ -475,15 +506,18 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           <Typography className="chapter-position" color="text.secondary">
             {activeChapter?.title || `${copy.chapter} ${(activeChapter?.index ?? 0) + 1}`}
           </Typography>
+          <NotesExportPanel
+            copy={copy}
+            activeNotesPosition={activeNotesPosition}
+            loading={exportLoading}
+            error={exportError}
+            onExport={(format) => void exportNotes(format)}
+            onErrorDismiss={() => setExportError(null)}
+          />
         </div>
 
         <NotesPanel
           copy={copy}
-          activeNotesPosition={activeNotesPosition}
-          exportLoading={exportLoading}
-          exportError={exportError}
-          onExport={(format) => void exportNotes(format)}
-          onExportErrorDismiss={() => setExportError(null)}
           lookupTerm={notes.lookupTerm}
           lookupEntityType={notes.lookupEntityType}
           lookupEntityOptions={notes.lookupEntityOptions}
@@ -497,14 +531,10 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           onLookupRetry={notes.retryLookup}
           onLookupEntityTypeChange={notes.changeLookupEntityType}
           onLookupEntityNameChange={notes.changeLookupEntityName}
-          recap={notes.recap}
-          recapLoading={notes.recapLoading}
-          recapError={notes.recapError}
-          onRecapRetry={notes.retryRecap}
-          onRecapErrorDismiss={notes.clearRecapError}
           onJumpToSource={jumpToSource}
         />
       </div>
+      )}
     </section>
   );
 }

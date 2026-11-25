@@ -7,5 +7,6 @@ export {
   getBookEntities,
   lookupBookEntity,
   getBookRecap,
+  getChapterOverview,
   getBookNotesExport,
 } from "./api/notes";

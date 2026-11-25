@@ -201,6 +201,13 @@ block-setting compatibility checks.
   additional model and sends no extra book text to OpenAI. Events are ordered
   by position, entity name, and ID; the character list follows entity-list
   ordering.
+- Provide a chapter overview grouped by chapter. It contains only extracted
+  facts whose positions and entities are known at the requested reading
+  position. Chapters without facts are omitted. Relationships are included only
+  when both endpoints are known and are assigned to the chapter containing
+  their relationship position. Source excerpts and positions remain available
+  for jumping back to the evidence. The MVP creates no additional model
+  summary and sends no extra book text to OpenAI.
 - `GET /books/{id}/export?position=1234`: returns book metadata and the
   position-filtered entities, aliases, facts, relationships, and recap events
   for JSON/Markdown downloads. The position is inclusive. Do not include

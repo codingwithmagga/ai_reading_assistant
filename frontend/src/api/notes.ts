@@ -4,6 +4,7 @@ import type {
   EntityType,
   NotesExportResponse,
   RecapResponse,
+  ChapterOverviewResponse,
 } from "../apiTypes";
 import {
   isArrayOf,
@@ -11,6 +12,7 @@ import {
   isEntityLookupResponse,
   isNotesExportResponse,
   isRecapResponse,
+  isChapterOverviewResponse,
 } from "./apiValidation";
 import { requestJson, validateReadingPosition } from "./apiRequest";
 
@@ -47,6 +49,18 @@ export function getBookRecap(bookId: string, position: number): Promise<RecapRes
   return requestJson(
     `/books/${encodeURIComponent(bookId)}/recap?${params.toString()}`,
     isRecapResponse,
+  );
+}
+
+export function getChapterOverview(
+  bookId: string,
+  position: number,
+): Promise<ChapterOverviewResponse> {
+  validateReadingPosition(position);
+  const params = new URLSearchParams({ position: String(position) });
+  return requestJson(
+    `/books/${encodeURIComponent(bookId)}/chapter-overview?${params.toString()}`,
+    isChapterOverviewResponse,
   );
 }
 

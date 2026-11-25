@@ -231,6 +231,40 @@ def test_recap_returns_only_position_filtered_events_and_characters(client: Test
             assert all(alias["first_position"] <= position for alias in character["aliases"])
 
 
+def test_chapter_overview_groups_only_position_filtered_facts(client: TestClient) -> None:
+    book_id = create_lookup_book(client)
+
+    response = client.get(
+        f"/books/{book_id}/chapter-overview",
+        params={"position": 2},
+    )
+
+    assert response.status_code == 200
+    overview = response.json()
+    assert overview["position"] == 2
+    assert len(overview["chapters"]) == 1
+    chapter = overview["chapters"][0]
+    assert chapter["index"] == 0
+    assert chapter["title"] == "Anfang"
+    assert [fact["text"] for fact in chapter["facts"]] == [
+        "Marta erscheint.",
+        "Das Dorf liegt am Fluss.",
+        "Marta führt den Laden.",
+    ]
+    assert all(fact["position"] <= 2 for fact in chapter["facts"])
+    assert all(fact["source_excerpt"] for fact in chapter["facts"])
+
+    later_response = client.get(
+        f"/books/{book_id}/chapter-overview",
+        params={"position": 5},
+    )
+    later_chapters = later_response.json()["chapters"]
+    assert [item["index"] for item in later_chapters] == [0, 1]
+    assert [fact["text"] for fact in later_chapters[1]["facts"]] == [
+        "Marta kennt den geheimen Plan.",
+    ]
+
+
 def test_recap_reports_position_errors_unknown_books_and_empty_extraction(
     client: TestClient,
 ) -> None:

@@ -17,7 +17,7 @@ import {
   EntityListItem,
   EntityLookupResponse,
   EntityType,
-  RecapResponse,
+  ChapterOverviewResponse,
 } from "./api";
 import { Copy, getEntityTypeLabel } from "./i18n";
 import { ErrorNotice } from "./ErrorNotice";
@@ -60,6 +60,157 @@ export function ReaderContent({
         </Typography>
       ))}
     </article>
+  );
+}
+
+export function NotesExportPanel({
+  copy,
+  activeNotesPosition,
+  loading,
+  error,
+  onExport,
+  onErrorDismiss,
+}: {
+  copy: Copy;
+  activeNotesPosition: number | null;
+  loading: boolean;
+  error: string | null;
+  onExport: (format: "json" | "markdown") => void;
+  onErrorDismiss: () => void;
+}) {
+  return (
+    <Card variant="outlined" className="notes-export-panel">
+      <CardContent>
+        <Typography component="h3" variant="h6" id="export-notes-heading">
+          {copy.exportNotes}
+        </Typography>
+        <Typography>
+          {copy.exportPosition}:{" "}
+          {activeNotesPosition === null ? "—" : activeNotesPosition + 1}
+        </Typography>
+        <Stack direction="row" spacing={1} flexWrap="wrap" className="export-actions">
+          <Button
+            variant="contained"
+            onClick={() => onExport("json")}
+            disabled={activeNotesPosition === null || loading}
+          >
+            {copy.exportJson}
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => onExport("markdown")}
+            disabled={activeNotesPosition === null || loading}
+          >
+            {copy.exportMarkdown}
+          </Button>
+        </Stack>
+        {loading && (
+          <Typography role="status" sx={{ mt: 1 }}>
+            {copy.exportingNotes}
+          </Typography>
+        )}
+        {error && (
+          <ErrorNotice
+            copy={copy}
+            message={`${copy.exportFailed} ${error}`}
+            onDismiss={onErrorDismiss}
+          />
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function ChapterOverview({
+  copy,
+  overview,
+  loading,
+  error,
+  onRetry,
+  onErrorDismiss,
+  onJumpToSource,
+}: {
+  copy: Copy;
+  overview: ChapterOverviewResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onErrorDismiss: () => void;
+  onJumpToSource: (chapterId: string, position: number) => void;
+}) {
+  if (loading) {
+    return <Typography role="status">{copy.loadingChapterOverview}</Typography>;
+  }
+  if (error) {
+    return (
+      <ErrorNotice
+        copy={copy}
+        message={`${copy.notesLoadFailed} ${error}`}
+        onDismiss={onErrorDismiss}
+      >
+        <Button size="small" variant="outlined" onClick={onRetry}>
+          {copy.retry}
+        </Button>
+      </ErrorNotice>
+    );
+  }
+  if (!overview || overview.chapters.length === 0) {
+    return <Typography className="empty-state">{copy.noChapterOverview}</Typography>;
+  }
+
+  return (
+    <div className="chapter-overview" aria-live="polite">
+      {overview.chapters.map((chapter) => (
+        <Card component="article" variant="outlined" key={chapter.id}>
+          <CardContent>
+            <Typography component="h2" variant="h6">
+              {chapter.title || `${copy.chapter} ${chapter.index + 1}`}
+            </Typography>
+            <Typography color="text.secondary" className="chapter-overview-status">
+              {copy.overviewPositionPrefix} {overview.position + 1}
+            </Typography>
+            <ul className="chapter-overview-facts">
+              {chapter.facts.map((fact) => (
+                <li key={fact.id}>
+                  <p>
+                    <strong>{fact.entity.canonical_name}:</strong> {fact.text}
+                  </p>
+                  <Typography component="p" variant="body2" color="text.secondary">
+                    {fact.kind} · {copy.positionLabel} {fact.position + 1}
+                  </Typography>
+                  <details className="source-excerpt">
+                    <summary>{copy.source}</summary>
+                    <blockquote>{fact.source_excerpt}</blockquote>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => onJumpToSource(chapter.id, fact.position)}
+                    >
+                      {copy.jumpToSource}
+                    </Button>
+                  </details>
+                </li>
+              ))}
+            </ul>
+            {chapter.relationships.length > 0 && (
+              <>
+                <Typography component="h3" variant="subtitle1">
+                  {copy.relationships}
+                </Typography>
+                <ul>
+                  {chapter.relationships.map((relationship) => (
+                    <li key={relationship.id}>
+                      {relationship.entity_a.canonical_name} {relationship.label}{" "}
+                      {relationship.entity_b.canonical_name}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ))}
+    </div>
   );
 }
 
@@ -200,11 +351,6 @@ export function PositionControls({
 
 interface NotesPanelProps {
   copy: Copy;
-  activeNotesPosition: number | null;
-  exportLoading: boolean;
-  exportError: string | null;
-  onExport: (format: "json" | "markdown") => void;
-  onExportErrorDismiss: () => void;
   lookupTerm: string;
   lookupEntityType: EntityType | "all";
   lookupEntityOptions: EntityListItem[];
@@ -218,21 +364,11 @@ interface NotesPanelProps {
   onLookupRetry: () => void;
   onLookupEntityTypeChange: (value: EntityType | "all") => void;
   onLookupEntityNameChange: (value: string) => void;
-  recap: RecapResponse | null;
-  recapLoading: boolean;
-  recapError: string | null;
-  onRecapRetry: () => void;
-  onRecapErrorDismiss: () => void;
   onJumpToSource: (chapterId: string, position: number) => void;
 }
 
 export function NotesPanel({
   copy,
-  activeNotesPosition,
-  exportLoading,
-  exportError,
-  onExport,
-  onExportErrorDismiss,
   lookupTerm,
   lookupEntityType,
   lookupEntityOptions,
@@ -246,11 +382,6 @@ export function NotesPanel({
   onLookupRetry,
   onLookupEntityTypeChange,
   onLookupEntityNameChange,
-  recap,
-  recapLoading,
-  recapError,
-  onRecapRetry,
-  onRecapErrorDismiss,
   onJumpToSource,
 }: NotesPanelProps) {
   const filteredEntityOptions =
@@ -274,43 +405,6 @@ export function NotesPanel({
           </Typography>
         </AccordionSummary>
         <AccordionDetails>
-        <section className="notes-data" aria-labelledby="export-notes-heading">
-          <Typography component="h3" variant="h6" id="export-notes-heading">
-            {copy.exportNotes}
-          </Typography>
-          <Typography>
-            {copy.exportPosition}:{" "}
-            {activeNotesPosition === null ? "—" : activeNotesPosition + 1}
-          </Typography>
-          <Stack direction="row" spacing={1} flexWrap="wrap" className="export-actions">
-            <Button
-              variant="contained"
-              onClick={() => onExport("json")}
-              disabled={activeNotesPosition === null || exportLoading}
-            >
-              {copy.exportJson}
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => onExport("markdown")}
-              disabled={activeNotesPosition === null || exportLoading}
-            >
-              {copy.exportMarkdown}
-            </Button>
-          </Stack>
-          {exportLoading && (
-            <Typography role="status" sx={{ mt: 1 }}>
-              {copy.exportingNotes}
-            </Typography>
-          )}
-          {exportError && (
-            <ErrorNotice
-              copy={copy}
-              message={`${copy.exportFailed} ${exportError}`}
-              onDismiss={onExportErrorDismiss}
-            />
-          )}
-        </section>
         <form className="lookup-form" onSubmit={onLookupSubmit}>
           <Typography component="label" htmlFor="entity-lookup" fontWeight={600}>
             {copy.searchEntity}
@@ -485,56 +579,6 @@ export function NotesPanel({
           </div>
         )}
 
-        <section
-          className="notes-data"
-          aria-labelledby="recap-heading"
-          aria-live="polite"
-          aria-busy={recapLoading}
-        >
-          <Typography component="h3" variant="h6" id="recap-heading">
-            {copy.recapTitle}
-          </Typography>
-          {recapLoading ? (
-            <Typography role="status">{copy.loadingRecap}</Typography>
-          ) : recapError ? (
-            <ErrorNotice
-              copy={copy}
-              message={`${copy.notesLoadFailed} ${recapError}`}
-              onDismiss={onRecapErrorDismiss}
-            >
-              <Button size="small" variant="outlined" onClick={onRecapRetry}>
-                {copy.retry}
-              </Button>
-            </ErrorNotice>
-          ) : recap && recap.events.length > 0 ? (
-            <ul>
-              {recap.events.map((event) => (
-                <li key={`${event.position}-${event.text}`}>
-                  <strong>
-                    {event.chapter_title ||
-                      `${copy.chapter} ${event.chapter_index + 1}`}
-                  </strong>
-                  <p>{event.text}</p>
-                  <details className="source-excerpt">
-                    <summary>{copy.source}</summary>
-                    <blockquote>{event.source_excerpt}</blockquote>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      onClick={() =>
-                        onJumpToSource(event.chapter_id, event.position)
-                      }
-                    >
-                      {copy.jumpToSource}
-                    </Button>
-                  </details>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <Typography className="empty-state">{copy.noRecapEvents}</Typography>
-          )}
-        </section>
         </AccordionDetails>
       </Accordion>
     </Card>

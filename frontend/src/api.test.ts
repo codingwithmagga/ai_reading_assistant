@@ -6,6 +6,7 @@ import {
   getBookJobs,
   getBookNotesExport,
   getBookRecap,
+  getChapterOverview,
   getBooks,
   getChapterContent,
   getChapters,
@@ -228,6 +229,26 @@ describe("notes API client", () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/books/book-id/recap?position=0",
+      undefined,
+    );
+  });
+
+  it("requests a chapter overview at the explicit reading position", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ position: 2, chapters: [] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await getChapterOverview("book-id", 2);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/books/book-id/chapter-overview?position=2",
       undefined,
     );
   });

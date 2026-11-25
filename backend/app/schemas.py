@@ -153,6 +153,30 @@ class RecapResponse(BaseModel):
     characters: list[EntityListItemResponse]
 
 
+class ChapterOverviewFactResponse(BaseModel):
+    id: str
+    text: str
+    kind: FactKind
+    position: int
+    source_excerpt: str
+    entity: LookupEntitySummaryResponse
+
+
+class ChapterOverviewChapterResponse(BaseModel):
+    id: str
+    index: int
+    title: str | None
+    start_position: int
+    end_position: int
+    facts: list[ChapterOverviewFactResponse]
+    relationships: list[LookupRelationshipResponse]
+
+
+class ChapterOverviewResponse(BaseModel):
+    position: int
+    chapters: list[ChapterOverviewChapterResponse]
+
+
 class NotesExportEntityResponse(LookupEntitySummaryResponse):
     aliases: list[EntityAliasResponse]
     facts: list[LookupFactResponse]

@@ -266,7 +266,7 @@ body {
 
 .reader-columns {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(17rem, 0.8fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1rem;
 }
@@ -326,6 +326,24 @@ body {
 
 .source-excerpt {
   margin-top: 0.75rem;
+}
+
+.chapter-overview {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.chapter-overview-facts {
+  padding-left: 1.25rem;
+}
+
+.chapter-overview-facts li + li {
+  margin-top: 0.75rem;
+}
+
+.chapter-overview-status {
+  margin-bottom: 0.75rem;
 }
 
 .source-excerpt summary {
