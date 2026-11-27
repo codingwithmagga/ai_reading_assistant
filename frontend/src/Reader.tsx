@@ -28,6 +28,7 @@ import { Copy, getErrorMessage } from "./i18n";
 import { downloadNotesExport } from "./notesExport";
 import { useReaderNotes } from "./useReaderNotes";
 import { ErrorNotice } from "./ErrorNotice";
+import { EventsView } from "./EventsView";
 import { StatusNotice } from "./StatusNotice";
 
 export interface ReaderProps {
@@ -59,7 +60,7 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [readerView, setReaderView] = useState<"reader" | "overview">("reader");
+  const [readerView, setReaderView] = useState<"reader" | "overview" | "events">("reader");
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -380,6 +381,12 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
           >
             {copy.chapterOverview}
           </Button>
+          <Button
+            variant={readerView === "events" ? "contained" : "outlined"}
+            onClick={() => setReaderView("events")}
+          >
+            {"Was ist passiert?"}
+          </Button>
         </Stack>
         <TextField
           select
@@ -447,7 +454,15 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
         totalPositions={totalPositions}
       />
 
-      {readerView === "overview" ? (
+      {readerView === "events" ? (
+        <Box sx={{ p: 2 }}>
+          <EventsView
+            bookId={book.id}
+            position={activeNotesPosition}
+            copy={copy}
+          />
+        </Box>
+      ) : readerView === "overview" ? (
         <ChapterOverview
           copy={copy}
           overview={notes.chapterOverview}

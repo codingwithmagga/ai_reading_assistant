@@ -203,3 +203,23 @@ class NotesExportResponse(BaseModel):
     entities: list[NotesExportEntityResponse]
     relationships: list[LookupRelationshipResponse]
     events: list[RecapEventResponse]
+
+
+class EventResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    book_id: str
+    position: int
+    chapter_id: str | None
+    paragraph_id: str | None
+    title: str
+    description: str
+    event_type: str | None
+    entities: list[str] | None
+    created_at: datetime
+
+
+class EventsListResponse(BaseModel):
+    events: list[EventResponse]
+    total: int

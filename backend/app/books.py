@@ -413,3 +413,56 @@ def _upload_response(book: Book, session: Session, *, reused: bool) -> UploadRes
         reused=reused,
         error=parsing_job.error if parsing_job is not None else None,
     )
+
+
+@router.get("/{book_id}/events", response_model=list[dict])
+def get_book_events(
+    book_id: str,
+    position: int | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    session: Session = Depends(get_session),
+) -> list[dict]:
+    """Get chronological events for a book, filtered by reading position.
+
+    Args:
+        book_id: ID of the book
+        position: Maximum position to include. If None, returns all events.
+        limit: Maximum number of events to return
+        offset: Number of events to skip for pagination
+
+    Returns:
+        List of events filtered by position
+    """
+    from app.models import Event
+
+    book = session.scalar(select(Book).where(Book.id == book_id))
+    if book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    query = select(Event).where(Event.book_id == book_id).order_by(Event.position)
+
+    if position is not None:
+        query = query.where(Event.position <= position)
+
+    total = len(session.scalars(query).all())
+
+    events = session.scalars(
+        query.limit(limit).offset(offset)
+    ).all()
+
+    return [
+        {
+            "id": event.id,
+            "book_id": event.book_id,
+            "position": event.position,
+            "chapter_id": event.chapter_id,
+            "paragraph_id": event.paragraph_id,
+            "title": event.title,
+            "description": event.description,
+            "event_type": event.event_type,
+            "entities": event.entities,
+            "created_at": event.created_at.isoformat(),
+        }
+        for event in events
+    ]
