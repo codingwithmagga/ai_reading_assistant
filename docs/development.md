@@ -8,17 +8,26 @@
 
 ## Run the application
 
-The recommended workflow starts the backend and frontend through Compose from
-the repository root:
+The recommended local workflow starts the production-style backend and
+frontend through Compose from the repository root:
 
 ```bash
 docker compose up --build
 ```
 
-The backend code directory is bind-mounted in development, and Uvicorn uses
-reload mode. Most Python source changes do not require rebuilding or
-reinstalling dependencies. Dependency changes in `pyproject.toml` rebuild the
-cached Docker dependency layer; Docker caches downloaded `uv` packages.
+This is the default Compose configuration: it does not bind source directories
+and Uvicorn does not use reload mode. The frontend port binds only to loopback
+by default. For Python source changes and Uvicorn reload mode, use the explicit
+development override:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --build
+```
+
+Do not name the development file `compose.override.yaml`; Compose loads that
+file automatically whenever `docker compose` is run. Keeping development opt-in
+prevents source mounts and reload mode from being enabled on a server by
+accident.
 
 The application is available at <http://localhost:8080>. To stop it:
 

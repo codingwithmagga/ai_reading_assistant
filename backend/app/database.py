@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from pathlib import Path
 from sqlite3 import Connection as SQLiteConnection
 
 from sqlalchemy import Engine, create_engine, event
@@ -13,6 +14,13 @@ def get_database_url() -> str:
 
 def create_database_engine(database_url: str | None = None) -> Engine:
     url = database_url or get_database_url()
+    if url.startswith("sqlite:///"):
+        sqlite_path = url.removeprefix("sqlite:///")
+        if sqlite_path != ":memory:":
+            Path(sqlite_path).expanduser().resolve().parent.mkdir(
+                parents=True,
+                exist_ok=True,
+            )
     engine = create_engine(url)
 
     if url.startswith("sqlite"):

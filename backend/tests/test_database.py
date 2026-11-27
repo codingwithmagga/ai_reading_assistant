@@ -79,6 +79,18 @@ def test_migration_creates_schema_on_empty_database(
         engine.dispose()
 
 
+def test_create_database_engine_creates_sqlite_parent_directory(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite:///{(tmp_path / 'missing' / 'reading.db').as_posix()}"
+
+    engine = create_database_engine(database_url)
+    try:
+        assert (tmp_path / "missing").is_dir()
+    finally:
+        engine.dispose()
+
+
 def test_extraction_schema_constraints_and_relationships(
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,

@@ -48,17 +48,48 @@ responses or book data.
 docker compose up --build
 ```
 
-The app is available at <http://localhost:8080>. Backend health and interactive
+The app is available only on the local machine at
+<http://127.0.0.1:8080>. Backend health and interactive
 OpenAPI documentation are at <http://localhost:8080/api/health> and
 <http://localhost:8080/api/docs>. Set `APP_PORT` in `.env` to change the local
-port. Book data is stored in the persistent Docker volume `reading-data`.
-Database migrations run automatically when the backend container starts. For a
-local backend installation, run `cd backend && alembic upgrade head`.
+port. Keep `APP_BIND_ADDRESS=127.0.0.1` for local-only use.
+Book data is stored in the persistent Docker volume `reading-data`.
+Database migrations run automatically when the backend container starts.
+
+For source-mount and reload-mode development, use the explicit override:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up --build
+```
+
+Do not name the development file `compose.override.yaml`: Compose loads that
+file automatically. The normal `docker compose up` command is therefore the
+production-style configuration.
+
+For a local backend installation, create the data directory and run migrations:
+
+```bash
+mkdir -p backend/data
+cd backend
+alembic upgrade head
+```
+
+The `.env.example` SQLite path is resolved from the repository root. Container
+SQLite continues to use `/app/data/reading_assistant.db` from the persistent
+`reading-data` volume.
 
 **Server deployment:** The current app has no authentication. Do not expose
 the published Compose port directly to the internet. Use a VPN and host
 firewall for personal server access; public access requires TLS and trusted
 authentication in front of the app.
+
+The loopback binding is only a network default, not authentication. For a
+server on a private network or VPN, keep the loopback default and proxy the
+application from the host or bind the host port to the VPN interface address.
+For an explicitly public reverse-proxy setup, set
+`APP_BIND_ADDRESS=0.0.0.0`, but only behind a firewall and a trusted reverse
+proxy with TLS. Tailscale ACLs and other access-control setups can be added
+later; they are not implemented in the application today.
 
 EPUB limits can be configured in `.env`:
 
