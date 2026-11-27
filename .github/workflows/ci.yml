@@ -48,12 +48,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build container images
-        run: docker compose -p ai-reading-assistant-ci build
+        run: docker compose -f compose.yaml -p ai-reading-assistant-ci build
       - name: Start isolated Compose stack
         env:
           APP_PORT: "18080"
           OPENAI_API_KEY: ""
-        run: docker compose -p ai-reading-assistant-ci up -d --wait
+        run: docker compose -f compose.yaml -p ai-reading-assistant-ci up -d --wait
       - name: Check backend health
         run: |
           curl --fail --silent --show-error \
@@ -61,4 +61,4 @@ jobs:
             http://127.0.0.1:18080/api/health
       - name: Clean up Compose stack
         if: always()
-        run: docker compose -p ai-reading-assistant-ci down -v --remove-orphans
+        run: docker compose -f compose.yaml -p ai-reading-assistant-ci down -v --remove-orphans

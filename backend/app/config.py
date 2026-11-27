@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from pydantic import Field, SecretStr, StringConstraints
+from pydantic import Field, SecretStr, StringConstraints, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -11,7 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=PROJECT_ROOT / ".env", extra="ignore")
 
-    database_url: str = "sqlite:///./reading_assistant.db"
+    database_url: str = "sqlite:///./backend/data/reading_assistant.db"
     openai_api_key: SecretStr | None = None
     openai_model: Annotated[
         str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)
@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     epub_max_upload_mb: int = Field(default=50, ge=1, le=500)
     epub_max_uncompressed_mb: int = Field(default=250, ge=1, le=2_000)
     epub_max_archive_entries: int = Field(default=5_000, ge=1, le=50_000)
+
+    @field_validator("database_url")
+    @classmethod
+    def normalize_database_url(cls, database_url: str) -> str:
+        if database_url.startswith("sqlite:////"):
+            return database_url
+        if database_url.startswith("sqlite:///"):
+            relative_path = database_url.removeprefix("sqlite:///")
+            absolute_path = (PROJECT_ROOT / relative_path).resolve()
+            return f"sqlite:///{absolute_path.as_posix()}"
+        return database_url
 
     @property
     def epub_max_upload_bytes(self) -> int:

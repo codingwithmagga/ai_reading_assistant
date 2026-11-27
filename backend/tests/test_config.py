@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.config import Settings
+from app.config import PROJECT_ROOT, Settings
 
 
 def test_settings_parse_database_and_epub_limits_from_environment(
@@ -23,6 +23,18 @@ def test_settings_parse_database_and_epub_limits_from_environment(
     assert settings.epub_max_upload_bytes == 12 * 1024 * 1024
     assert settings.epub_max_uncompressed_bytes == 80 * 1024 * 1024
     assert settings.epub_max_archive_entries == 1200
+
+
+def test_settings_resolve_relative_sqlite_path_from_project_root(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///./backend/data/test.db")
+
+    settings = Settings(_env_file=None)
+
+    assert settings.database_url == (
+        f"sqlite:///{(PROJECT_ROOT / 'backend/data/test.db').resolve().as_posix()}"
+    )
 
 
 def test_settings_parse_openai_configuration_from_environment(
