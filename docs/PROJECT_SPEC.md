@@ -293,7 +293,10 @@ Views:
    chapter references. Selected reader text can be looked up directly. The
    panel mirrors the current reading position by default and falls back to a
    manual chapter/percentage selection if the user is reading outside the app.
-4. **Position-selection fallback:** chapter/percentage selector for reading
+4. **Discovered-persons view:** an overall reader view of persons introduced
+   up to the active notes position, with known names, position-bounded facts,
+   and relationships between persons. Source jumps switch back to the reader.
+5. **Position-selection fallback:** chapter/percentage selector for reading
    outside the app.
 
 Requirements: responsive (mobile-first), PWA manifest, service worker for the

@@ -252,6 +252,204 @@ export function ChapterOverview({
   );
 }
 
+export function DiscoveredPersons({
+  copy,
+  persons,
+  overview,
+  loading,
+  error,
+  onRetry,
+  onErrorDismiss,
+  onJumpToSource,
+}: {
+  copy: Copy;
+  persons: EntityListItem[];
+  overview: ChapterOverviewResponse | null;
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+  onErrorDismiss: () => void;
+  onJumpToSource: (chapterId: string, position: number) => void;
+}) {
+  if (loading) {
+    return <Typography role="status">{copy.loadingDiscoveredPersons}</Typography>;
+  }
+  if (error) {
+    return (
+      <ErrorNotice
+        copy={copy}
+        message={`${copy.notesLoadFailed} ${error}`}
+        onDismiss={onErrorDismiss}
+      >
+        <Button size="small" variant="outlined" onClick={onRetry}>
+          {copy.retry}
+        </Button>
+      </ErrorNotice>
+    );
+  }
+
+  const peopleById = new Map(
+    persons
+      .filter((person) => person.type === "person")
+      .map((person) => [person.id, person]),
+  );
+  for (const chapter of overview?.chapters ?? []) {
+    for (const fact of chapter.facts) {
+      if (
+        fact.entity.type === "person" &&
+        !peopleById.has(fact.entity.id)
+      ) {
+        peopleById.set(fact.entity.id, {
+          id: fact.entity.id,
+          type: "person",
+          canonical_name: fact.entity.canonical_name,
+          first_position: fact.entity.first_position,
+          aliases: [],
+        });
+      }
+    }
+  }
+  const people = Array.from(peopleById.values()).sort(
+    (left, right) =>
+      left.first_position - right.first_position ||
+      left.canonical_name.localeCompare(right.canonical_name) ||
+      left.id.localeCompare(right.id),
+  );
+
+  if (people.length === 0) {
+    return <Typography className="empty-state">{copy.noDiscoveredPersons}</Typography>;
+  }
+
+  const relationships = (overview?.chapters ?? [])
+    .flatMap((chapter) => chapter.relationships)
+    .filter(
+      (relationship) =>
+        relationship.entity_a.type === "person" &&
+        relationship.entity_b.type === "person",
+    );
+
+  return (
+    <div className="discovered-persons" aria-live="polite">
+      {overview && (
+        <Typography color="text.secondary" className="discovered-persons-status">
+          {copy.discoveredPersonsPositionPrefix} {overview.position + 1}
+        </Typography>
+      )}
+      <div className="discovered-person-grid">
+        {people.map((person) => {
+          const facts = (overview?.chapters ?? [])
+            .flatMap((chapter) =>
+              chapter.facts
+                .filter((fact) => fact.entity.id === person.id)
+                .map((fact) => ({ fact, chapter })),
+            )
+            .sort(
+              (left, right) =>
+                left.fact.position - right.fact.position ||
+                left.fact.id.localeCompare(right.fact.id),
+            );
+          return (
+            <Card component="article" variant="outlined" key={person.id}>
+              <CardContent>
+                <Typography component="h2" variant="h6">
+                  {person.canonical_name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {copy.positionLabel} {person.first_position + 1}
+                </Typography>
+                {person.aliases.length > 0 && (
+                  <>
+                    <Typography component="h3" variant="subtitle1" sx={{ mt: 1.5 }}>
+                      {copy.personAliases}
+                    </Typography>
+                    <ul>
+                      {person.aliases.map((alias) => (
+                        <li key={`${alias.alias}-${alias.first_position}`}>
+                          {alias.alias}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                <Typography component="h3" variant="subtitle1" sx={{ mt: 1.5 }}>
+                  {copy.personFacts}
+                </Typography>
+                {facts.length === 0 ? (
+                  <Typography color="text.secondary">{copy.noPersonFacts}</Typography>
+                ) : (
+                  <ul className="person-facts">
+                    {facts.map(({ fact, chapter }) => (
+                      <li key={fact.id}>
+                        <p>{fact.text}</p>
+                        <Typography component="p" variant="body2" color="text.secondary">
+                          {fact.kind} · {copy.positionLabel} {fact.position + 1}
+                        </Typography>
+                        <details className="source-excerpt">
+                          <summary>{copy.source}</summary>
+                          <blockquote>{fact.source_excerpt}</blockquote>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            onClick={() => onJumpToSource(chapter.id, fact.position)}
+                          >
+                            {copy.jumpToSource}
+                          </Button>
+                        </details>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+      <Card variant="outlined" className="discovered-person-relationships">
+        <CardContent>
+          <Typography component="h2" variant="h6">
+            {copy.personRelationships}
+          </Typography>
+          {relationships.length === 0 ? (
+            <Typography color="text.secondary">{copy.noPersonRelationships}</Typography>
+          ) : (
+            <ul>
+              {relationships.map((relationship) => {
+                const chapter = overview?.chapters.find(
+                  (item) =>
+                    item.start_position <= relationship.position &&
+                    relationship.position <= item.end_position,
+                );
+                return (
+                  <li key={relationship.id}>
+                    <span>
+                      {relationship.entity_a.canonical_name} {relationship.label}{" "}
+                      {relationship.entity_b.canonical_name}
+                    </span>{" "}
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      · {copy.positionLabel} {relationship.position + 1}
+                    </Typography>
+                    {chapter && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() =>
+                          onJumpToSource(chapter.id, relationship.position)
+                        }
+                      >
+                        {copy.jumpToSource}
+                      </Button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export function PositionControls({
   activeNotesPosition,
   chapters,

@@ -1321,6 +1321,128 @@ describe("App", () => {
     });
   });
 
+  it("shows discovered persons and their spoiler-filtered relationships", async () => {
+    vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
+    vi.mocked(api.getBooks).mockResolvedValue([book]);
+    vi.mocked(api.getChapters).mockResolvedValue([
+      {
+        id: "chapter-1",
+        book_id: book.id,
+        index: 0,
+        title: "First chapter",
+        start_position: 0,
+        end_position: 2,
+      },
+    ]);
+    vi.mocked(api.getReadingProgress).mockResolvedValue({
+      book_id: book.id,
+      current_position: 2,
+    });
+    vi.mocked(api.getChapterContent).mockResolvedValue({
+      id: "chapter-1",
+      book_id: book.id,
+      index: 0,
+      title: "First chapter",
+      start_position: 0,
+      end_position: 2,
+      paragraphs: [
+        {
+          id: "paragraph-0",
+          chapter_id: "chapter-1",
+          position: 0,
+          text: "Liora enters.",
+        },
+        {
+          id: "paragraph-1",
+          chapter_id: "chapter-1",
+          position: 1,
+          text: "Mara appears.",
+        },
+        {
+          id: "paragraph-2",
+          chapter_id: "chapter-1",
+          position: 2,
+          text: "They make a promise.",
+        },
+      ],
+    });
+    vi.mocked(api.getBookEntities).mockResolvedValue([
+      {
+        id: "liora",
+        type: "person",
+        canonical_name: "Liora",
+        first_position: 0,
+        aliases: [{ alias: "the traveler", first_position: 1 }],
+      },
+      {
+        id: "mara",
+        type: "person",
+        canonical_name: "Mara",
+        first_position: 1,
+        aliases: [],
+      },
+    ]);
+    vi.mocked(api.getChapterOverview).mockResolvedValue({
+      position: 2,
+      chapters: [
+        {
+          id: "chapter-1",
+          index: 0,
+          title: "First chapter",
+          start_position: 0,
+          end_position: 2,
+          facts: [
+            {
+              id: "fact-liora",
+              text: "Liora keeps a secret.",
+              kind: "motivation",
+              position: 2,
+              source_excerpt: "She kept a secret.",
+              entity: {
+                id: "liora",
+                type: "person",
+                canonical_name: "Liora",
+                first_position: 0,
+              },
+            },
+          ],
+          relationships: [
+            {
+              id: "relationship-1",
+              entity_a: {
+                id: "liora",
+                type: "person",
+                canonical_name: "Liora",
+                first_position: 0,
+              },
+              entity_b: {
+                id: "mara",
+                type: "person",
+                canonical_name: "Mara",
+                first_position: 1,
+              },
+              label: "trusts",
+              position: 2,
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Lesen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Entdeckte Personen" }),
+    );
+
+    expect(await screen.findByRole("heading", { name: "Liora" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Mara" })).toBeInTheDocument();
+    expect(screen.getByText("the traveler")).toBeInTheDocument();
+    expect(screen.getByText("Liora keeps a secret.", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText("Liora trusts Mara")).toBeInTheDocument();
+    expect(api.getBookEntities).toHaveBeenCalledWith(book.id, 2);
+  });
+
   it("keeps the reader usable and retries when a notes request fails", async () => {
     vi.stubGlobal("IntersectionObserver", TestIntersectionObserver);
     vi.mocked(api.getBooks).mockResolvedValue([book]);

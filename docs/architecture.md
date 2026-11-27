@@ -79,6 +79,9 @@ navigation boundaries is rejected instead of silently remapping saved data.
 - The reader offers a chapter-overview view. Its backend response is position
   filtered and grouped by chapter; the frontend switches to the source passage
   before jumping to an overview fact.
+- The reader offers a discovered-persons view. It combines the position-filtered
+  person list with chapter facts and person-to-person relationships, and jumps
+  back to the filtered source position where evidence or a relationship occurs.
 - `src/apiTypes.ts` holds frontend API data types.
 - `src/api/apiRequest.ts`, `src/api/apiValidation.ts`, and the domain modules
   under `src/api/` own HTTP transport, runtime validation, and grouped backend

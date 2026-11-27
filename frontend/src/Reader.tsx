@@ -19,6 +19,7 @@ import {
 } from "./api";
 import {
   ChapterOverview,
+  DiscoveredPersons,
   NotesExportPanel,
   NotesPanel,
   PositionControls,
@@ -60,7 +61,9 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
   const [manualPositionError, setManualPositionError] = useState<string | null>(null);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [readerView, setReaderView] = useState<"reader" | "overview" | "events">("reader");
+  const [readerView, setReaderView] = useState<
+    "reader" | "overview" | "persons" | "events"
+  >("reader");
   const latestPosition = useRef<number | null>(null);
   const progressQueue = useRef<Promise<void>>(Promise.resolve());
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -382,6 +385,12 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
             {copy.chapterOverview}
           </Button>
           <Button
+            variant={readerView === "persons" ? "contained" : "outlined"}
+            onClick={() => setReaderView("persons")}
+          >
+            {copy.discoveredPersons}
+          </Button>
+          <Button
             variant={readerView === "events" ? "contained" : "outlined"}
             onClick={() => setReaderView("events")}
           >
@@ -462,6 +471,20 @@ export function Reader({ book, copy, onBack }: ReaderProps) {
             copy={copy}
           />
         </Box>
+      ) : readerView === "persons" ? (
+        <DiscoveredPersons
+          copy={copy}
+          persons={notes.lookupEntityOptions}
+          overview={notes.chapterOverview}
+          loading={notes.chapterOverviewLoading}
+          error={notes.lookupEntityError ?? notes.chapterOverviewError}
+          onRetry={notes.retryChapterOverview}
+          onErrorDismiss={notes.clearChapterOverviewError}
+          onJumpToSource={(chapterId, position) => {
+            setReaderView("reader");
+            jumpToSource(chapterId, position);
+          }}
+        />
       ) : readerView === "overview" ? (
         <ChapterOverview
           copy={copy}

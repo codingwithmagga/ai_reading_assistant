@@ -42,6 +42,7 @@ export function useReaderNotes({
     useState<number | null>(null);
   const [chapterOverviewLoading, setChapterOverviewLoading] = useState(false);
   const [chapterOverviewError, setChapterOverviewError] = useState<string | null>(null);
+  const [lookupEntityError, setLookupEntityError] = useState<string | null>(null);
   const [retryNotes, setRetryNotes] = useState(0);
   const lookupRequestId = useRef(0);
   const notesRequestId = useRef(0);
@@ -89,6 +90,7 @@ export function useReaderNotes({
       setChapterOverview(null);
       setChapterOverviewPosition(null);
       setChapterOverviewError(null);
+      setLookupEntityError(null);
       setChapterOverviewLoading(false);
       return () => {
         active = false;
@@ -99,8 +101,10 @@ export function useReaderNotes({
     const key = `${bookId}:${requestPosition}`;
     setChapterOverview(null);
     setChapterOverviewPosition(null);
+    setLookupEntityOptions([]);
     setChapterOverviewLoading(true);
     setChapterOverviewError(null);
+    setLookupEntityError(null);
 
     const timer = window.setTimeout(() => {
       let request = notesInFlight.current.get(key);
@@ -125,6 +129,9 @@ export function useReaderNotes({
           setLookupEntityOptions(entitiesResult.value);
         } else {
           setLookupEntityOptions([]);
+          setLookupEntityError(
+            getErrorMessage(entitiesResult.reason, copyRef.current),
+          );
         }
         if (overviewResult.status === "fulfilled") {
           setChapterOverview(overviewResult.value);
@@ -247,6 +254,7 @@ export function useReaderNotes({
 
   function clearChapterOverviewError() {
     setChapterOverviewError(null);
+    setLookupEntityError(null);
   }
 
   function changeLookupEntityType(value: EntityType | "all") {
@@ -279,6 +287,7 @@ export function useReaderNotes({
     chapterOverview: visibleChapterOverview,
     chapterOverviewLoading,
     chapterOverviewError,
+    lookupEntityError,
     clearChapterOverviewError,
     retryChapterOverview: () => setRetryNotes((attempt) => attempt + 1),
   };

@@ -357,6 +357,32 @@ body {
   margin-bottom: 0.75rem;
 }
 
+.discovered-persons {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.discovered-persons-status {
+  margin-bottom: -0.25rem;
+}
+
+.discovered-person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+}
+
+.person-facts,
+.discovered-person-relationships ul {
+  padding-left: 1.25rem;
+}
+
+.person-facts li + li,
+.discovered-person-relationships li + li {
+  margin-top: 0.75rem;
+}
+
 .source-excerpt summary {
   cursor: pointer;
   font-weight: 600;
