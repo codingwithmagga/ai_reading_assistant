@@ -122,7 +122,11 @@ export function NotesExportPanel({
           {copy.exportPosition}:{" "}
           {activeNotesPosition === null ? "—" : activeNotesPosition + 1}
         </Typography>
-        <Stack direction="row" spacing={1} flexWrap="wrap" className="export-actions">
+        <div
+          role="group"
+          aria-label={copy.exportNotes}
+          className="export-actions"
+        >
           <Button
             variant="contained"
             onClick={() => onExport("json")}
@@ -137,7 +141,7 @@ export function NotesExportPanel({
           >
             {copy.exportMarkdown}
           </Button>
-        </Stack>
+        </div>
         {loading && (
           <Typography role="status" sx={{ mt: 1 }}>
             {copy.exportingNotes}

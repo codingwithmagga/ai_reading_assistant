@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ReaderContent } from "./ReaderComponents";
+import { NotesExportPanel, ReaderContent } from "./ReaderComponents";
 
 describe("ReaderContent", () => {
   it("renders approved rich-text segments as semantic formatting", () => {
@@ -37,6 +37,32 @@ describe("ReaderContent", () => {
     );
 
     expect(screen.getByText("wichtiger").tagName).toBe("STRONG");
+  });
+
+  describe("NotesExportPanel", () => {
+    it("renders aligned JSON and Markdown export actions", () => {
+      render(
+        <NotesExportPanel
+          copy={{
+            exportNotes: "Notizen exportieren",
+            exportPosition: "Enthält Wissen bis einschließlich Position",
+            exportJson: "JSON herunterladen",
+            exportMarkdown: "Markdown herunterladen",
+            exportingNotes: "Export wird erstellt",
+          } as never}
+          activeNotesPosition={0}
+          loading={false}
+          error={null}
+          onExport={() => undefined}
+          onErrorDismiss={() => undefined}
+        />,
+      );
+
+      const actions = screen.getByRole("group", { name: "Notizen exportieren" });
+      expect(actions).toHaveClass("export-actions");
+      expect(screen.getByRole("button", { name: "JSON herunterladen" })).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Markdown herunterladen" })).toBeEnabled();
+    });
   });
 
   it("falls back to plain text when rich text is unavailable", () => {
