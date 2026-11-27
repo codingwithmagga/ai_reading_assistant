@@ -286,11 +286,22 @@ body {
   margin: 1rem 0;
 }
 
-.lookup-actions,
-.export-actions {
+.lookup-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
+}
+
+.export-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 0.5rem;
+}
+
+.export-actions .MuiButton-root {
+  width: 100%;
+  min-width: 0;
 }
 
 .help-text,
@@ -370,6 +381,10 @@ body {
   .app-shell {
     width: min(100% - 1.25rem, 68rem);
     padding-top: 1rem;
+  }
+
+  .export-actions {
+    grid-template-columns: 1fr;
   }
 
   .app-header {
