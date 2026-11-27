@@ -445,11 +445,7 @@ def get_book_events(
     if position is not None:
         query = query.where(Event.position <= position)
 
-    total = len(session.scalars(query).all())
-
-    events = session.scalars(
-        query.limit(limit).offset(offset)
-    ).all()
+    events = session.scalars(query.limit(limit).offset(offset)).all()
 
     return [
         {

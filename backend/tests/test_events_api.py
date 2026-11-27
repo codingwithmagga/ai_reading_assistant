@@ -2,9 +2,8 @@
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import sessionmaker
 
-from app.database import get_session
 from app.models import Book, Chapter, Event, Paragraph
 
 
@@ -13,11 +12,8 @@ def test_book(client: TestClient) -> tuple[Book, str]:
     """Create a test book with chapters and paragraphs."""
     # We'll add the book directly through the database to avoid API dependencies
     app = client.app
-    with app.state.test_engine.begin() as conn:
-        from sqlalchemy.orm import sessionmaker
-        SessionLocal = sessionmaker(bind=app.state.test_engine)
-        session = SessionLocal()
-
+    SessionLocal = sessionmaker(bind=app.state.test_engine)
+    with SessionLocal() as session:
         book = Book(
             id="test-book-1",
             title="Test Book",
@@ -65,11 +61,8 @@ def test_events(client: TestClient, test_book: tuple[Book, str]) -> list[Event]:
     """Create test events for a book."""
     book, book_id = test_book
     app = client.app
-    with app.state.test_engine.begin() as conn:
-        from sqlalchemy.orm import sessionmaker
-        SessionLocal = sessionmaker(bind=app.state.test_engine)
-        session = SessionLocal()
-
+    SessionLocal = sessionmaker(bind=app.state.test_engine)
+    with SessionLocal() as session:
         events = [
             Event(
                 id="event-1",
@@ -104,7 +97,9 @@ def test_events(client: TestClient, test_book: tuple[Book, str]) -> list[Event]:
         return events
 
 
-def test_get_events_no_position_filter(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_no_position_filter(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test retrieving all events for a book without position filter."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events")
@@ -117,7 +112,9 @@ def test_get_events_no_position_filter(client: TestClient, test_book: tuple[Book
     assert data[2]["title"] == "Climax"
 
 
-def test_get_events_with_position_filter(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_with_position_filter(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test retrieving events filtered by position."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events?position=35")
@@ -142,7 +139,9 @@ def test_get_events_with_strict_position_boundary(
     assert any(e["title"] == "Discovery" for e in data)
 
 
-def test_get_events_beyond_all_positions(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_beyond_all_positions(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test retrieving all events when position is beyond the last event."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events?position=100")
@@ -152,7 +151,9 @@ def test_get_events_beyond_all_positions(client: TestClient, test_book: tuple[Bo
     assert len(data) == 3
 
 
-def test_get_events_before_first_event(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_before_first_event(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test retrieving no events when position is before the first event."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events?position=5")
@@ -168,7 +169,9 @@ def test_get_events_nonexistent_book(client: TestClient) -> None:
     assert response.status_code == 404
 
 
-def test_get_events_pagination(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_pagination(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test pagination parameters for events."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events?limit=2&offset=0")
@@ -178,7 +181,9 @@ def test_get_events_pagination(client: TestClient, test_book: tuple[Book, str], 
     assert len(data) == 2
 
 
-def test_get_events_pagination_offset(client: TestClient, test_book: tuple[Book, str], test_events: list[Event]) -> None:
+def test_get_events_pagination_offset(
+    client: TestClient, test_book: tuple[Book, str], test_events: list[Event]
+) -> None:
     """Test pagination offset parameter."""
     book, book_id = test_book
     response = client.get(f"/books/{book_id}/events?limit=2&offset=1")
