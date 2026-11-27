@@ -181,3 +181,21 @@ export interface NotesExportResponse {
   relationships: LookupRelationship[];
   events: RecapEvent[];
 }
+
+export interface TimelineEvent {
+  id: string;
+  book_id: string;
+  position: number;
+  chapter_id: string | null;
+  paragraph_id: string | null;
+  title: string;
+  description: string;
+  event_type: string | null;
+  entities: string[] | null;
+  created_at: string;
+}
+
+export interface TimelineEventsResponse {
+  events: TimelineEvent[];
+  total: number;
+}

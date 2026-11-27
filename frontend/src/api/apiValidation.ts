@@ -23,6 +23,7 @@ import type {
   ChapterOverviewResponse,
   NotesExportEntity,
   NotesExportResponse,
+  TimelineEvent,
 } from "../apiTypes";
 
 export interface ApiErrorDetail {
@@ -205,4 +206,22 @@ export function isNotesExportResponse(value: unknown): value is NotesExportRespo
     isArrayOf(value.entities, isNotesExportEntity) &&
     isArrayOf(value.relationships, isLookupRelationship) &&
     isArrayOf(value.events, isRecapEvent);
+}
+
+export function isTimelineEvent(value: unknown): value is TimelineEvent {
+  return isRecord(value) && isString(value.id) && isString(value.book_id) &&
+    isNonNegativeInteger(value.position) &&
+    (value.chapter_id === null || isString(value.chapter_id)) &&
+    (value.paragraph_id === null || isString(value.paragraph_id)) &&
+    isString(value.title) && isString(value.description) &&
+    (value.event_type === null || isString(value.event_type)) &&
+    (value.entities === null || isArrayOf(value.entities, isString)) &&
+    isString(value.created_at);
+}
+
+export function validateEvents(value: unknown): TimelineEvent[] {
+  if (!isArrayOf(value, isTimelineEvent)) {
+    throw new Error("Invalid events response format");
+  }
+  return value;
 }

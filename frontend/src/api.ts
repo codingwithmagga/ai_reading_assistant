@@ -10,3 +10,4 @@ export {
   getChapterOverview,
   getBookNotesExport,
 } from "./api/notes";
+export { getBookEvents } from "./api/events";

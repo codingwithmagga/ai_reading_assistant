@@ -79,6 +79,11 @@ class Book(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    events: Mapped[list["Event"]] = relationship(
+        back_populates="book",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
 
 class Chapter(Base):
@@ -391,3 +396,35 @@ class Relationship(Base):
         back_populates="relationships_to",
         foreign_keys=[entity_b_id],
     )
+
+
+class Event(Base):
+    __tablename__ = "events"
+    __table_args__ = (
+        CheckConstraint("position >= 0", name="ck_events_position_nonnegative"),
+        Index("ix_events_book_position", "book_id", "position"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    book_id: Mapped[str] = mapped_column(
+        ForeignKey("books.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    chapter_id: Mapped[str | None] = mapped_column(
+        ForeignKey("chapters.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    paragraph_id: Mapped[str | None] = mapped_column(
+        ForeignKey("paragraphs.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    event_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    entities: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    book: Mapped[Book] = relationship(back_populates="events")
+    chapter: Mapped[Chapter | None] = relationship()
+    paragraph: Mapped[Paragraph | None] = relationship()
